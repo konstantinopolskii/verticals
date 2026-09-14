@@ -1,0 +1,77 @@
+-- verticals/db/migrations/004_path_format.sql — one CHECK constraint, `path_well_formed`, making
+-- the materialised-path format a database invariant rather than a convention `core/tree.py`'s
+-- string formatting alone happens to uphold.
+--
+-- Why this exists. `core/board.py`'s descendant-count LATERAL used to read
+-- `starts_with(d.path, cards.path) AND d.id <> cards.id` — correct for any path string, but a
+-- `Seq Scan` under LATERAL correlation (measured: 623.6ms on F4-5670, 186880 of 191141 buffer
+-- hits from that one lateral). It now reads an explicit `text_pattern_ops` range so `goals_path
+-- (owner, path text_pattern_ops)` can serve it under correlation (measured: 13.4ms, Index Scan):
+--
+--   d.path OPERATOR(pg_catalog.~>=~) cards.path
+--   AND d.path OPERATOR(pg_catalog.~<~) (left(cards.path, -1) || '0')
+--
+-- `starts_with()` was format-agnostic. The range bound is not: `left(path, -1) || '0'` strips
+-- the path's actual last byte and appends '0' (0x30) — this is the correct exclusive successor
+-- of a byte-prefix range if and only if the byte it stripped was '/' (0x2F, one below '0'). If a
+-- path ever lacked its trailing slash, `left(path,-1)` would strip some other byte instead, and
+-- the resulting bound would either wrongly admit non-descendants (stripped byte < '/') or —
+-- for every path this codebase can actually produce, since ids are base62 and every base62
+-- character has byte value >= '0' (0x30) — collapse to an empty or inverted range, and
+-- `progress` would silently read 0/0 for that goal. No error, no log line, a wrong number on
+-- the board. `core/board.py`'s own comment above the `prog` lateral carries the full measurement
+-- and the plan-level argument; this migration is what makes that comment's assumption load-
+-- bearing rather than aspirational.
+--
+-- The constraint, and why this shape and no other. `path LIKE '/%/'` requires the first and
+-- last byte to be '/' (with at least the two slashes themselves present — the empty string and
+-- a bare '/' both fail this). `path NOT LIKE '%//%'` additionally refuses an empty segment
+-- anywhere in the middle — without it, '//' alone would satisfy the first clause (its one
+-- character serves as both "first" and "last" '/') and so would '/A//B/'. Together the two
+-- clauses admit exactly `/seg1/seg2/.../segN/` for N >= 1 with every segN non-empty and
+-- containing no '/' — precisely what a root goal's `/{id}/` and a nested goal's
+-- `{parent_path}{id}/` (`core/tree.py:238,248,345,385`) always produce, and nothing else.
+--
+-- Only the trailing-slash half of this is what the successor bound actually needs — proved in
+-- both directions (a string has `path` as a byte-prefix if and only if it sorts in
+-- `[path, left(path,-1)||'0')`) in `tests/core/test_board.py`'s
+-- `test_successor_bound_is_sound_and_complete_under_the_constraint_f4_5670`, which is exactly
+-- the property this constraint exists to guarantee and the reason it is a CHECK rather than a
+-- comment. The leading-slash and no-empty-segment clauses are not required by that proof; they
+-- are kept because they are what makes `path` a well-formed materialised path at all — the same
+-- shape the ancestors LATERAL's `unnest(string_to_array(btrim(cards.path, '/'), '/'))` and
+-- AC-203's tree-invariant depth formula `(length(path) - length(replace(path,'/','')))  - 2`
+-- both already assume — so one constraint states the one invariant the rest of the module reads
+-- off `path`, rather than half of it.
+--
+-- Why a CHECK and not only application discipline. `core/tree.py` writes every path correctly
+-- today and IR-05's id alphabet (base62: `string.ascii_letters + string.digits`, `core/goals.py`
+-- `_ID_ALPHABET`) contains no '/', so nothing this codebase's own writers do can violate this.
+-- Neither of those is enforced anywhere a bypass write would see it: `id TEXT PRIMARY KEY`
+-- carries no CHECK pinning its alphabet (`core/tree.py`'s own `_escape_like` docstring already
+-- notes this), and `path TEXT NOT NULL` (001_init.sql:29) constrained nothing about shape. A
+-- future bulk import, repair script, hand-run `UPDATE`, or a new MCP tool that builds `path`
+-- itself rather than calling `core/tree.py#attach`/`move`/`detach` can write any string here
+-- today, silently, and every progress count on the board is downstream of it being right.
+--
+-- Why LIKE and not a regex. A POSIX `path ~ '^/([^/]+/)+$'` would accept and reject the same set
+-- of strings — checked by hand against every case below — so this is not a correctness choice.
+-- Two LIKE clauses match this codebase's own existing precedent (`_escape_like`/`ESCAPE '\'`
+-- throughout `core/tree.py` and `core/search.py`) rather than introducing regex syntax nowhere
+-- else in the schema, and a literal-prefix/suffix LIKE is unambiguously cheap to evaluate per
+-- row; a regex engine is not obviously so, and there is no reason to spend the difference.
+--
+-- Verified against a real Postgres 16 (this cluster, 2026-08-09) before being added: every row
+-- already loaded by every harness-built fixture — F1 (6 rows), F1u (8), F2 (49), F4-567,
+-- F4-5670, F4-56700 (567 / 5670 / 56700), 63347 rows total — satisfies this constraint with zero
+-- violations, checked directly against the boolean expression below prior to this file existing.
+-- `tests/core/test_constraints.py` extends S-05's own idiom with the four bad shapes this
+-- constraint exists to catch (no leading slash, no trailing slash, empty string, an embedded
+-- '//') and the two good shapes (root `/{id}/`, nested `/{a}/{b}/`), each proven against this
+-- real cluster, not asserted from reasoning alone.
+--
+-- No index is added: `path_well_formed` is evaluated per row on write, the same as every other
+-- CHECK in 001_init.sql, and needs none of its own.
+
+ALTER TABLE goals
+  ADD CONSTRAINT path_well_formed CHECK (path LIKE '/%/' AND path NOT LIKE '%//%');

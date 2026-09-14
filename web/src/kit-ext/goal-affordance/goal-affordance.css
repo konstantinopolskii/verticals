@@ -1,0 +1,18 @@
+.goal-affordance {
+  position: static;
+  width: var(--space-4);
+  height: var(--space-4);
+  flex: 0 0 var(--space-4);
+  background: transparent;
+}
+.goal-affordance .goal-affordance__square {
+  background-color: var(--goal-affordance-background, #d7d7d7);
+  border: 0;
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 12%);
+}
+
+.goal-affordance .checkbox__input:checked + .goal-affordance__square {
+  background-color: var(--goal-affordance-background, #d7d7d7) !important;
+  border-color: transparent !important;
+  color: var(--goal-affordance-check-color, rgb(73 76 84 / 65%));
+}

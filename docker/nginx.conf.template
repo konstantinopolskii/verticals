@@ -1,0 +1,91 @@
+# nginx config template. `docker/entrypoint.sh` substitutes `__VERTICALS_TOKEN__` for the token
+# it generated (or read back) and writes the result to /run/verticals/nginx.conf at mode 0600,
+# on tmpfs, never into a layer and never into the image.
+#
+# WHY THE PROXY SETS THE AUTHORIZATION HEADER.
+# Every /api route requires `Authorization: Bearer <token>` (verticals/api/deps.py), the token is
+# per-instance and minted at first boot, and AC-192 forbids a login form. A browser tab with no
+# sign-in step therefore has to learn the token from somewhere. `web/src/lib/api.ts` solves that
+# for a source install by baking it in at `vite build` time — which cannot work here, because the
+# image is built once, long before any instance mints its own token, and baking a token into a
+# layer is the one thing this packaging must never do.
+#
+# So the bundle ships with an empty token and the header is set here instead, at the one hop that
+# already holds the secret. The security posture is identical either way: whoever can reach this
+# port can call the API, exactly as whoever can load the page could have read the token out of the
+# bundle. What changes is where the secret lives — a runtime file on tmpfs rather than a static
+# asset served to every visitor — and that the published port is loopback-only (docker-compose.yml).
+# `proxy_set_header` REPLACES the browser's own empty Authorization header; it never appends.
+
+worker_processes 1;
+error_log /dev/stderr warn;
+pid /run/verticals/nginx.pid;
+
+events {
+    worker_connections 256;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    server_tokens off;
+
+    # Access logging is off deliberately: a request line carries goal ids and search terms, and
+    # this is one person's private tool. Errors still go to stderr, above, where `docker logs`
+    # can see them.
+    access_log off;
+
+    # The bundle is hashed by Vite; `index.html` is not, and a cached one pins a stranger to an
+    # old build across an upgrade.
+    map $uri $verticals_cache {
+        default          "public, max-age=31536000, immutable";
+        ~*/index\.html$  "no-store";
+        ~*^/$            "no-store";
+    }
+
+    server {
+        # The container's own :80. docker-compose.yml is what decides where that appears on the
+        # host, and it publishes to 127.0.0.1 only.
+        listen 80;
+        listen [::]:80;
+        server_name _;
+
+        root /srv/verticals;
+        index index.html;
+
+        client_max_body_size 1m;
+
+        location / {
+            add_header Cache-Control $verticals_cache always;
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header Authorization "Bearer __VERTICALS_TOKEN__";
+            proxy_read_timeout 60s;
+        }
+
+        # D237: the SSE change feed. Buffered SSE delivers nothing, and the stream's only
+        # traffic during a quiet hour is a 15s ping — so buffering off and a read timeout
+        # comfortably above the ping interval. Everything else matches /api.
+        location /api/events {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header Authorization "Bearer __VERTICALS_TOKEN__";
+            proxy_read_timeout 1h;
+            proxy_buffering off;
+        }
+
+        location /healthz {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_read_timeout 10s;
+        }
+    }
+}

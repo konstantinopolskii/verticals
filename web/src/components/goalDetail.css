@@ -1,0 +1,278 @@
+/* New global classes only; breadcrumb and typography classes come from the kit. */
+
+#goal-detail .dropdown__popover[data-state='open'] {
+  animation: goal-detail-popover-in var(--motion-popover) ease-out;
+}
+@keyframes goal-detail-popover-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+#goal-detail .goal-detail__body {
+  margin-top: var(--space-3);
+  width: 100%;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  /* 24px, not the reference's measured 49px (P-25's surface table). Owner ruling 2026-08-11,
+     D98: the reference's leading is unreadable to him at this size. 24px is not a fresh number
+     — it is the leading the lists in this same surface already carry, so paragraphs and list
+     items now sit on one rhythm instead of two. The rule stays SHARED by the read and edit
+     states because they are the same DOM node with `contenteditable` flipped, which is what
+     keeps D71's measured 0.0px entering/leaving drift true by construction. */
+  line-height: 24px;
+}
+.goal-detail__body {
+  display: block;
+  cursor: text;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  caret-color: #e3631b;
+  outline: none;
+  transition: none;
+  animation: none;
+  /* Blank placeholder copy still needs a real click target on a body-less goal. */
+  min-height: 40px;
+}
+.goal-detail-inline .goal-detail__body:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-muted);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.goal-detail__body--collapsed {
+  max-height: var(--goal-body-preview-height);
+  overflow: hidden;
+}
+.goal-detail__body-see-all {
+  display: none;
+}
+.goal-detail__body > p {
+  margin: 8px 0;
+  font: inherit;
+}
+.goal-detail__body > .goal-detail__body-heading {
+  margin: 20px 0 8px;
+  font-family: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.goal-detail__body > .goal-detail__body-heading:first-child { margin-top: 0; }
+.goal-detail__body > h1.goal-detail__body-heading { font-size: 1.55em; }
+.goal-detail__body > h2.goal-detail__body-heading { font-size: 1.4em; }
+.goal-detail__body > h3.goal-detail__body-heading { font-size: 1.25em; }
+.goal-detail__body > :is(h4, h5, h6).goal-detail__body-heading { font-size: 1.1em; }
+.goal-detail__body > .goal-detail__body-table {
+  display: block;
+  width: 100%;
+  margin: 12px 0 24px;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  scrollbar-width: thin;
+}
+.goal-detail__body-table :is(th, td) {
+  min-width: 88px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(45, 48, 54, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+.goal-detail__body-table th {
+  color: rgba(45, 48, 54, 0.65);
+  font-weight: 600;
+}
+.goal-detail__body > :is(ul, ol) {
+  margin: 16px 0 32px 12px;
+  padding-left: 18px;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+}
+.goal-detail__body > :is(ul, ol) > li {
+  margin-bottom: 10px;
+}
+.goal-detail__body > :is(ul, ol) > li[data-md-indent] {
+  margin-left: 2ch;
+}
+/* D186: board-hosted detail is an inline list surface, never modal chrome. Grid-row animation
+   handles intrinsic height without a max-height guess; surrounding cards move in ordinary flow. */
+#goal-detail.goal-detail-inline {
+  display: grid;
+  grid-template-rows: 1fr;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 0 0 14px 14px;
+  background: transparent;
+  transform-origin: top center;
+  transition:
+    grid-template-rows var(--goal-focus-motion-duration, 360ms)
+      var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)),
+    opacity 160ms ease,
+    transform var(--goal-focus-motion-duration, 360ms)
+      var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1));
+  animation: goal-detail-inline-open var(--goal-focus-motion-duration, 360ms)
+    var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)) both;
+}
+#goal-detail.goal-detail-inline[data-state='closed'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.goal-detail-inline__clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.goal-detail-inline .goal-detail__drawer-plane,
+.goal-detail-inline .goal-detail-inline__dialog,
+.goal-detail-inline .goal-detail__drawer-card {
+  display: block;
+  position: static;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.goal-detail-inline .goal-detail__loading {
+  padding: 18px 16px;
+}
+.goal-detail-inline .goal-detail__surface {
+  width: 100%;
+  min-width: 0;
+}
+.goal-detail-inline .goal-detail__header {
+  display: none;
+}
+#goal-detail.goal-detail-inline .modal__body.goal-detail__editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: visible;
+  /* Match the regular task-row inset (6px) so editor fields, body and group labels share the
+     same visual edge as the checkbox/text rows below. */
+  padding: 0 6px 16px;
+  overflow-wrap: anywhere;
+  --goal-detail-inline-font-size: 15px;
+  --goal-detail-inline-line-height: 22px;
+}
+#goal-detail.goal-detail-inline .goal-detail__body {
+  order: 2;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  margin-top: 5px;
+  font-size: var(--goal-detail-inline-font-size);
+  line-height: var(--goal-detail-inline-line-height);
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.goal-detail-inline .goal-detail__body-see-all {
+  display: block;
+  order: 3;
+  align-self: flex-start;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.goal-detail-inline .goal-detail__body-see-all:hover,
+.goal-detail-inline .goal-detail__body-see-all:focus-visible {
+  color: var(--color-text);
+}
+.goal-detail-inline .goal-detail__rule {
+  order: 5;
+  margin: 14px 0 8px;
+}
+.goal-detail-inline .goal-detail__meta {
+  order: 6;
+  margin-top: 8px;
+}
+.goal-detail-inline .goal-detail__drawer-card {
+  animation: goal-detail-inline-content-in 270ms
+    var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)) 90ms both;
+}
+@keyframes goal-detail-inline-open {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes goal-detail-inline-content-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #goal-detail.goal-detail-inline {
+    animation: none;
+    transition: none;
+  }
+  .goal-detail-inline .goal-detail__drawer-card { animation: none; }
+}
+
+/* D250 WP-3: linked-doc chip row, same spacing rule as the tags panel it sits next to. */
+.goal-detail__docs {
+  margin-top: var(--space-2);
+}
+
+/* D251 (KK, 2026-08-20): an inherited ("ghosted") doc chip — one cue per state (design law), the
+   cue is colour alone. Steps the kit's own .chip down from --color-text/--color-border-strong to
+   the muted tokens already used for secondary meta text elsewhere (`.t-muted`) — no new visual
+   language invented, same reduced-emphasis move `kit-ext/carryover-ghost` uses for its own ghost
+   state. Hover/press/focus and click behaviour are untouched, so a ghosted chip still reads and
+   works exactly like an own one. Selector is `.chip.goal-doc-chip--inherited` (two classes, not
+   one) so it outranks the kit's own `.chip` rule on specificity — the two rules land in the same
+   bundled stylesheet with the kit's own `.chip` LATER by import order, and a same-specificity tie
+   would let the kit rule win regardless of what this file says. */
+.chip.goal-doc-chip--inherited {
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+/* docs/COMMENTS_SPEC.md WP-B: the "Comment" affordance a body text selection raises — fixed at the
+   selection's own bounding box (`lib/commentAnchoring.ts::onBodyMouseUp`), so `position: fixed`
+   with viewport coordinates, not a positioning context anywhere in this card's own layout. Same
+   shape `DocDetail.vue`'s own body reuses (that file's `<style>` does not repeat this rule — the
+   class name and the coordinates are the same regardless of which body raised it). */
+.goal-detail__comment-selection {
+  position: fixed;
+  z-index: 20;
+  transform: translate(-50%, calc(-100% - 6px));
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}

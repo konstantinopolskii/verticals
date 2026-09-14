@@ -1,0 +1,46 @@
+# Test/CI Postgres — docs/IMPLEMENTATION.md §6.2, §6.3. Only the harness suites that assert
+# exact SQL statement counts require this file specifically (IR-06); everything else can run
+# against any reachable Postgres 16 named via VERTICALS_DATABASE_URL.
+#
+#   docker compose -f docker-compose.test.yml up -d
+#   export PGHOST=127.0.0.1 PGPORT=55432 PGUSER=verticals PGPASSWORD=verticals
+#
+# tmpfs data dir on purpose: this is a throwaway test cluster, not a database anyone backs up.
+# `docker compose -f docker-compose.test.yml down` leaves nothing behind.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      # Default is 5000, and this cluster reached 4829 entries with 231 evictions during one
+      # afternoon of parallel work-package builds (WP-09 hit the consequence twice, live: a
+      # statement captured for an assertion was evicted before it could be read). Every entry is
+      # keyed by (userid, dbid, queryid), and each test run mints fresh clone databases, so the
+      # table fills with dead entries from databases that no longer exist. IR-06's reset is
+      # scoped by dbid on purpose, which means it cannot reclaim any of them.
+      #
+      # A statement-count assertion that silently loses its row does not fail loudly - it reports
+      # the wrong count. Raising the ceiling is ~2 MB of shared memory and removes the whole
+      # failure mode. PGC_POSTMASTER, so it needs the cluster restarted, which costs nothing here.
+      - -c
+      - pg_stat_statements.max=50000
+    environment:
+      POSTGRES_USER: verticals
+      POSTGRES_PASSWORD: verticals
+      POSTGRES_DB: verticals
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./docker/test-initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U verticals -d verticals"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

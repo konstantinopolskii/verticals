@@ -1,0 +1,35 @@
+# Build context for `Dockerfile`. Everything here is either Zone 1 material that must never
+# reach a layer, a secret, or bulk that would make the context slower to send than the build.
+#
+# The first two entries are the load-bearing ones and are not an optimisation:
+#   seed/  — a real personal reference-planner export lives here on a development machine.
+#   .env   — the generated token. The entrypoint writes one per instance at runtime, into a
+#            volume; an image that carried one would ship the same secret to every host.
+
+seed/
+.env
+.env.*
+!.env.example
+
+.git/
+.venv/
+artifacts/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# The frontend build stage installs from `web/package-lock.json` and the vendored tarballs; a
+# host `node_modules` (hundreds of MB, host-arch binaries) would be both wrong and slow.
+web/node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo
+
+# Nothing under these is used by the image.
+tests/
+tools/
+reference-planner-openapi.yaml
+docker-compose.test.yml
+.DS_Store

@@ -1,0 +1,324 @@
+[
+  {
+    "cap": "create_goal",
+    "ui_selector": "[data-cap=create-goal]",
+    "http_method": "POST",
+    "http_path": "/api/goals",
+    "mcp_tool": "create",
+    "mcp_args": {
+      "title": "<title>",
+      "vertical": "<vertical>",
+      "anchor_date": "<anchor_date>"
+    }
+  },
+  {
+    "cap": "capture_maybe",
+    "ui_column": "maybe",
+    "ui_selector": "[data-cap=create-goal]",
+    "http_method": "POST",
+    "http_path": "/api/goals",
+    "mcp_tool": "create",
+    "mcp_args": {
+      "title": "<title>"
+    }
+  },
+  {
+    "cap": "complete",
+    "ui_selector": "[data-cap=complete]",
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "id": "<id>",
+      "done": true
+    }
+  },
+  {
+    "cap": "uncomplete",
+    "ui_selector": "[data-cap=complete]",
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "id": "<id>",
+      "done": false
+    }
+  },
+  {
+    "cap": "edit_title",
+    "ui_selector": "[data-cap=edit-title]",
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "id": "<id>",
+      "title": "<title>"
+    }
+  },
+  {
+    "cap": "edit_body",
+    "ui_selector": "[data-cap=edit-body]",
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "id": "<id>",
+      "body": "<body>"
+    }
+  },
+  {
+    "cap": "set_color",
+    "ui_selector": null,
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "id": "<id>",
+      "color": "<color>"
+    }
+  },
+  {
+    "cap": "set_tags",
+    "ui_selector": "[data-cap=set-tags]",
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "id": "<id>",
+      "tags": [
+        "<tag>"
+      ]
+    }
+  },
+  {
+    "cap": "schedule",
+    "ui_selector": "[data-cap=schedule]",
+    "http_method": "PUT",
+    "http_path": "/api/goals/{id}/schedule",
+    "mcp_tool": "schedule",
+    "mcp_args": {
+      "id": "<id>",
+      "vertical": "<vertical>",
+      "anchor_date": "<anchor_date>"
+    }
+  },
+  {
+    "cap": "unschedule",
+    "ui_selector": "[data-cap=schedule]",
+    "http_method": "PUT",
+    "http_path": "/api/goals/{id}/schedule",
+    "mcp_tool": "schedule",
+    "mcp_args": {
+      "id": "<id>",
+      "vertical": null,
+      "anchor_date": null
+    }
+  },
+  {
+    "cap": "park",
+    "ui_selector": "[data-cap=park]",
+    "http_method": "POST",
+    "http_path": "/api/goals/{id}/park",
+    "mcp_tool": "park",
+    "mcp_args": {
+      "id": "<id>"
+    }
+  },
+  {
+    "cap": "reparent",
+    "ui_selector": "[data-cap=reparent]",
+    "http_method": "PUT",
+    "http_path": "/api/goals/{id}/parent",
+    "mcp_tool": "reparent",
+    "mcp_args": {
+      "id": "<id>",
+      "parent_id": "<parent_id>"
+    }
+  },
+  {
+    "cap": "detach",
+    "ui_selector": "[data-cap=reparent]",
+    "http_method": "PUT",
+    "http_path": "/api/goals/{id}/parent",
+    "mcp_tool": "reparent",
+    "mcp_args": {
+      "id": "<id>",
+      "parent_id": null
+    }
+  },
+  {
+    "cap": "reorder",
+    "ui_selector": "[data-cap=reorder]",
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "id": "<id>",
+      "after_id": "<after_id>"
+    }
+  },
+  {
+    "cap": "delete_leaf",
+    "ui_selector": "[data-cap=delete]",
+    "http_method": "DELETE",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "delete",
+    "mcp_args": {
+      "id": "<id>"
+    }
+  },
+  {
+    "cap": "delete_subtree",
+    "ui_selector": "[data-cap=delete]",
+    "http_method": "DELETE",
+    "http_path": "/api/goals/{id}?cascade=true",
+    "mcp_tool": "delete",
+    "mcp_args": {
+      "id": "<id>",
+      "cascade": true
+    }
+  },
+  {
+    "cap": "bulk_update",
+    "ui_selector": null,
+    "http_method": "PATCH",
+    "http_path": "/api/goals",
+    "mcp_tool": "update",
+    "mcp_args": {
+      "ids": [
+        "<id>"
+      ],
+      "done": true
+    }
+  },
+  {
+    "cap": "list_tags",
+    "ui_selector": "[data-role=tag-chips]",
+    "http_method": "GET",
+    "http_path": "/api/tags",
+    "mcp_tool": "tags",
+    "mcp_args": {}
+  },
+  {
+    "cap": "due_ack",
+    "ui_selector": "[data-cap=due-ack]",
+    "http_method": "POST",
+    "http_path": "/api/goals/{id}/due_ack",
+    "mcp_tool": "due_ack",
+    "mcp_args": {
+      "id": "<id>",
+      "verdict": "overdue"
+    }
+  },
+  {
+    "cap": "filter_value",
+    "ui_selector": "[data-cap=value-filter]",
+    "http_method": "GET",
+    "http_path": "/api/board?value={id}",
+    "mcp_tool": "board",
+    "mcp_args": {
+      "date": "<date>",
+      "value": "<id>"
+    }
+  },
+  {
+    "cap": "create_doc",
+    "ui_selector": null,
+    "http_method": "POST",
+    "http_path": "/api/docs",
+    "mcp_tool": "doc_create",
+    "mcp_args": {
+      "path": "capability-probe.md",
+      "title": "<title>"
+    }
+  },
+  {
+    "cap": "save_doc",
+    "ui_selector": null,
+    "http_method": "PATCH",
+    "http_path": "/api/docs/{id}",
+    "mcp_tool": "doc_save",
+    "mcp_args": {
+      "id": "<id>",
+      "expected_revision": 1,
+      "body": "<body>"
+    }
+  },
+  {
+    "cap": "restore_doc",
+    "ui_selector": null,
+    "http_method": "POST",
+    "http_path": "/api/docs/{id}/restore",
+    "mcp_tool": "doc_restore",
+    "mcp_args": {
+      "id": "<id>",
+      "revision": 1,
+      "expected_revision": 2
+    }
+  },
+  {
+    "cap": "delete_doc",
+    "ui_selector": null,
+    "http_method": "DELETE",
+    "http_path": "/api/docs/{id}",
+    "mcp_tool": "doc_delete",
+    "mcp_args": {
+      "id": "<id>"
+    }
+  },
+  {
+    "cap": "link_doc",
+    "ui_selector": null,
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "doc_link",
+    "mcp_args": {
+      "goal_id": "<id>",
+      "doc": "<doc>"
+    }
+  },
+  {
+    "cap": "unlink_doc",
+    "ui_selector": null,
+    "http_method": "PATCH",
+    "http_path": "/api/goals/{id}",
+    "mcp_tool": "doc_unlink",
+    "mcp_args": {
+      "goal_id": "<id>",
+      "doc": "<doc>"
+    }
+  },
+  {
+    "cap": "create_comment",
+    "ui_selector": null,
+    "http_method": "POST",
+    "http_path": "/api/comments",
+    "mcp_tool": "comment_add",
+    "mcp_args": {
+      "goal_id": "<id>",
+      "body": "<body>"
+    }
+  },
+  {
+    "cap": "reply_comment",
+    "ui_selector": null,
+    "http_method": "POST",
+    "http_path": "/api/comments/{thread_id}/messages",
+    "mcp_tool": "comment_add",
+    "mcp_args": {
+      "thread_id": "<thread_id>",
+      "body": "<body>"
+    }
+  },
+  {
+    "cap": "resolve_comment",
+    "ui_selector": null,
+    "http_method": "POST",
+    "http_path": "/api/comments/{thread_id}/resolve",
+    "mcp_tool": "comment_resolve",
+    "mcp_args": {
+      "thread_id": "<thread_id>",
+      "resolved": true
+    }
+  }
+]

@@ -1,0 +1,472 @@
+.goal-card.goal-card {
+  width: 100%;
+  box-sizing: border-box;
+  gap: 0;
+  border: 0;
+  box-shadow: none;
+  background-color: var(--color-bg);
+  transition: background-color var(--motion-hover) cubic-bezier(.165, .84, .44, 1);
+}
+.goal-card.goal-card--detail-open,
+.goal-card.goal-card--detail-open:hover {
+  border-radius: 14px;
+  background: var(--goal-hover-background) !important;
+  transition: background-color var(--goal-focus-motion-duration, 360ms)
+    var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)) !important;
+}
+.goal-card.goal-card--detail-open {
+  max-height: min(70vh, 640px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.goal-card--detail-open > #goal-detail.goal-detail-inline {
+  flex: 0 0 auto;
+  width: 100%;
+  margin-left: 0;
+}
+.card-stack > .goal-card.goal-card:first-child:not([data-state="active"]) {
+  background-color: var(--color-bg);
+}
+.goal-card.goal-card > .goal-card__row {
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+  width: auto;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+  /* S-145's whole-surface drag handle: a touch drag on this row must move the card, not scroll
+     the column body underneath it (the row's own nearest scrollable ancestor,
+     `.pattern-vertical-board__column`). Pointer (mouse) drag is unaffected — `touch-action` is a
+     touch-input-only property. */
+  touch-action: none;
+  user-select: none;
+  /* D27: press stays `grab`; only Board.vue's armed-drag state may set `grabbing`. */
+  cursor: grab;
+}
+.goal-card.goal-card--detail-open > .goal-card__row {
+  /* Match nested Life geometry: title bottom -> hierarchy rule is 8px (6px card rhythm plus
+     the linked-list wrapper's existing 2px separation). */
+  padding-bottom: 6px;
+}
+/* Normal hanging alignment: the checkbox occupies the first column and every wrapped line keeps
+   the same text edge beside it. */
+.goal-card__affordance-slot {
+  display: inline-flex;
+  flex: 0 0 var(--space-5);
+  width: var(--space-5);
+  height: var(--space-5);
+  margin: 4px 5px 0 var(--space-2);
+}
+.goal-card__affordance-slot > .goal-affordance {
+  position: static;
+}
+.goal-card:hover,
+.goal-card.goal-card--menu-open,
+.goal-card.goal-card--ancestor-hover,
+.goal-card.goal-card--open-related {
+  background-color: var(--goal-hover-background) !important;
+  transition: none !important;
+}
+.goal-card__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 var(--space-12) 0 0;
+}
+.goal-card__title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+  word-break: break-word;
+  overflow-wrap: normal;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: color var(--motion-title) ease;
+}
+.goal-card__due {
+  color: #df496d;
+  font-weight: 500;
+}
+.goal-card__title-input {
+  display: block;
+  width: 100%;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  font-family: inherit;
+  color: inherit;
+  user-select: text;
+}
+.goal-card--done .goal-card__meta { opacity: .5; }
+.goal-card--done .goal-card__title {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: currentColor;
+}
+.goal-card__search-open {
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(45, 48, 54, 0.55);
+  font: inherit;
+  cursor: pointer;
+}
+.goal-card__meta {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  color: rgba(45, 48, 54, 0.3);
+  /* Metadata strings stay whole in the DOM; clipping is visual only. `.goal-card__text` already
+     carries `min-width: 0`, which single-line ellipsis on a flex child requires. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goal-card__row--drag-source {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.goal-card__row--combine-target {
+  background: rgb(246, 246, 246);
+}
+.goal-card__row--combine-target-colored {
+  background: transparent;
+}
+.theme_dark .goal-card__row--combine-target {
+  background: rgb(42, 42, 42);
+}
+.theme_dark .goal-card__row--combine-target-colored {
+  background: transparent;
+}
+.goal-card__row:focus,
+.goal-card__row:focus-visible {
+  outline: none;
+}
+.goal-card.goal-card--source-gap-closed {
+  /* Original remains at its DOM index but contributes no second footprint. Negative margin
+     cancels the extra stack gap introduced by the single prospective footprint. */
+  height: 0;
+  min-height: 0;
+  flex: 0 0 0;
+  margin-bottom: calc(-1 * var(--card-gap, 2px));
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* D245: the nested counterpart of `--source-gap-closed` above — see `GoalCard.vue`'s
+   `isNestedDragHole` comment for why a nested source must NOT collapse (no sibling placeholder
+   reserves its box the way Column.vue's `__dnd-placeholder__` slot does at top level). Its box
+   stays exactly as rendered — the CARD footprint `slotWidth`/`slotHeight` captured at pointer-
+   down, since this is that same element — and only `pointer-events` is stripped, so `hitTest`'s
+   `elementFromPoint` falls through it instead of resolving back to its own id (the row's own
+   `--drag-source` rule above already empties it visually). */
+.goal-card.goal-card--nested-drag-hole {
+  pointer-events: none;
+}
+.goal-card__children {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  row-gap: 2px;
+  position: relative;
+  padding-top: 2px;
+}
+/* One hairline above EVERY nested child (KK, 2026-08-14) — the divider belongs to each row of
+   the group, not to the block: parent|child and child|child gaps read the same. Drawn on the
+   child so the flex row-gap stays untouched. */
+.goal-card__children > .goal-card::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  inset-inline-start: calc(var(--space-2) + var(--space-5) + 9px);
+  inset-inline-end: 16px;
+  border-top: 0.5px solid rgba(110, 110, 110, .42);
+  pointer-events: none;
+}
+/* Nested tasks share the same column alignment as regular cards; hierarchy stays in the data and
+   hover chain, not in an extra horizontal offset. */
+.goal-card__children > .goal-card {
+  width: 100%;
+  margin-left: 0;
+  /* Positioning context for each child's own divider ::before above. */
+  position: relative;
+}
+.theme_dark .goal-card__children > .goal-card::before { border-top-color: rgba(150, 150, 150, .48); }
+.goal-card__completion {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.goal-card__completion > svg {
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+  fill: none;
+  stroke: rgba(53, 124, 244, .5);
+  stroke-width: 24;
+}
+.goal-card__completion-rays { stroke: rgba(223, 73, 109, .58); }
+@media (prefers-reduced-motion: reduce) {
+  .goal-card__completion { opacity: 0; }
+}
+
+/* Saved KK layout values (goal-text-typography v77 + values v976), promoted from the browser
+   override into product CSS. The variables are owned by devGoalLayout.ts so the Layout panel can
+   tune and persist them without rewriting component styles. */
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card__title,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card__title-text,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__text,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-editor {
+  font-family: var(--kkov-collapsed-goal-font-family);
+  font-size: var(--kkov-collapsed-goal-font-size);
+  line-height: var(--kkov-collapsed-goal-line-height);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card__title,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card__title-text {
+  font-weight: var(--kkov-collapsed-goal-font-weight);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card__text {
+  padding-right: var(--kkov-collapsed-goal-padding-right);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-actions__trigger {
+  --app-icon-size-menu: var(--kkov-collapsed-goal-actions-icon-size);
+  top: var(--kkov-collapsed-goal-actions-top);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-affordance,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-affordance .checkbox__box {
+  width: var(--kkov-collapsed-goal-checkbox-size);
+  height: var(--kkov-collapsed-goal-checkbox-size);
+  min-width: var(--kkov-collapsed-goal-checkbox-size);
+  min-height: var(--kkov-collapsed-goal-checkbox-size);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-affordance {
+  position: relative;
+  top: var(--kkov-collapsed-goal-checkbox-top);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card__affordance-slot {
+  width: var(--kkov-collapsed-goal-checkbox-size);
+  height: calc(var(--kkov-collapsed-goal-checkbox-size) + 4px);
+  flex: 0 0 var(--kkov-collapsed-goal-checkbox-size);
+  margin-right: var(--kkov-collapsed-goal-checkbox-text-gap);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card .checkbox__box {
+  border-radius: var(--kkov-collapsed-goal-checkbox-radius);
+}
+
+.pattern-vertical-board__column--active .goal-card__title,
+.pattern-vertical-board__column--active .goal-card__title-text,
+.pattern-vertical-board__column--active .column-add-row__text,
+.pattern-vertical-board__column--active .column-add-editor {
+  font-family: var(--kkov-expanded-goal-font-family);
+  font-size: var(--kkov-expanded-goal-font-size);
+  line-height: var(--kkov-expanded-goal-line-height);
+}
+.pattern-vertical-board__column--active .goal-card__title,
+.pattern-vertical-board__column--active .goal-card__title-text {
+  font-weight: var(--kkov-expanded-goal-font-weight);
+}
+.pattern-vertical-board__column--active .goal-card__text {
+  padding-right: var(--kkov-expanded-goal-padding-right);
+}
+.pattern-vertical-board__column--active .goal-actions__trigger {
+  --app-icon-size-menu: var(--kkov-expanded-goal-actions-icon-size);
+  top: var(--kkov-expanded-goal-actions-top);
+}
+.pattern-vertical-board__column--active .goal-affordance,
+.pattern-vertical-board__column--active .goal-affordance .checkbox__box {
+  width: var(--kkov-expanded-goal-checkbox-size);
+  height: var(--kkov-expanded-goal-checkbox-size);
+  min-width: var(--kkov-expanded-goal-checkbox-size);
+  min-height: var(--kkov-expanded-goal-checkbox-size);
+}
+.pattern-vertical-board__column--active .goal-affordance {
+  position: relative;
+  top: var(--kkov-expanded-goal-checkbox-top);
+}
+.pattern-vertical-board__column--active .goal-card__affordance-slot {
+  width: var(--kkov-expanded-goal-checkbox-size);
+  height: calc(var(--kkov-expanded-goal-checkbox-size) + 4px);
+  flex: 0 0 var(--kkov-expanded-goal-checkbox-size);
+  margin-right: var(--kkov-expanded-goal-checkbox-text-gap);
+}
+.pattern-vertical-board__column--active .goal-card .checkbox__box {
+  border-radius: var(--kkov-expanded-goal-checkbox-radius);
+}
+.pattern-vertical-board__column--active .card-stack.card-stack--dense > .goal-card + .goal-card {
+  margin-top: var(--kkov-expanded-goal-spacing);
+}
+
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list {
+  margin: var(--kkov-collapsed-subtask-group-margin-top)
+    var(--kkov-collapsed-subtask-group-margin-right)
+    var(--kkov-collapsed-subtask-group-margin-bottom)
+    var(--kkov-collapsed-subtask-group-margin-left);
+  padding-top: calc(2px + (6px - var(--kkov-collapsed-subtask-padding-block)));
+  padding-bottom: calc(6px - var(--kkov-collapsed-subtask-padding-block));
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list .goal-card__title,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list .goal-card__title-text {
+  font-size: var(--kkov-collapsed-subtask-font-size);
+  line-height: var(--kkov-collapsed-subtask-line-height);
+  font-weight: var(--kkov-collapsed-subtask-font-weight);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list .goal-affordance,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list .goal-affordance .checkbox__box {
+  width: var(--kkov-collapsed-subtask-checkbox-size);
+  height: var(--kkov-collapsed-subtask-checkbox-size);
+  min-width: var(--kkov-collapsed-subtask-checkbox-size);
+  min-height: var(--kkov-collapsed-subtask-checkbox-size);
+  border-radius: var(--kkov-collapsed-subtask-checkbox-radius);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list .goal-affordance {
+  top: var(--kkov-collapsed-subtask-checkbox-top);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list .goal-card__affordance-slot {
+  width: var(--kkov-collapsed-subtask-checkbox-size);
+  height: calc(var(--kkov-collapsed-subtask-checkbox-size) + 4px);
+  flex: 0 0 var(--kkov-collapsed-subtask-checkbox-size);
+  margin-right: var(--kkov-collapsed-subtask-checkbox-text-gap);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list > .goal-card {
+  padding-top: var(--kkov-collapsed-subtask-padding-block);
+  padding-bottom: var(--kkov-collapsed-subtask-padding-block);
+  border-radius: var(--kkov-collapsed-subtask-card-radius);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list > .goal-card + .goal-card {
+  margin-top: calc(var(--kkov-collapsed-subtask-spacing)
+    + (6px - var(--kkov-collapsed-subtask-padding-block))
+    + (6px - var(--kkov-collapsed-subtask-padding-block)));
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list + .goal-card {
+  margin-top: var(--kkov-collapsed-subtask-group-spacing);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list > .goal-card::before {
+  top: var(--kkov-collapsed-subtask-line-top);
+  left: var(--kkov-collapsed-subtask-line-left);
+  right: var(--kkov-collapsed-subtask-line-right);
+  opacity: clamp(0, calc(var(--kkov-collapsed-subtask-line-mode) - 1), 1);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list > .goal-card:first-child::before {
+  opacity: clamp(0, var(--kkov-collapsed-subtask-line-mode), 1);
+}
+
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list {
+  margin: var(--kkov-expanded-subtask-group-margin-top)
+    var(--kkov-expanded-subtask-group-margin-right)
+    var(--kkov-expanded-subtask-group-margin-bottom)
+    var(--kkov-expanded-subtask-group-margin-left);
+  padding-top: calc(2px + (6px - var(--kkov-expanded-subtask-padding-block)));
+  padding-bottom: calc(6px - var(--kkov-expanded-subtask-padding-block));
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-card__title,
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-card__title-text {
+  font-size: var(--kkov-expanded-subtask-font-size);
+  line-height: var(--kkov-expanded-subtask-line-height);
+  font-weight: var(--kkov-expanded-subtask-font-weight);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-affordance,
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-affordance .checkbox__box {
+  width: var(--kkov-expanded-subtask-checkbox-size);
+  height: var(--kkov-expanded-subtask-checkbox-size);
+  min-width: var(--kkov-expanded-subtask-checkbox-size);
+  min-height: var(--kkov-expanded-subtask-checkbox-size);
+  border-radius: var(--kkov-expanded-subtask-checkbox-radius);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-affordance {
+  top: var(--kkov-expanded-subtask-checkbox-top);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-card__affordance-slot {
+  width: var(--kkov-expanded-subtask-checkbox-size);
+  height: calc(var(--kkov-expanded-subtask-checkbox-size) + 4px);
+  flex: 0 0 var(--kkov-expanded-subtask-checkbox-size);
+  margin-right: var(--kkov-expanded-subtask-checkbox-text-gap);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list > .goal-card {
+  padding-top: var(--kkov-expanded-subtask-padding-block);
+  padding-bottom: var(--kkov-expanded-subtask-padding-block);
+  border-radius: var(--kkov-expanded-subtask-card-radius);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list > .goal-card + .goal-card {
+  margin-top: calc(var(--kkov-expanded-subtask-spacing)
+    + (6px - var(--kkov-expanded-subtask-padding-block))
+    + (6px - var(--kkov-expanded-subtask-padding-block)));
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list + .goal-card {
+  margin-top: var(--kkov-expanded-subtask-group-spacing);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list > .goal-card::before {
+  top: var(--kkov-expanded-subtask-line-top);
+  left: var(--kkov-expanded-subtask-line-left);
+  right: var(--kkov-expanded-subtask-line-right);
+  opacity: clamp(0, calc(var(--kkov-expanded-subtask-line-mode) - 1), 1);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list > .goal-card:first-child::before {
+  opacity: clamp(0, var(--kkov-expanded-subtask-line-mode), 1);
+}
+
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__text,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-editor {
+  font-weight: var(--kkov-collapsed-new-task-font-weight);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__checkbox,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__checkbox .checkbox__box {
+  width: var(--kkov-collapsed-goal-checkbox-size);
+  height: var(--kkov-collapsed-goal-checkbox-size);
+  min-width: var(--kkov-collapsed-goal-checkbox-size);
+  min-height: var(--kkov-collapsed-goal-checkbox-size);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__checkbox {
+  flex-basis: var(--kkov-collapsed-goal-checkbox-size);
+  top: var(--kkov-collapsed-new-task-checkbox-top);
+  margin-right: calc(var(--kkov-collapsed-new-task-checkbox-text-gap) - 2px);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__checkbox .checkbox__box {
+  border-radius: var(--kkov-collapsed-new-task-checkbox-radius);
+}
+.pattern-vertical-board__column--active .column-add-row__text,
+.pattern-vertical-board__column--active .column-add-editor {
+  font-weight: var(--kkov-expanded-new-task-font-weight);
+}
+.pattern-vertical-board__column--active .column-add-row__checkbox,
+.pattern-vertical-board__column--active .column-add-row__checkbox .checkbox__box {
+  width: var(--kkov-expanded-goal-checkbox-size);
+  height: var(--kkov-expanded-goal-checkbox-size);
+  min-width: var(--kkov-expanded-goal-checkbox-size);
+  min-height: var(--kkov-expanded-goal-checkbox-size);
+}
+.pattern-vertical-board__column--active .column-add-row__checkbox {
+  flex-basis: var(--kkov-expanded-goal-checkbox-size);
+  top: var(--kkov-expanded-new-task-checkbox-top);
+  margin-right: calc(var(--kkov-expanded-new-task-checkbox-text-gap) - 2px);
+}
+.pattern-vertical-board__column--active .column-add-row__checkbox .checkbox__box {
+  border-radius: var(--kkov-expanded-new-task-checkbox-radius);
+}

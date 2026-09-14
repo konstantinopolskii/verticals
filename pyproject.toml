@@ -1,0 +1,67 @@
+[project]
+name = "verticals"
+version = "0.1.0"
+description = "Tasks pinned to a time scale (day..life). Single owner, one Postgres box."
+requires-python = ">=3.12,<3.13"
+readme = "docs/BRIEF.md"
+
+# Exactly six *choices*. AC-086 asserts set equality against DEPENDENCIES.md — adding a
+# seventh library needs a DEPENDENCIES.md row naming what it replaces, not a quiet bump here.
+# Seven pins, because one choice carries an extra that has to be pinned beside it; see the
+# psycopg-pool line. An extra is not a new choice — nothing was shopped for — and the rule
+# AC-086 exists to enforce is "no dependency creep", which naming an already-present package
+# does not violate. The number to hold is the count of things we decided to depend on.
+dependencies = [
+    "psycopg[binary,pool]==3.3.4",  # the driver. raw SQL, no ORM.
+    # psycopg's own `pool` extra, pinned explicitly rather than left to the resolver.
+    # `psycopg` declares it as bare `psycopg-pool; extra == "pool"` — **no version constraint
+    # of any kind** — so without this line a fresh install takes whatever is newest that day,
+    # and two installs a month apart get different pool code. That matters more here than for
+    # a typical transitive: the pool's *behaviour* is asserted (S-46, AC-079), and the shrink
+    # policy those assertions encode — at most one connection closed per `max_idle` cycle,
+    # gated on the prior cycle seeing zero contention — is an implementation detail of this
+    # package, not a documented API. There is no lockfile to catch the drift, so it would
+    # land on a self-hoster as a broken install rather than on us as a failing test.
+    # `tests/static/test_dependencies.py` additionally asserts the behaviour, not just the
+    # number: a pin refuses the upgrade, the test says what the upgrade would break.
+    "psycopg-pool==3.3.1",
+    "fastapi==0.141.1",             # HTTP transport
+    "uvicorn==0.52.1",              # ASGI server for the HTTP transport
+    "pydantic==2.13.4",             # request/response schemas, extra='forbid'
+    "mcp==2.0.0",                   # the agent transport
+    "python-dotenv==1.2.2",         # loads .env in dev; the container sets real env vars
+]
+
+[project.optional-dependencies]
+# Dev/test tooling only. AC-086's allowlist counts runtime dependencies — these are not
+# imported by anything under verticals/ at runtime, only by tests/.
+dev = [
+    "pytest==8.4.2",
+    "pytest-xdist==3.8.0",  # WP-06: parallel workers within a suite (`-n auto`); replaces a
+                            # hand-rolled multiprocess worker pool the runner would otherwise
+                            # need to write and own itself just to run tests concurrently.
+    "httpx==0.28.1",        # WP-15: suite `http`'s own client. Real OS sockets over loopback TCP
+                            # against a real uvicorn subprocess (E2E.md §1's "no mock" rule) —
+                            # not FastAPI's TestClient/ASGITransport, which never opens a socket.
+    "playwright==1.62.0",   # WP-22: suite `ui`'s own client — real Chromium, matching E2E.md
+                            # §1's "Playwright (Chromium)" row. Python, not @playwright/test/npm:
+                            # tests/harness/runner.py dispatches every suite through `pytest`
+                            # with no suite-specific exception, and report.py's scenario-id regex
+                            # requires `test_s<NN>[letter]_...` function names — a `.spec.ts` file
+                            # (what IMPLEMENTATION.md's WP-22/23/uidiff cards literally name) is
+                            # invisible to both. docs/PENDING_DOC_FIXES.md row 36 files the doc
+                            # side of this; this line is the code side. `playwright install
+                            # chromium` still required once per machine (browser binary is not a
+                            # pip package).
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["verticals*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

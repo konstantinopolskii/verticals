@@ -1,0 +1,27 @@
+{
+  "name": "verticals-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "vue-tsc -b --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@konstantinopolskii/design-system": "file:vendor/konstantinopolskii-design-system-2.1.1.tgz",
+    "@konstantinopolskii/vue": "file:vendor/konstantinopolskii-vue-2.1.1.tgz",
+    "@tabler/icons-vue": "^3.46.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.8",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5",
+    "vue-tsc": "^3.3.7"
+  }
+}

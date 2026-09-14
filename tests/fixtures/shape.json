@@ -1,0 +1,110 @@
+{
+  "_comment": [
+    "F4 shape — docs/E2E.md section 2 'F4 - shape-matched synthetic corpora' and section 0",
+    "(the seven corrections table, C1-C7). Every number below is either copied verbatim from a",
+    "committed document, or marked 'derived' with the arithmetic that produces it from numbers",
+    "that are. None of it is read from seed/ (Zone 1 law, wealthy/CLAUDE.md; this repo's own",
+    "docs/BRIEF.md rule 9) - gen_corpus.py must never open the real export.",
+    "",
+    "This mirrors census.raw (the 567-row RAW export), not census.authored (the 308-row subset)",
+    "- 'shape.json mirrors census.raw, so F4 is a stand-in for the export, not for the import'",
+    "(docs/E2E.md section 2). Two fields below are explicitly authored-subset numbers used as a",
+    "documented modeling choice (see vertical_weight_source and completion_by_vertical), because",
+    "the raw export's own per-vertical split is never published anywhere - only the authored",
+    "one is. Applying it to the whole synthetic N is a stated approximation, not a measured fact.",
+    "",
+    "ARCHITECTURE.md section 0's own completion table is STALE on one number and docs/E2E.md's",
+    "C3 correction supersedes it: day is 127 authored rows with 125 done (98%), not 126/125/99%,",
+    "and the 'none' bucket is 88, not 89. Values below use the corrected (E2E.md) figures.",
+    "",
+    "Every nested object below (depth_histogram, fanout, ...) is pure data, consumed by key —",
+    "none of them carries its own _comment. Provenance for each lives in the sibling",
+    "_comment_<field> key at this top level instead, so gen_corpus.py never has to filter a",
+    "documentation key out of a dict it iterates as weights or counts."
+  ],
+
+  "source_raw_n": 567,
+  "source_authored_n": 308,
+  "source": "ARCHITECTURE.md section 0 (published aggregate), corrected by docs/E2E.md section 0 C3/C4/C7",
+
+  "_comment_depth_histogram": "docs/E2E.md section 2 F4 paragraph, verbatim. Sums to 567 (raw). Scales exactly for N in {567, 5670, 56700} since both are integer multiples of 567.",
+  "depth_histogram": {
+    "0": 405, "1": 72, "2": 24, "3": 21, "4": 37, "5": 5, "6": 3
+  },
+
+  "_comment_fanout": "docs/E2E.md section 0: 'Parents: 50 over the raw export, 49 over the authored subset.' mean/median/max from ARCHITECTURE.md section 0. gen_corpus.py respects max as a hard cap; mean/median are targets, not exact reproductions (see module docstring).",
+  "fanout": {
+    "parent_count_raw": 50,
+    "mean": 3.2,
+    "median": 2,
+    "max": 13
+  },
+
+  "_comment_field_usage_pct_raw": "ARCHITECTURE.md section 0's field-usage table, over all 567 raw rows.",
+  "field_usage_pct_raw": {
+    "vertical_and_date": 82,
+    "color": 42,
+    "parent_id": 29,
+    "start_time_end_time": 25,
+    "body": 6,
+    "bucket_id": 2,
+    "assignee_id": 0
+  },
+
+  "_comment_title": "ARCHITECTURE.md section 0 / docs/E2E.md section 2 F4 paragraph, verbatim.",
+  "title": {
+    "median_chars": 25,
+    "median_words": 4,
+    "multiline": false
+  },
+
+  "_comment_body": "docs/E2E.md section 2 F4 paragraph and D9 (line 2460): '35 bodies at median 218 chars and a longest body of 3453 chars.' present_count is raw-scale (35 of 567); scales exactly at 5670/56700.",
+  "body": {
+    "present_count_raw": 35,
+    "median_chars": 218,
+    "max_chars_observed": 3453
+  },
+
+  "color_present_pct_of_authored": 76,
+
+  "distinct_vertical_period_pairs_raw": 183,
+
+  "_comment_cross_vertical_parent_child": "ARCHITECTURE.md section 0, 'Cross-vertical' line. Not individually reproduced by the generator (no per-pair placement logic) - recorded for completeness and because the deepest real chain (life -> decade -> year -> quarter -> quarter -> day -> unscheduled) motivated the depth-6 bucket above.",
+  "cross_vertical_parent_child": {
+    "month_to_day": 14,
+    "quarter_to_day": 5,
+    "life_to_week": 5,
+    "decade_to_year": 5,
+    "life_to_decade": 4,
+    "year_to_week": 4
+  },
+
+  "_comment_densest_column_raw": "docs/E2E.md section 4 limits table, 'ids in a bulk PATCH' row: 'the densest single column in the export holds 14 rows, ~140 at F4-5670.' gen_corpus.py forces exactly round(14 * N / 567) rows into one shared (vertical=month, fixed period) column so AC-190's no-cap assertion (ridden by S-92) has a real dense column to count against.",
+  "densest_column_raw": {
+    "count": 14,
+    "vertical": "month"
+  },
+
+  "_comment_search_plant": "docs/E2E.md S-94 / AC-094: 'the generator plants 40 known matches and all 40 return.' Fixed count, NOT scaled by N - S-94 only runs at F4-5670, and 40 is the literal number both documents state.",
+  "search_plant": {
+    "needle": "cycl",
+    "planted_count": 40
+  },
+
+  "canon_colors": ["#ecce32", "#df496d", "#92ce14", "#278dea", "#955be0", "#f2713a"],
+
+  "_comment_vertical_weight_source": "docs/E2E.md section 0 C3 (corrected): the AUTHORED 308-row per-vertical breakdown, day 127 (not ARCHITECTURE.md's stale 126), none bucket 88 (not 89). Applied to the FULL synthetic N as gen_corpus.py's vertical-assignment weights - a documented modeling choice: raw's own per-vertical split is never published (it is dominated by the 247 calendar + 12 onboarding rows this generator does not simulate), so the authored proportions are the best available anchor, not a measured raw-scale fact.",
+  "vertical_weight_source": {
+    "day": 127, "week": 42, "month": 15, "quarter": 12, "year": 10, "decade": 8, "life": 6, "none": 88
+  },
+
+  "_comment_completion_by_vertical": "ARCHITECTURE.md section 0, corrected by docs/E2E.md C3 (day: 125/127 = 98%, not 125/126 = 99%). Fraction of rows assigned that vertical which gen_corpus.py marks done.",
+  "completion_by_vertical": {
+    "day": 0.98, "week": 0.86, "month": 0.60, "quarter": 0.33, "year": 0.10, "decade": 0.0, "life": 0.0
+  },
+
+  "_comment_created_at_burst": "ARCHITECTURE.md section 0's abandonment histogram - 'every one of the 567 goals was created in a 4-month burst', ASCII chart. Sums to 567; scales exactly at 5670/56700. 2024-12-16 is excluded from day-of-month sampling within this month (30 other days remain) so no generated created_datetime can literally collide with tools/import_planner.py's CALENDAR_BATCH_CREATED_AT sentinel (2024-12-16T17:29:22+03:00), which would misclassify a synthetic export row as calendar_timed/calendar_allday.",
+  "created_at_burst": {
+    "2024-11": 13, "2024-12": 355, "2025-01": 180, "2025-02": 19
+  }
+}

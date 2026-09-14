@@ -1,0 +1,45 @@
+-- verticals/db/migrations/005_updated_at_clock.sql — `goals.updated_at`'s DEFAULT moves from
+-- `now()` to `clock_timestamp()`, so the column carries one meaning ("the wall-clock instant this
+-- row was written") no matter which statement wrote it.
+--
+-- Why. `now()` — and its aliases `CURRENT_TIMESTAMP` and `transaction_timestamp()` — is
+-- TRANSACTION START time, frozen when the transaction opens, not when the statement runs. Two
+-- writers contending for one row serialise on that row's lock, and the loser waits *inside* an
+-- already-open transaction. So a transaction that began earlier and committed later stamps an
+-- OLDER `updated_at` than one a concurrent reader has already observed on that same row: time
+-- runs backwards for a reader who did nothing wrong. `docs/ACCEPTANCE.md` AC-135 forbids exactly
+-- that ("`updated_at` non-decreasing" across a sampled read stream, under 200 simultaneous
+-- HTTP/MCP write pairs against one goal — `docs/E2E.md` S-58), and it was failing intermittently:
+-- 4 of 10 consecutive `make test-mcp` runs on this box before this change, 0 of 10 after.
+--
+-- Reproduced deterministically against a real Postgres 16, with three connections and no
+-- application code at all — B's transaction opens; A opens, writes and commits; a reader samples
+-- A's stamp; B then writes and commits. B's `now()` lands ~1.5ms BEFORE the value the reader
+-- already read, three times out of three. The same probe with `clock_timestamp()` moves forward
+-- every time: it is volatile and reads the wall clock at evaluation time, which for an `UPDATE`
+-- blocked on a row lock is after that lock is granted, i.e. after the previous writer committed.
+-- Stamps therefore land in commit order, which is the order a reader sees them in.
+--
+-- Scope, and why this file is small. The failing writes were all in `core/` — `goals.py#update`,
+-- `tree.py#move`/`#renumber`, `moves.py#move_between`/`#schedule` — and those are fixed in that
+-- code, not here. This DEFAULT only ever fires on `INSERT` (`core/tree.py#attach` names neither
+-- timestamp column), where the backwards-reader failure is not reachable at all: no reader can
+-- have observed a row that does not exist yet. It is changed anyway so that `updated_at` does not
+-- mean transaction-start time when a row is created and statement time ever after — one column,
+-- two meanings, is precisely the kind of split that makes the next concurrency bug take a week to
+-- find. This is a semantic alignment, not the fix.
+--
+-- `created_at` is deliberately left on `now()`. Nothing claims monotonicity for it, no caller ever
+-- updates it (AC-071 asserts the opposite: it must be byte-identical across a PATCH), and its
+-- honest meaning — "the instant the creating transaction began" — is unaffected by any of the
+-- above. Changing it would be churn.
+--
+-- Forward-only and safe on a populated database (`verticals/db/runner.py` refuses downgrades):
+-- `ALTER COLUMN ... SET DEFAULT` rewrites no rows, takes only a brief `ACCESS EXCLUSIVE` on the
+-- catalogue entry, and touches no existing value. Rows already stamped by `now()` keep whatever
+-- they have; nothing reads a historical `updated_at` for ordering. `tests/pipeline/
+-- test_schema_parity.py`'s S-88 digest includes `column_default`, and both its one-shot and its
+-- stepwise database apply this file, so the two stay identical.
+
+ALTER TABLE goals
+  ALTER COLUMN updated_at SET DEFAULT clock_timestamp();

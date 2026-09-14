@@ -1,0 +1,65 @@
+# Verticals — the whole thing, in one command. docs/IMPLEMENTATION.md WP-29, docs/E2E.md S-117.
+#
+#   docker compose up -d --wait
+#
+# Two services and two volumes. Not the test cluster: `docker-compose.test.yml` is a bare
+# throwaway Postgres on port 55432 for the suite, holds no application image, and is a different
+# file on purpose — this one keeps its data.
+#
+# TLS IS THE OPERATOR'S JOB AND IS NOT SHIPPED (AC-157). Everything below binds loopback; putting
+# it on a network means a reverse proxy you own, terminating TLS, in front of the published port.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: verticals
+      POSTGRES_PASSWORD: verticals
+      POSTGRES_DB: verticals
+    volumes:
+      - verticals_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U verticals -d verticals"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    # NO `ports:` HERE, DELIBERATELY. The only thing that talks to this database is the service
+    # below, over the compose network. The credentials above are therefore not a secret worth
+    # rotating — they authenticate nothing that is reachable from outside this project. Publish
+    # a port here if you want `psql` from the host, and then they become one.
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # The application's own environment contract (docs/IMPLEMENTATION.md §6.3). VERTICALS_TOKEN
+      # is deliberately absent: `docker/entrypoint.sh` mints it on first boot, writes it to
+      # /state/.env at 0600, prints it once, and reuses it on every boot after. Nothing about
+      # this stack ever asks you to invent one.
+      VERTICALS_DATABASE_URL: postgresql://verticals:verticals@postgres:5432/verticals
+      VERTICALS_OWNER: local
+      # Inside the container the server binds container-loopback and nginx fronts it — see the
+      # Dockerfile's own note. Changing this does not change what the host publishes.
+      VERTICALS_BIND: 127.0.0.1:8080
+      VERTICALS_LOG_LEVEL: info
+    volumes:
+      # One file lives here: the generated `.env`. Override with a host path
+      # (`VERTICALS_STATE=./state docker compose up -d`) when you want to read or edit it
+      # directly; the default is a named volume so a stranger's first run needs no directory.
+      - ${VERTICALS_STATE:-verticals_state}:/state
+    ports:
+      # ── THE ONE LINE TO CHANGE FOR A REVERSE PROXY ──────────────────────────────────────────
+      # Published on loopback only (AC-157): your goals are not on the coffee shop's network
+      # after a first `docker compose up`. To put this behind a proxy on another host, change
+      # the bind address here and terminate TLS there — never by dropping the `127.0.0.1:`.
+      - "127.0.0.1:${VERTICALS_PORT:-8080}:80"
+
+volumes:
+  verticals_pgdata:
+  verticals_state:

@@ -1,0 +1,215 @@
+/* App-level overrides, loaded after the kit's vars.css/style.css so cascade order (not
+   specificity gymnastics) settles ties.
+
+   The `--font-body: 'Inter'` override that used to live here is removed (owner ruling,
+   2026-08-09: "it's time to disable the inter overwrite as a font so we have the KK DS vibe").
+   This is not a reversal of ARCHITECTURE.md's Ruling 7 — it is that ruling's own final, planned
+   step, executed now that the owner has called for it: "build in Inter, diff in Inter, then swap
+   to Commissioner at the end. Same font on both sides makes a straight pixel diff a valid gate,
+   and the swap becomes a deliberate, visible last step rather than permanent noise in the
+   measurement." The override existed so the `uidiff` pixel gate measured layout, not a font swap;
+   with the override gone, `--font-body` falls through to the kit's own default (Commissioner) —
+   removed, not counter-overridden, so there is one font declaration in the cascade instead of two
+   fighting for it. Consequence, stated rather than left implicit: the Inter-based captures in
+   `tests/uidiff/reference/{board,inbox,search}.html` can no longer be pixel-compared against a
+   running app (Commissioner has different glyph metrics — the very confound Ruling 7 named). That
+   comparison is already backlogged (S-100/S-101 via `tests/harness/report.py::backlog`,
+   `docs/PENDING_DOC_FIXES.md` row 85), so nothing live breaks — this just makes the backlog's
+   eventual fix a font re-capture too, not only a layout one.
+
+   The @font-face blocks and font files below are left alone: `grep -rn "Inter" web/src` now
+   turns up only these four `@font-face` declarations and this comment, nothing else in `web/src`
+   reads `--font-body` a second time — but a WP-scoped agent does not own deleting font assets a
+   different surface (`tests/uidiff`'s Inter-based reference captures, per the paragraph above)
+   may still need for its own rendering. */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Regular-Dar2-nRQ.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Medium-DyzO6fBC.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-SemiBold-BxShtueD.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Bold-DwkEV7oY.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  margin: 0;
+  background: #ffffff;
+}
+
+/* Owner ruling (2026-08-09): "Restrict all the text selection on the app except the places where
+   you EDIT the text." Global deny, re-enabled only on the surfaces that are actually editable.
+   Element selectors, not this component's class names: `input`/`textarea`/`[contenteditable]`
+   are what an editing surface *is*, in any component, present or future, so this rule does not
+   need to change the day `GoalDetailEditor.vue` (currently mid-rewrite by another WP) renames its
+   own classes. `.is-selectable` is the documented opt-in escape hatch for a future non-form
+   surface that still needs to be copyable (e.g. an id or a code string) without becoming an
+   `input`. Buttons, labels, cards and the rest of the app's read-only chrome are not editing
+   surfaces and stay unselectable, per the ruling's own "except where you edit" carve-out. Click,
+   focus and keyboard input are untouched by `user-select` — it only governs text selection, so
+   none of the app's gestures (card click, nav click, drag) are affected. */
+:root {
+  user-select: none;
+  --motion-hover: 300ms;
+  --motion-checkbox: 200ms;
+  --motion-title: 150ms;
+  --motion-progress: 100ms;
+  --motion-modal: 200ms;
+  --motion-drawer: 300ms;
+  --motion-popover: 120ms;
+  --motion-loading: 300ms;
+  --motion-loading-delay: 1s;
+  --motion-spinner: 700ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-hover: 0.01ms;
+    --motion-checkbox: 0.01ms;
+    --motion-title: 0.01ms;
+    --motion-progress: 0.01ms;
+    --motion-modal: 0.01ms;
+    --motion-drawer: 0.01ms;
+    --motion-popover: 0.01ms;
+    --motion-loading: 0.01ms;
+    --motion-loading-delay: 0s;
+    --motion-spinner: 0.01ms;
+  }
+}
+
+#goal-detail.modal {
+  z-index: 5000;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+#goal-detail .goal-detail__drawer-card { display: contents; }
+#goal-detail .modal__body {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 400px;
+  padding: 0 78px 10px 76px;
+  overflow-y: visible;
+}
+#goal-detail .goal-detail__complete {
+  position: absolute;
+  top: 10px;
+  left: 34px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+#goal-detail .goal-detail__complete .checkbox__box {
+  width: 24px;
+  height: 24px;
+}
+#goal-detail .goal-detail__header-actions {
+  position: absolute;
+  z-index: 101;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+}
+#goal-detail .goal-detail__page-link,
+#goal-detail .goal-detail__footer-action {
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+#goal-detail .goal-detail__footer {
+  position: sticky;
+  z-index: 100;
+  bottom: 0;
+  box-sizing: border-box;
+  height: 73px;
+  padding: 20px 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background-color: rgb(255, 255, 255);
+}
+#goal-detail .goal-detail__loading { padding: 76px; }
+@media (max-width: 693px) {
+  /* Drawer presentation belongs to the modal surface only. The inline board detail reuses the
+     drawer-plane/drawer-card node names, and an unscoped #goal-detail here out-flows the plane
+     (position: fixed) so the inline grid collapses to 0 height on any window under 694px. */
+  #goal-detail.modal .goal-detail__drawer-plane {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) 48px;
+    pointer-events: none;
+  }
+  #goal-detail.modal .goal-detail__drawer-card {
+    display: block;
+    box-sizing: border-box;
+    min-height: 487px;
+    margin-top: 5px;
+    padding-top: 8px;
+    border-radius: 8px 8px 0 0;
+    background: rgb(255, 255, 255);
+  }
+  #goal-detail .goal-detail__header {
+    height: 30px;
+    padding: 0 48px 0 16px;
+  }
+  #goal-detail .goal-detail__date {
+    font-size: 16px;
+    line-height: 20px;
+  }
+  #goal-detail .modal__body {
+    min-height: 449px;
+    padding: 12px 16px 0;
+  }
+  #goal-detail .goal-detail__complete {
+    top: 12px;
+    left: 16px;
+    width: 20px;
+    height: 20px;
+  }
+  #goal-detail .goal-detail__complete .checkbox__box {
+    width: 20px;
+    height: 20px;
+  }
+  #goal-detail .goal-detail__hero.goal-detail__hero {
+    width: calc(100% - 28px);
+    margin: 0 0 30px 28px;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 30px;
+  }
+}
+input,
+textarea,
+[contenteditable='true'],
+.is-selectable {
+  user-select: text;
+}

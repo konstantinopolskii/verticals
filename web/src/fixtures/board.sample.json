@@ -1,0 +1,71 @@
+{
+  "_comment": "Dev harness only (docs/IMPLEMENTATION.md WP-12 card: 'the F2 census as a shape'). Titles are synthetic/generic — never KK's real seed/ data. Column titles/day sub-label are the literal examples docs/UI_MEASURED.md §3 gives for this capture date (2026-08-08), not personal content. Goal 0 and goal 1 of the day column are load-bearing: tools/private/probe_column.ts samples them by position for the 1-line/2-line card-height checks, and goal 1's background for the wash check — keep them first if this file is edited.",
+  "columns": [
+    {
+      "vertical": "day",
+      "title": "Today",
+      "subLabel": "August 8",
+      "active": true,
+      "goals": [
+        { "id": "day-1", "title": "Reply to client email" },
+        {
+          "id": "day-2",
+          "title": "Draft quarterly review",
+          "color": "#278dea",
+          "subgoalCount": 3
+        },
+        {
+          "id": "day-3",
+          "title": "Morning workout",
+          "done": true,
+          "color": "#92ce14",
+          "contextLabel": "Stay healthy this year"
+        },
+        { "id": "day-4", "title": "Review pull requests" },
+        { "id": "day-5", "title": "Plan trip itinerary", "color": "#f2713a" }
+      ]
+    },
+    {
+      "vertical": "week",
+      "title": "3–9 Aug",
+      "goals": [
+        { "id": "week-1", "title": "Finish onboarding deck", "color": "#955be0" },
+        { "id": "week-2", "title": "Grocery run" }
+      ]
+    },
+    {
+      "vertical": "month",
+      "title": "August",
+      "goals": [
+        { "id": "month-1", "title": "Ship v2 release", "color": "#df496d", "subgoalCount": 2 },
+        { "id": "month-2", "title": "Book dentist appointment" }
+      ]
+    },
+    {
+      "vertical": "quarter",
+      "title": "Q3",
+      "goals": [
+        { "id": "quarter-1", "title": "Hit revenue target", "color": "#ecce32" },
+        { "id": "quarter-2", "title": "Hire a designer" }
+      ]
+    },
+    {
+      "vertical": "year",
+      "title": "2026",
+      "goals": [
+        { "id": "year-1", "title": "Learn a new language" },
+        { "id": "year-2", "title": "Run a half marathon", "color": "#278dea" }
+      ]
+    },
+    {
+      "vertical": "decade",
+      "title": "2026–2028",
+      "goals": [{ "id": "decade-1", "title": "Buy a home" }]
+    },
+    {
+      "vertical": "life",
+      "title": "Life",
+      "goals": [{ "id": "life-1", "title": "Write a book" }]
+    }
+  ]
+}
