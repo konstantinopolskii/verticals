@@ -606,6 +606,23 @@ onBeforeUnmount(() => {
   color: #a4a4a4;
 }
 
+/* Same trap one component up: the kit's `.chip` pins its ink, hairline and hover wash to page
+   tokens (`--color-text` #000, `--color-border-strong` and `--color-surface-overlay` both black
+   at low alpha) tuned for the white page. On this surface the tags panel's chip rendered black
+   on #1b1b1b: the tag and its remove icon were there, unreadable (owner, 2026-09-15). The chip
+   takes the surface's ink instead; the hairline keeps the kit's 20% of ink, the hover reuses
+   `.dropdown__item`'s wash. */
+.Menu-floating.popover-engine__surface .chip {
+  color: inherit;
+  border-color: rgb(242 242 242 / 20%);
+}
+.Menu-floating.popover-engine__surface .chip:hover {
+  background: #a4a4a41a;
+}
+.Menu-floating.popover-engine__surface .chip:focus-visible {
+  outline-color: currentColor;
+}
+
 .Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):hover,
 .Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):focus,
 .Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):focus-visible {
