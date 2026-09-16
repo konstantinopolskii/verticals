@@ -530,7 +530,8 @@ function onRowKeydown(event: KeyboardEvent) {
           :data-cap="isInlineDetailHost ? 'edit-title' : undefined"
           @click.stop="onTitleClick"
         >
-          <span class="goal-card__title-text">
+          <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat }">
+            <RepeatMark v-if="repeat" />
             <span v-if="ghost" class="goal-card__due">Due. </span>{{ title }}
           </span>
         </p>
@@ -561,7 +562,6 @@ function onRowKeydown(event: KeyboardEvent) {
           @click.stop="onOpenDetail"
         >Open</button>
         <p v-if="contextLabel" class="goal-card__meta">{{ contextLabel }}</p>
-        <RepeatMark v-if="repeat" />
       </div>
       <GoalCardTools
         ref="tools"
