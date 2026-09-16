@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verticals Planning"
+  short_description: "Build and maintain an evidence-backed goal ladder"
+  default_prompt: "Use $verticals-planning to map this work onto the Verticals ladder, keep the board read-only while meaning is unresolved, and show the exact changes for approval before writing."
