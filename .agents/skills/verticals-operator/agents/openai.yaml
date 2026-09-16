@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verticals Operator"
+  short_description: "Operate the Verticals MCP safely and verify every write"
+  default_prompt: "Use $verticals-operator to inspect the live Verticals state, apply only the approved mutation, and verify the raw and rendered result."

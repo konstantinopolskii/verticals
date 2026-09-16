@@ -32,6 +32,20 @@ Do not edit generated bundles or vendor archives. Do not commit secrets or real 
 The bundled private UI packages remain UNLICENSED. No public redistribution rights or
 open-source license are granted by this private snapshot.
 
+## Agent skills
+
+The portable, repository-owned skill pack lives in `.agents/skills/`:
+
+- `verticals-planning` maps evidence-backed commitments onto the Life-to-Day ladder and
+  requires an approved mutation diff before writes.
+- `verticals-operator` uses the live MCP catalog, applies approved writes idempotently,
+  and verifies raw and rendered state afterward.
+
+Claude discovers the same sources through relative links in `.claude/skills/`; Codex reads
+`.agents/skills/` directly. The skills contain no personal routes, local paths, account names,
+or mandatory external-app dependencies. Messaging, calendar, meeting, repository, payment,
+and time-tracking sources are optional evidence inputs when configured and authorized.
+
 ## Verification
 
 Run `npm --prefix web run typecheck` and `npm --prefix web run build`.
