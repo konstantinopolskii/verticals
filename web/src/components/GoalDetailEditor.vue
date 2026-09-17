@@ -131,6 +131,13 @@ const scheduleLabel = computed(() => {
   return `${SCHEDULE_LABELS[scale] ?? scale} ${periodLabel(scale, props.periodKey)}`
 })
 
+/** The vertical the Repeat trigger works in, or `null` when there is no trigger. Life goals get
+ *  none: they are for the whole life and never recur, the same rule `GoalCardTools.vue` applies
+ *  to its own Repeat item. */
+const repeatVertical = computed(() => (
+  props.inline && props.vertical && props.vertical !== 'life' ? props.vertical : null
+))
+
 /** Same call the board card used to make directly before schedule moved into the detail surface. */
 function onSchedule(scale: VerticalScale, periodKey: string) {
   void store.scheduleGoalTo(props.id, scale, periodKey)
@@ -369,10 +376,10 @@ function cancelTitleEdit() {
         <AppIcon name="subtask" :size="18" />
       </button>
       <RepeatPopover
-        v-if="props.inline && props.vertical"
+        v-if="repeatVertical"
         compact
         :id="props.id"
-        :vertical="props.vertical"
+        :vertical="repeatVertical"
         :repeat="props.repeat"
         :has-children="props.hasChildren ?? false"
       />
