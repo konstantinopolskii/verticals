@@ -120,14 +120,59 @@ export interface ReorderSlot {
   parentId: string | null
 }
 
-/** The one entry point: given a column and a live pointer Y, which slot — and whose group — does
- *  this drop resolve to. Checks every rendered nested group in the column FIRST (pointer inside a
- *  group's own band, extended past its last child to the next rendered row); only pointer
- *  positions outside every band fall back to the column's own top-level candidates, exactly as
- *  `drag.ts` resolved every reorder before this file existed — this function only adds the nested
- *  case, it does not change the top-level one. `sourceId`'s own subtree is excluded everywhere (a
- *  card may not nest under itself or a descendant), matching the source-exclusion every other
- *  candidate list here already applies. */
+function renderedGroup(
+  board: BoardResponse | null,
+  columnIds: ReadonlySet<string>,
+  cardId: string,
+): { parentId: string | null; members: ReadonlySet<string> } | null {
+  if (isTopLevelInColumn(board, columnIds, cardId)) {
+    const members = [...columnIds].filter((id) => isTopLevelInColumn(board, columnIds, id))
+    return { parentId: null, members: new Set(members) }
+  }
+  const parentGoalId = findGoal(board, cardId)?.parent_id
+  const parent = parentGoalId ? findGoal(board, parentGoalId) : undefined
+  if (!parent) return null
+  const kids = columnChildIds(board, columnIds, parent)
+  return kids.includes(cardId) ? { parentId: parent.id, members: new Set(kids) } : null
+}
+
+/** Slot right above or below a rendered card, in its group. `followingIds` is DOM order, which
+ *  differs from wire order (`completedLast`). */
+export function slotBesideCard(
+  board: BoardResponse | null,
+  sourceId: string,
+  vertical: string,
+  periodKey: string | null,
+  cardId: string,
+  after: boolean,
+  followingIds: readonly string[],
+): ReorderSlot | null {
+  const columnIds = new Set(idsInColumn(board, vertical, periodKey))
+  if (!columnIds.has(cardId) || subtreeIds(board, sourceId).has(cardId)) return null
+  const group = renderedGroup(board, columnIds, cardId)
+  if (!group) return null
+  if (!after) return { insertBeforeId: cardId, parentId: group.parentId }
+  const next = followingIds.find((id) => id !== sourceId && group.members.has(id)) ?? null
+  return { insertBeforeId: next, parentId: group.parentId }
+}
+
+/** The slot the source already occupies: what its own hole under the pointer means. */
+export function sourceSlot(
+  board: BoardResponse | null,
+  sourceId: string,
+  vertical: string,
+  periodKey: string | null,
+  followingIds: readonly string[],
+): ReorderSlot | null {
+  const columnIds = new Set(idsInColumn(board, vertical, periodKey))
+  if (!columnIds.has(sourceId)) return null
+  const group = renderedGroup(board, columnIds, sourceId)
+  if (!group) return null
+  return { insertBeforeId: followingIds.find((id) => group.members.has(id)) ?? null, parentId: group.parentId }
+}
+
+/** Fallback when no rendered row can anchor the pointer: the slot (and its group) a pointer Y
+ *  resolves to against press-time row rects, nested groups first. Excludes `sourceId`'s subtree. */
 export function resolveReorderSlot(
   board: BoardResponse | null,
   sourceId: string,

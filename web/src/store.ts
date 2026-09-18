@@ -125,7 +125,7 @@ const state = reactive<State>({
     slotWidth: 0, slotHeight: 0,
     slotInsetTop: 0, slotInsetRight: 0, slotInsetBottom: 0, slotInsetLeft: 0,
     sourceVertical: null, sourcePeriodKey: null,
-    combineMode: false, target: null, settling: null,
+    combineMode: false, target: null, slot: null, settling: null,
   },
 })
 const { runSearch, loadRecentSearch, filterByTag, clearSearch } = createSearchActions(

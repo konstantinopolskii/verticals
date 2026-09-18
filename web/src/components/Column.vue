@@ -78,22 +78,22 @@ function cardProps(goal: GoalCardData) {
   }
 }
 
-const dragTarget = computed(() => store.state.drag.target)
+const dragSlot = computed(() => store.state.drag.slot)
 const isReorderHere = computed(() => {
-  const target = dragTarget.value
-  return target?.kind === 'reorder'
-    && target.vertical === props.vertical
-    && (target.periodKey ?? null) === (props.periodKey ?? null)
+  const slot = dragSlot.value
+  return !!slot
+    && slot.vertical === props.vertical
+    && (slot.periodKey ?? null) === (props.periodKey ?? null)
 })
 /* D249: this column's own TOP-LEVEL splice fires only when the resolved slot's group owner is
    `null` — a rendered nested group's own slot (append included) now belongs to that group's own
-   `GoalCard.vue` instance, which reads `dragTarget`/`isReorderHere` off the same store field and
+   `GoalCard.vue` instance, which reads the same `drag.slot` store field and
    splices its OWN `.goal-card__children` render instead (mirrors this file's slot markup
    byte-for-byte, D249 doc). Without this gate, a nested-group drop would ALSO render a second,
    misplaced indicator at the top level (`renderItems`' own `findIndex` would just miss and push
    it to the column's very end, since a nested id is never a member of `slide.goals`). */
 const isTopLevelReorderHere = computed(() => (
-  isReorderHere.value && (dragTarget.value as { parentId: string | null }).parentId === null
+  isReorderHere.value && dragSlot.value?.parentId === null
 ))
 const isSourceSlot = computed(() => isReorderHere.value
   && store.state.drag.sourceVertical === props.vertical
@@ -146,7 +146,7 @@ function snapshot(state: SlideState): PeriodSlide {
 function renderItems(slide: PeriodSlide): RenderItem[] {
   const items: RenderItem[] = slide.goals.map((goal) => ({ kind: 'goal', key: goal.id, goal }))
   if (slide.state === 'outgoing' || !isTopLevelReorderHere.value) return items
-  const beforeId = (dragTarget.value as { insertBeforeId: string | null }).insertBeforeId
+  const beforeId = dragSlot.value?.insertBeforeId ?? null
   const found = beforeId === null
     ? items.length
     : items.findIndex((item) => item.kind === 'goal' && item.goal.id === beforeId)
@@ -228,7 +228,7 @@ watch(
 
 const insertionSlot = computed(() => {
   if (!isTopLevelReorderHere.value) return undefined
-  return (dragTarget.value as { insertBeforeId: string | null }).insertBeforeId
+  return dragSlot.value?.insertBeforeId ?? null
 })
 watch(insertionSlot, async () => {
   const selector = ':scope > [data-role="period-track"] > [data-state]:not([data-state="outgoing"]) [data-goal-id]'
