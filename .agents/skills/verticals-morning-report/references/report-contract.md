@@ -1,19 +1,29 @@
-# Report and reconciliation contract
+# Reader-facing report contract
 
-## Source-to-destination check
+Use [worked-example.md](worked-example.md) for a complete, case-based rendering. These sections are a proven default from actual use, not an obligation to print empty tables or copy another owner's timezone and source names.
 
-For each material new discussion or result, identify the original source and exact read scope, the goal or owning work session it affects, the current destination content, and any later reply or artifact that changed its state. Record whether an authorized update was saved and verified. A source mention in a report is not evidence that it reached the task.
+## Header and navigation
 
-Distinguish **discussed**, **agreed**, **saved**, **delivered**, **recipient response**, and **reader acceptance**. Do not collapse these into “done.” Preserve speaker attribution, constraints, and unresolved choices. A later primary source beats an older agent summary. An empty search or unavailable connector is a coverage gap, not proof of absence.
+Title the document `Morning report — <local date>`. The opening line says whether it is pre-talk or post-talk, the reader's timezone, what was checked through when, any targeted later checks, and what was excluded. State if an intended delivery time was missed; do not disguise it as the source cutoff.
 
-## Reader-facing layout
+Start with `What changed`: material corrections, new commitments, delivered results, and status changes since the previous report. Next use the nonempty sections `Inbox — decisions needed`, `Today`, and `This week — keep in mind` when relevant. Preserve the reader's known priority order, and label carry-over rather than treating an old date as a newly assigned priority. Do not fill the active view with completed or deliberately deferred history.
 
-Start with a short “What changed” section. Use a compact navigation table for the items that need attention today and, when relevant, decisions and near-term commitments. Each row should identify the actual owning task/session, its purpose, latest verified state, next actor/action, and any reviewer comment. Use real links only; an unresolved route stays explicitly unresolved. Put detailed source context and uncertainty below the navigation so the reader need not open every source to discuss a decision.
+Each navigation table uses four columns when the reader edits comments:
 
-Group genuine children with their parent and avoid duplicate rows. A compact child display must not hide a blocker or promise: surface its consequence in the parent's next-action cell. Preserve the reader's priority order and distinguish a dated commitment from carry-over. Keep completed or deliberately deferred work out of the active decision view unless the reader requests a history section.
+| Task / owning session | Summary / purpose | Latest updates / next action | Reader comments and decisions |
+| --- | --- | --- | --- |
+| Real linked task and current owning session | Stable intended result | Verified recent state; what remains; next actor | Exact pending comment, or `[]` |
 
-If the reviewer edits comment cells, preserve their exact words. Clear a comment only after its instruction has been implemented or clarified and read back; retain the original in compact history. Dispatch alone is not implementation. “Looks good” about layout is not acceptance of an underlying result. An unambiguous “done” on a specific row may accept only that row's scope, subject to any stated condition.
+The first link must route to the task's real owning session, not a historical coordination bucket. If a route is unresolved, say so. The purpose is stable; the updates cell carries progress, limits, and next action. Keep one main outcome per row. Group true child work beneath its parent in a short Markdown list, linking only real child sessions. A compact child list may not hide an urgent blocker or promise: state its consequence in the parent row. Use native Markdown, not HTML line breaks inside tables.
 
-## Publication boundary
+## Detail below navigation
 
-State the report's local date, actual source cutoff, and missing coverage. Save one canonical daily report and update it after review. If a second configured copy exists, compare its content after saving. Show proposed changes separately when the reader has not approved them. Do not schedule, send, close, or create anything solely because a report named a next action.
+Add only the sections needed to make the concise rows actionable: meeting or conversation context; source → exact destination → readback map; material constraints and choices; near-term calendar; unresolved comments; source coverage and limitations; processed comment history. Attribute ideas to speakers and keep proposals distinct from promises and accepted scope. Preserve enough substance to discuss a decision without opening every source, but do not duplicate every goal or transcript.
+
+The report must distinguish `discussed`, `agreed`, `saved`, `delivered`, `recipient response`, and `reader acceptance`. Examples from actual usage: a sent strategy is not a promised second document; an annual payment discussion is not cash received; a merged skills PR and recipient use do not themselves close the owner's overall task. Check later replies before calling a message or handoff pending.
+
+## Comments and second copy
+
+Preserve exact reviewer comments. Clear an active comment cell to `[]` only after its instruction was implemented or clarified and the outcome was read back; retain the original in compact history. A dispatch, draft, formatting approval, or agent's test result does not accept underlying work. Explicit “done” on an unambiguous row applies only to that row's scope and stated conditions.
+
+Update the same dated report after review. If a native Verticals document is configured as a second copy, save identical content and compare both after writing. Keep the pre-talk state through existing revision/history, not a second daily briefing. Publish a short chat link and actual-change summary; do not paste duplicate tables by default.
