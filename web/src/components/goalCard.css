@@ -63,6 +63,7 @@
 }
 .goal-card:hover,
 .goal-card.goal-card--menu-open,
+.goal-card.goal-card--landed-hover,
 .goal-card.goal-card--ancestor-hover,
 .goal-card.goal-card--open-related {
   background-color: var(--goal-hover-background) !important;

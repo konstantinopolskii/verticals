@@ -3,6 +3,7 @@
 }
 
 .goal-card.carryover-ghost:hover,
-.goal-card.carryover-ghost.goal-card--menu-open {
+.goal-card.carryover-ghost.goal-card--menu-open,
+.goal-card.carryover-ghost.goal-card--landed-hover {
   opacity: 1;
 }

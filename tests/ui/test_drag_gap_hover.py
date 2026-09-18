@@ -1,10 +1,11 @@
-"""Dragging the first card down and resting in the gap between the next two must not move
-anything; a combine hover must not move the gap either."""
+"""Drag must not move anything the pointer did not ask for: resting in a gap, a combine hover,
+and the landed card's colour and hover look."""
 
 from __future__ import annotations
 
 import time
 
+import httpx
 import psycopg
 from playwright.sync_api import Page
 
@@ -148,3 +149,71 @@ def test_first_card_rests_in_gap_without_reflow(ui_f2: UiSession) -> None:
                 break
             time.sleep(0.05)
         assert positions[second] < positions[first] < positions[third], positions
+
+
+_TRACE = """id => {
+  const out = window.__trace = []
+  const t0 = performance.now()
+  const tick = () => {
+    const card = document.querySelector(`[data-goal-id="${id}"]`)
+    const row = card?.querySelector(':scope > .goal-card__row')
+    if (card && row) {
+      out.push({
+        wash: card.style.getPropertyValue('--goal-hover-background'),
+        visible: getComputedStyle(row).visibility === 'visible' && card.getBoundingClientRect().height > 0,
+        background: getComputedStyle(card).backgroundColor,
+      })
+    }
+    if (performance.now() - t0 < 1500) requestAnimationFrame(tick)
+  }
+  tick()
+}"""
+
+
+def _api(session: UiSession, body: dict) -> str:
+    resp = httpx.post(
+        f"{session.backend.base_url}/api/goals",
+        json=body,
+        headers={"Authorization": f"Bearer {session.backend.token}"},
+        timeout=10,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+def test_dropped_card_keeps_value_colour(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    value = _api(session, {"title": "Orange value", "vertical": "life", "anchor_date": "2026-01-01", "color": "#f2713a"})
+    ids = [
+        _api(session, {"title": f"Orange task {n}", "vertical": "month", "anchor_date": "2026-08-08", "parent_id": value})
+        for n in (1, 2, 3)
+    ]
+    page.reload()
+    activate_column(page, "month")
+    first, second = ids[0], ids[1]
+
+    start = _row_box(page, first)
+    x, y = start["x"] + GRIP["x"], start["y"] + GRIP["y"]
+    page.mouse.move(x, y)
+    page.wait_for_timeout(100)
+    card = page.locator(f'[data-goal-id="{first}"]')
+    wash = card.evaluate("el => el.style.getPropertyValue('--goal-hover-background')")
+    hovered = card.evaluate("el => getComputedStyle(el).backgroundColor")
+    assert wash != "#d7d7d7", wash
+
+    page.mouse.down()
+    page.mouse.move(x, y + 8, steps=2)
+    page.wait_for_timeout(FLIP_SETTLE_MS)
+    target = _row_box(page, second)
+    page.mouse.move(x, target["y"] + target["height"] * 0.9, steps=6)
+    page.wait_for_timeout(FLIP_SETTLE_MS)
+    page.evaluate(_TRACE, first)
+    page.mouse.up()
+    page.wait_for_timeout(1600)
+    trace = page.evaluate("() => window.__trace")
+
+    assert {frame["wash"] for frame in trace} == {wash}, "the card lost its value colour after the drop"
+    shown = [frame["background"] for frame in trace if frame["visible"]]
+    assert shown and set(shown) == {hovered}, f"the landed card did not keep the hover look: {set(shown)}"
+    assert page.evaluate(_TOP_LEVEL_IDS, "month").index(first) > page.evaluate(_TOP_LEVEL_IDS, "month").index(second)

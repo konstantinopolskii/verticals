@@ -263,6 +263,22 @@ function ackDoneOnTime(): void { void store.dueAckGhost(props.id, 'done_on_time'
 const isDragSource = computed(
   () => store.state.drag.id === props.id || store.state.drag.settling?.id === props.id,
 )
+/* The flying copy was cloned hovered; the browser re-hovers the landed card only on the next
+   pointer move, so hold the hover look until then. */
+const landedHover = ref(false)
+function releaseLandedHover(): void {
+  landedHover.value = false
+  window.removeEventListener('pointermove', releaseLandedHover)
+}
+watch(isDragSource, (now, was) => {
+  if (now || !was) return
+  const box = rootElement()?.getBoundingClientRect()
+  const { x, y } = store.state.drag
+  if (!box || x < box.left || x > box.right || y < box.top || y > box.bottom) return
+  landedHover.value = true
+  window.addEventListener('pointermove', releaseLandedHover)
+}, { flush: 'post' })
+onBeforeUnmount(releaseLandedHover)
 const isCombineTarget = computed(
   () => store.state.drag.id !== null
     && store.state.drag.target?.kind === 'combine'
@@ -469,6 +485,7 @@ function onRowKeydown(event: KeyboardEvent) {
       'goal-card--source-gap-closed': closesSourceGap,
       'goal-card--nested-drag-hole': isNestedDragHole,
       'goal-card--menu-open': menuOpen,
+      'goal-card--landed-hover': landedHover,
       'goal-card--colored': color,
       'goal-card--done': checked,
       'goal-card--detail-open': isInlineDetailHost,

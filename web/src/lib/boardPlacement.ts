@@ -7,7 +7,7 @@
 // every caller, drag or menu, so `store.ts`'s `loadBoard`/`liveReload` guard has a single source
 // to check instead of every write site remembering to call it.
 
-import { ancestorIds } from './boardIndex'
+import { ancestorIds, findGoal } from './boardIndex'
 import { bump } from './boardEpoch'
 import type { BoardColumn, BoardResponse, GoalCard } from './api'
 
@@ -43,8 +43,23 @@ function restoreGoals(snapshots: GoalSnapshot[]): void {
   for (const snapshot of snapshots) assignGoal(snapshot.goal, snapshot.value)
 }
 
+/** A card shows its value's colour (D231), i.e. its parent's colour on the board. */
+function valueColor(
+  board: BoardResponse,
+  goal: Pick<GoalCard, 'parent_id' | 'vertical' | 'color'>,
+  fallback: string | null,
+): string | null {
+  if (goal.parent_id === null) return goal.vertical === 'life' ? goal.color : null
+  return findGoal(board, goal.parent_id)?.color ?? fallback
+}
+
+/** Write responses carry the stored colour, which is not what the board shows. */
+function mergeServerCard(board: BoardResponse, goal: GoalCard, updated: GoalCard): void {
+  Object.assign(goal, updated, { tags: [...updated.tags], color: valueColor(board, updated, goal.color) })
+}
+
 function reconcileGoals(board: BoardResponse, id: string, updated: GoalCard): void {
-  for (const goal of goalRefs(board, id)) assignGoal(goal, updated)
+  for (const goal of goalRefs(board, id)) mergeServerCard(board, goal, updated)
 }
 
 function columnEntry(
@@ -110,7 +125,7 @@ export function schedulePlacement(
   return {
     reconcile(updated) {
       if (!active) return
-      if (updated) for (const goal of refs) assignGoal(goal, updated)
+      if (updated) for (const goal of refs) mergeServerCard(board, goal, updated)
       active = false
     },
     rollback() {
@@ -210,6 +225,7 @@ export function reparentPlacement(
   for (const goal of refs) {
     goal.parent_id = parentId
     goal.depth = parentId === null ? 0 : (parentRefs[0]?.depth ?? -1) + 1
+    goal.color = valueColor(board, goal, goal.color)
   }
   if (oldParentId) board.child_counts[oldParentId] = board.children[oldParentId]?.length ?? 0
   if (parentId) board.child_counts[parentId] = board.children[parentId].length
@@ -241,7 +257,7 @@ export function reparentPlacement(
   return {
     reconcile(updated) {
       if (!active) return
-      if (updated) for (const goal of refs) assignGoal(goal, updated)
+      if (updated) for (const goal of refs) mergeServerCard(board, goal, updated)
       active = false
     },
     rollback() {
@@ -287,7 +303,7 @@ export function patchPlacement(
   return {
     reconcile(updated) {
       if (!active) return
-      if (updated) for (const goal of refs) assignGoal(goal, updated)
+      if (updated) for (const goal of refs) mergeServerCard(board, goal, updated)
       active = false
     },
     rollback() {
