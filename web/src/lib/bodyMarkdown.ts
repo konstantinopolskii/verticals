@@ -1,4 +1,6 @@
-/** IR-09's deliberately bounded Markdown model. Unsupported syntax stays ordinary text. */
+/** IR-09's deliberately bounded Markdown model. Unsupported syntax stays ordinary text.
+ *  A link is external (`http(s):`/`mailto:`, the S-72 allowlist; the browser follows it) or
+ *  in-app (`goal:<id>`/`doc:<path>`; `lib/docsView.ts::followBodyLink` follows it). */
 export type Run =
   | { kind: 'text' | 'strong' | 'em' | 'code'; text: string }
   | { kind: 'link'; text: string; href: string }
@@ -13,6 +15,17 @@ export type Block =
 
 const CONTROL_OR_SPACE_RE = /[\s\x00-\x1f\x7f-\x9f]/g
 const ALLOWED_SCHEME_RE = /^(https?:|mailto:)/
+/** Mirrors `core/docs.py::_LINK_DEST_RE` (`(goal|doc):([^)\s]+)`, lower-case only): what the
+ *  server would index as a link is what renders as one, nothing more and nothing less. */
+const INTERNAL_LINK_RE = /^(goal|doc):([^\s)]+)$/
+
+export type InternalLink = { kind: 'goal' | 'doc'; target: string }
+
+export function internalLinkTarget(href: string): InternalLink | null {
+  const match = INTERNAL_LINK_RE.exec(href)
+  if (!match) return null
+  return { kind: match[1] as InternalLink['kind'], target: match[2] }
+}
 /** Underscore emphasis is fenced off from INTRAWORD underscores, the way CommonMark fences it.
  *  Without the fence `_(…)_` happily spans `window.__pwned=1"> … window.__` and eats the two
  *  underscores out of an identifier — S-72's payload is exactly that string, and the scenario
@@ -63,8 +76,14 @@ export function cleanHref(raw: string): string {
 
 export function isAllowedHref(cleaned: string): boolean {
   return ALLOWED_SCHEME_RE.test(cleaned.toLowerCase())
+    || internalLinkTarget(cleaned) !== null
     || cleaned.startsWith('/')
     || cleaned.startsWith('#')
+}
+
+/** Null for no anchor or an external one — the browser follows those itself (S-72). */
+export function internalLinkOf(anchor: HTMLAnchorElement | null): InternalLink | null {
+  return anchor ? internalLinkTarget(cleanHref(anchor.getAttribute('href') ?? '')) : null
 }
 
 export function tokenizeInline(text: string): Run[] {
@@ -209,9 +228,16 @@ function appendRun(parent: HTMLElement, run: Run): void {
   element.textContent = run.text
   if (run.kind === 'code') element.className = 't-code'
   if (run.kind === 'link') {
+    // Both kinds keep the literal destination in `href`: `serializeInlineNode` reads it back on edit.
     element.setAttribute('href', run.href)
-    element.setAttribute('target', '_blank')
-    element.setAttribute('rel', 'noopener noreferrer')
+    const internal = internalLinkTarget(run.href)
+    if (internal) {
+      element.dataset.linkKind = internal.kind
+      element.dataset.linkTarget = internal.target
+    } else {
+      element.setAttribute('target', '_blank')
+      element.setAttribute('rel', 'noopener noreferrer')
+    }
   }
   parent.append(element)
 }

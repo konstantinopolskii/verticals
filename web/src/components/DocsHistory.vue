@@ -9,7 +9,7 @@
 import { nextTick, watch, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store'
-import { renderBodyElement } from '../lib/bodyMarkdown'
+import { internalLinkOf, renderBodyElement } from '../lib/bodyMarkdown'
 
 const bodyEl = ref<HTMLElement | null>(null)
 
@@ -20,6 +20,13 @@ function paintRevisionBody(): void {
   })
 }
 watch(() => store.state.docs.viewingRevision?.revision, paintRevisionBody, { immediate: true })
+
+function onBodyClick(event: MouseEvent): void {
+  const internal = internalLinkOf((event.target as HTMLElement).closest('a'))
+  if (!internal) return
+  event.preventDefault()
+  void store.followBodyLink(internal)
+}
 
 function formatSavedAt(iso: string): string {
   return new Date(iso).toLocaleString()
@@ -68,7 +75,7 @@ function formatSavedAt(iso: string): string {
       <h2 class="docs-history__revision-title">
         {{ store.state.docs.viewingRevision.title || '(untitled)' }}
       </h2>
-      <div ref="bodyEl" class="goal-detail__body" data-role="docs-history-body"></div>
+      <div ref="bodyEl" class="goal-detail__body" data-role="docs-history-body" @click="onBodyClick"></div>
     </template>
 
     <ul v-else class="docs-history__list" data-role="docs-history-list">

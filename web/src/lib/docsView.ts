@@ -11,6 +11,7 @@
 // the same shape as `store.ts`'s own board `collapsed` id list.
 
 import { toast } from '@konstantinopolskii/vue'
+import type { InternalLink } from './bodyMarkdown'
 import {
   ApiError,
   createDoc as apiCreateDoc,
@@ -171,6 +172,24 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
     void openDoc(id)
   }
 
+  /** A body names a doc by PATH (`core/docs.py::extract_links`), so the tree list resolves it —
+   *  refetched first: the target may postdate the last load, or nothing has loaded the list yet. */
+  async function openDocByPath(path: string): Promise<void> {
+    await loadDocs()
+    const found = state.docs.list.find((d) => d.path === path)
+    if (!found) {
+      toast(`No document at ${path}.`)
+      return
+    }
+    deps.setView('docs')
+    await openDoc(found.id)
+  }
+
+  /** One dispatch for an in-app link clicked in any rendered body (`bodyMarkdown.ts::internalLinkOf`). */
+  function followBodyLink(link: InternalLink): Promise<void> {
+    return link.kind === 'goal' ? deps.navigateToGoal(link.target) : openDocByPath(link.target)
+  }
+
   /** `path` alone creates at the root; a path containing `/` creates (and, on the client, renders)
    *  every intermediate folder — `docTree` above has no folder table to pre-populate, so nothing
    *  extra needs to happen here beyond the one `POST`. */
@@ -322,7 +341,8 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
   }
 
   return {
-    loadDocs, openDoc, closeDoc, openDocFromGoal, createDoc, saveDoc, deleteCurrentDoc,
+    loadDocs, openDoc, closeDoc, openDocFromGoal, openDocByPath, followBodyLink, createDoc, saveDoc,
+    deleteCurrentDoc,
     loadHistory, closeHistory, viewRevision, backToHistoryList, restoreRevision,
     toggleFolder, isFolderCollapsed,
   }
