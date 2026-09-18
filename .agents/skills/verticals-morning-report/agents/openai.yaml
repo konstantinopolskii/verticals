@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verticals Morning Report"
+  short_description: "Reconcile work into a daily review report"
+  default_prompt: "Use $verticals-morning-report to prepare today's evidence-backed report from my configured sources and report destination; disclose any coverage gaps."

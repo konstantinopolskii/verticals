@@ -40,11 +40,16 @@ The portable, repository-owned skill pack lives in `.agents/skills/`:
   requires an approved mutation diff before writes.
 - `verticals-operator` uses the live MCP catalog, applies approved writes idempotently,
   and verifies raw and rendered state afterward.
+- `verticals-morning-report` reconciles current work and configured sources into one
+  daily review report, then updates that same report after the reader's feedback.
 
 Claude discovers the same sources through relative links in `.claude/skills/`; Codex reads
 `.agents/skills/` directly. The skills contain no personal routes, local paths, account names,
 or mandatory external-app dependencies. Messaging, calendar, meeting, repository, payment,
 and time-tracking sources are optional evidence inputs when configured and authorized.
+For the report skill, set the reader's timezone, report destination, available sources,
+and optional cadence in the owner's local workspace instructions; see its
+`references/setup.md`. No personal path, account, or schedule is baked into the pack.
 
 ## Verification
 

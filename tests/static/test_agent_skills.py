@@ -14,7 +14,7 @@ CLAUDE_SKILLS = ROOT / ".claude" / "skills"
 DESIGN_SYSTEM_ARCHIVE = ROOT / "web" / "vendor" / "konstantinopolskii-design-system-2.1.1.tgz"
 EVIDENCE_DOC = ROOT / "docs" / "EVIDENCE.md"
 
-EXPECTED = {"verticals-planning", "verticals-operator"}
+EXPECTED = {"verticals-planning", "verticals-operator", "verticals-morning-report"}
 PRIVATE_RUNTIME_TERMS = {
     "/Users/",
     "DailyRecap",
@@ -46,6 +46,14 @@ def test_portable_skills_are_repository_owned_and_linked_for_claude() -> None:
         assert link.is_symlink()
         assert os.readlink(link) == f"../../.agents/skills/{name}"
         assert (link / "SKILL.md").samefile(skill)
+
+
+def test_morning_report_references_resolve() -> None:
+    skill_dir = SKILLS / "verticals-morning-report"
+    text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    for name in ("setup.md", "report-contract.md"):
+        assert f"references/{name}" in text
+        assert (skill_dir / "references" / name).is_file()
 
 
 def test_vendored_design_system_cannot_reinstall_legacy_skills() -> None:
