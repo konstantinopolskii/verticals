@@ -12,5 +12,5 @@ before the entire historical catalogue can become a CI gate.
 
 Original local repository stays intact. New collaboration uses this repository.
 Transfer later local changes through reviewed patches; never push old private history.
-Kirill has not been invited. Confirm his GitHub account and access level first.
+Confirm each collaborator's GitHub account and access level before granting access.
 No public license or redistribution rights granted.
