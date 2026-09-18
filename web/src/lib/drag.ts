@@ -646,8 +646,10 @@ export function scheduleOrdering(
     .filter((id) => id !== sourceId)
   const index = siblings.indexOf(target.insertBeforeId)
   if (index === -1) return null
-  if (index === 0) return { position: 'first' }
-  return { after_id: siblings[index - 1] }
+  // Carryover ghosts render here but belong to their old period; the server refuses them as after_id.
+  const before = siblings.slice(0, index)
+    .filter((id) => findGoal(board, id)?.period_key === target.periodKey)
+  return before.length ? { after_id: before[before.length - 1] } : { position: 'first' }
 }
 
 // --- reorder write ---------------------------------------------------------------------------
