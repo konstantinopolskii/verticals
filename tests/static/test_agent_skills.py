@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tarfile
 from pathlib import Path
@@ -11,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / ".agents" / "skills"
 CLAUDE_SKILLS = ROOT / ".claude" / "skills"
 DESIGN_SYSTEM_ARCHIVE = ROOT / "web" / "vendor" / "konstantinopolskii-design-system-2.1.1.tgz"
+EVIDENCE_DOC = ROOT / "docs" / "EVIDENCE.md"
 
 EXPECTED = {"verticals-planning", "verticals-operator"}
 PRIVATE_RUNTIME_TERMS = {
@@ -56,3 +58,17 @@ def test_vendored_design_system_cannot_reinstall_legacy_skills() -> None:
         "package/scripts/postinstall.js",
     )
     assert not any(name.startswith(forbidden_prefixes) for name in names)
+
+
+def test_evidence_tool_payload_reference_has_a_documented_section() -> None:
+    """The agent-visible MCP description links to docs/EVIDENCE.md §4."""
+    source = (ROOT / "verticals" / "mcp" / "evidence.py").read_text(encoding="utf-8")
+    assert "docs/EVIDENCE.md §4" in source
+    assert EVIDENCE_DOC.is_file()
+    document = EVIDENCE_DOC.read_text(encoding="utf-8")
+    assert "## 4. Payload shape" in document
+
+    from verticals.core.evidence import validate_payload
+
+    example = document.split("```json\n", 1)[1].split("\n```", 1)[0]
+    assert validate_payload(json.loads(example)) == json.loads(example)
