@@ -15,7 +15,7 @@ import { KChip } from '@konstantinopolskii/vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store'
 import type { DocDetail as DocDetailWire } from '../lib/api'
-import { renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
+import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
 import {
   handleBodyBeforeInput,
@@ -88,7 +88,14 @@ function startBodyEdit(): void {
 function onBodyClick(event: MouseEvent): void {
   if (anchoring.onBodyClick(event)) return
   const link = (event.target as HTMLElement).closest('a')
-  if (link && !editingBody.value) return
+  if (link && !editingBody.value) {
+    const internal = internalLinkOf(link)
+    if (internal) {
+      event.preventDefault()
+      void store.followBodyLink(internal)
+    }
+    return
+  }
   if (link) event.preventDefault()
   // See GoalDetail.vue's own onBodyClick for why: a click that just produced a comment-selection
   // is a drag-to-select gesture, not a position-the-caret click.
@@ -312,7 +319,8 @@ watch(() => props.doc.body, () => { if (!editingBody.value) paintBody() })
   gap: var(--space-3);
   height: 100%;
   min-width: 0;
-  padding: var(--space-4) var(--space-5);
+  /* Bottom clears `.app-nav` (App.vue): fixed 16px from the bottom, 32px tall. */
+  padding: var(--space-4) var(--space-5) var(--space-15);
   box-sizing: border-box;
   overflow: auto;
 }
@@ -391,7 +399,7 @@ watch(() => props.doc.body, () => { if (!editingBody.value) paintBody() })
 }
 .doc-detail__body {
   min-height: 200px;
-  flex: 1 1 auto;
+  flex: 1 0 auto;
 }
 .doc-detail__links {
   padding-top: var(--space-2);

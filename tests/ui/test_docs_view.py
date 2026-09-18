@@ -339,3 +339,127 @@ def test_doc_hash_fragment_opens_the_doc_on_boot(ui_f2: UiSession) -> None:
     assert session.page.locator('[data-nav-item="docs"]').get_attribute("aria-current") == "page"
     assert session.page.url.endswith(f"#doc/{doc_id}")
     _assert_no_dialog(session.page)
+
+
+# --- in-app links inside a rendered body: `[label](goal:<id>)` / `[label](doc:<path>)` ----------
+#
+# The links `core/docs.py::extract_links` indexes used to render as literal text (the S-72
+# allowlist had http/https/mailto only). A click takes the corresponding chip's own path.
+
+
+def test_doc_body_goal_link_renders_as_anchor_and_navigates_to_board(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        goal_id = _create_goal(conn, "SYN body-link target goal", vertical="day")
+        doc_id = _create_doc(
+            conn, "syn-bodylink/source.md", title="SYN Body Link Source",
+            body=f"See [the goal](goal:{goal_id}) and [outside](https://example.com/x).",
+        )
+
+    page.reload()
+    _open_docs(session)
+    page.click(f'[data-doc-id="{doc_id}"]')
+    expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Source", timeout=10000)
+    body = page.locator('[data-role="doc-body"]')
+
+    link = body.locator(f'a[data-link-kind="goal"][data-link-target="{goal_id}"]')
+    expect(link).to_have_text("the goal")
+    assert link.get_attribute("href") == f"goal:{goal_id}"
+    assert link.get_attribute("target") is None, "an in-app link never opens a browser tab"
+    assert f"(goal:{goal_id})" not in body.inner_text(), "the in-app link stayed literal text"
+    # An external link keeps S-72's shape untouched, side by side with the in-app one.
+    external = body.locator('a[href="https://example.com/x"]')
+    expect(external).to_have_text("outside")
+    assert external.get_attribute("target") == "_blank"
+    assert external.get_attribute("data-link-kind") is None
+
+    link.click()
+    host = page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open')
+    expect(host).to_be_visible(timeout=10000)
+    expect(host.locator(".goal-detail-inline")).to_be_visible()
+    _assert_no_dialog(page)
+    assert page.url.startswith(session.base_url), "an in-app link must never navigate the browser itself"
+    assert page.locator('[data-nav-item="verticals"]').get_attribute("aria-current") == "page"
+
+
+def test_doc_body_doc_link_opens_the_target_doc(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        _create_doc(conn, "syn-bodylink/target.md", title="SYN Body Link Target")
+        source_id = _create_doc(
+            conn, "syn-bodylink/source.md", title="SYN Body Link Source",
+            body="Read [the target](doc:syn-bodylink/target.md) first.",
+        )
+
+    page.reload()
+    _open_docs(session)
+    page.click(f'[data-doc-id="{source_id}"]')
+    expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Source", timeout=10000)
+
+    link = page.locator(
+        '[data-role="doc-body"] a[data-link-kind="doc"][data-link-target="syn-bodylink/target.md"]'
+    )
+    expect(link).to_have_text("the target")
+    link.click()
+
+    expect(page.locator('[data-role="doc-path"]')).to_have_text("syn-bodylink/target.md", timeout=10000)
+    expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Target")
+    assert page.locator(TOAST_TEXT).count() == 0
+    assert page.url.startswith(session.base_url)
+
+
+def test_goal_body_doc_link_opens_docs_view(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        _create_doc(conn, "syn-bodylink/notes.md", title="SYN Notes")
+        goal_id = _create_goal(conn, "SYN goal with a body doc link", vertical="day")
+        core_goals.update(conn, owner="t1", id=goal_id, body="Notes: [here](doc:syn-bodylink/notes.md)")
+
+    page.reload()
+    card_row = page.locator(f'[data-goal-id="{goal_id}"] > .goal-card__row .goal-card__title')
+    expect(card_row).to_be_visible(timeout=10000)
+    card_row.click()
+    host = page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open')
+    expect(host).to_be_visible()
+
+    link = host.locator('.goal-detail__body a[data-link-kind="doc"][data-link-target="syn-bodylink/notes.md"]')
+    expect(link).to_have_text("here", timeout=10000)
+    link.click()
+
+    expect(page.locator('[data-cap="docs"]')).to_be_visible(timeout=10000)
+    expect(page.locator('[data-role="doc-path"]')).to_have_text("syn-bodylink/notes.md", timeout=10000)
+    assert page.locator('[data-nav-item="docs"]').get_attribute("aria-current") == "page"
+
+
+def test_editing_a_doc_body_keeps_its_in_app_links(ui_f2: UiSession) -> None:
+    """Render and serialize are one round trip (`bodyMarkdown.ts`): an anchor the serializer did
+    not recognise would come back as its bare label, and the debounced save would drop the link —
+    and with it the `goal_doc_links` row `core/docs.py` derives from the text."""
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        goal_id = _create_goal(conn, "SYN round-trip target goal", vertical="day")
+        doc_id = _create_doc(
+            conn, "syn-bodylink/roundtrip.md", title="SYN Round Trip",
+            body=f"Plan: [the goal](goal:{goal_id}) first.",
+        )
+
+    page.reload()
+    _open_docs(session)
+    page.click(f'[data-doc-id="{doc_id}"]')
+    expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Round Trip", timeout=10000)
+
+    body = page.locator('[data-role="doc-body"]')
+    # Below the text, not on the link: a read-mode link click follows the link instead of editing.
+    body.click(position={"x": 8, "y": 180})
+    expect(body).to_have_attribute("contenteditable", "true")
+    page.keyboard.press("End")
+    page.keyboard.type(" Then rest.")
+    page.wait_for_timeout(BODY_SAVE_SETTLE_MS)
+
+    fresh = _api_get_doc(session, doc_id)
+    assert fresh["body"] == f"Plan: [the goal](goal:{goal_id}) first. Then rest."
+    assert goal_id in {g["goal_id"] for g in fresh["linked_goals"]}

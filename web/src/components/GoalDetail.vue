@@ -10,7 +10,7 @@ import GoalDetailEditor from './GoalDetailEditor.vue'
 import SubgoalAddRow from './SubgoalAddRow.vue'
 import ShotSizeFields from '../kit-ext/shot-size-fields/ShotSizeFields.vue'
 import { store } from '../store'
-import { renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
+import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
 import {
   handleBodyBeforeInput,
@@ -181,7 +181,14 @@ function onBodyClick(event: MouseEvent) {
   if (anchoring.onBodyClick(event)) return
   const link = (event.target as HTMLElement).closest('a')
   // S-72: read-mode anchor clicks stay links and never enter edit mode.
-  if (link && !editingBody.value) return
+  if (link && !editingBody.value) {
+    const internal = internalLinkOf(link)
+    if (internal) {
+      event.preventDefault()
+      void store.followBodyLink(internal)
+    }
+    return
+  }
   if (link) event.preventDefault()
   // A click that just produced a comment-selection (`anchoring.onBodyMouseUp`, bound on `mouseup`,
   // already ran by the time `click` reaches here) is a drag-to-select gesture, not a

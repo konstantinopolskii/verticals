@@ -24,7 +24,7 @@
    engine is the boring, low-risk one — flagged in the report, not decided quietly. */
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { toast } from '@konstantinopolskii/vue'
-import { todayIso } from '../store'
+import { store, todayIso } from '../store'
 import {
   ApiError,
   createDoc as apiCreateDoc,
@@ -34,7 +34,7 @@ import {
   type DocDetail,
 } from '../lib/api'
 import { messageForError } from '../lib/scheduleFeedback'
-import { renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
+import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
 import {
   handleBodyBeforeInput,
   handleBodyKeydown,
@@ -155,9 +155,15 @@ function onInput(event: InputEvent): void {
 
 function onClick(event: MouseEvent): void {
   const link = (event.target as HTMLElement).closest('a')
-  // S-72 / DocDetail.vue's own onBodyClick: a real http(s)/mailto link (the only schemes
-  // bodyMarkdown.ts::isAllowedHref renders as a live <a> at all) stays a link in view mode.
-  if (link && !editing.value) return
+  // S-72 / DocDetail.vue's own onBodyClick: a link stays a link in view mode.
+  if (link && !editing.value) {
+    const internal = internalLinkOf(link)
+    if (internal) {
+      event.preventDefault()
+      void store.followBodyLink(internal)
+    }
+    return
+  }
   if (link) event.preventDefault()
   if (!editing.value) enterEdit()
 }
