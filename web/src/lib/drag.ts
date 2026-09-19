@@ -676,11 +676,13 @@ export function reorderWrite(
   // ghost renders in today's column while its `period_key` stays the old period's, and naming it
   // as `after_id` gets a 422 ("not a sibling"). Filter to the source's own `(vertical, period_key)`
   // — for a nested-idea group this same filter also reproduces the server's `vertical IS NULL` cut.
-  const full = siblingIds(board, sourceId).filter((id) => {
-    const g = findGoal(board, id)
-    return !!g && g.vertical === source.vertical
-      && (g.period_key ?? null) === (source.period_key ?? null)
-  })
+  // The server orders this group by position; the wire order bands it by value.
+  const full = siblingIds(board, sourceId)
+    .map((id) => findGoal(board, id))
+    .filter((g): g is NonNullable<typeof g> => !!g && g.vertical === source.vertical
+      && (g.period_key ?? null) === (source.period_key ?? null))
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+    .map((g) => g.id)
   const filtered = full.filter((id) => id !== sourceId)
   if (filtered.length === 0) return null // only member of its own group: nowhere to move to
 

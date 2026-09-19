@@ -140,6 +140,22 @@ export function schedulePlacement(
   }
 }
 
+/** The array the board renders `id` from: its parent's children when it nests there, else its column. */
+function renderedSiblings(board: BoardResponse, id: string): GoalCard[] | null {
+  const entry = columnEntry(board, id)
+  const goal = entry?.goal ?? findGoal(board, id)
+  if (!goal) return null
+  if (goal.parent_id) {
+    const parent = findGoal(board, goal.parent_id)
+    const nested = !!parent
+      && (!entry || (parent.vertical === goal.vertical && entry.column.goals.some((g) => g.id === parent.id)))
+    const kids = board.children[goal.parent_id]
+    if (nested && kids?.some((g) => g.id === id)) return kids
+  }
+  if (entry) return entry.column.goals
+  return Object.values(board.children).find((kids) => kids.some((g) => g.id === id)) ?? null
+}
+
 /** Reorder one existing sibling array to its prospective slot. */
 export function reorderPlacement(
   board: BoardResponse | null,
@@ -147,11 +163,7 @@ export function reorderPlacement(
   target: { insertBeforeId: string | null },
 ): OptimisticPlacement | null {
   if (!board) return null
-  const groups = [
-    ...board.columns.map((column) => column.goals),
-    ...Object.values(board.children),
-  ]
-  const siblings = groups.find((group) => group.some((goal) => goal.id === id))
+  const siblings = renderedSiblings(board, id)
   if (!siblings) return null
   const sourceIndex = siblings.findIndex((goal) => goal.id === id)
   const goal = siblings[sourceIndex]

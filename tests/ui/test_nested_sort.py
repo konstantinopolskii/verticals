@@ -257,9 +257,9 @@ def _assert_settled(session: UiSession, parent_id: str, expected: list[str], tim
         page.wait_for_timeout(50)
         dom_order = _dom_children_order(page, parent_id)
     assert dom_order == expected, f"DOM order mismatch under {parent_id!r}: got {dom_order!r}, want {expected!r}"
-    # DOM/DB order already match above; drain the 200ms FLIP settle animation GoalCard.vue's own
-    # `nestedInsertionSlot` watch still has in flight so the NEXT `_press` in the same test always
-    # starts from a fully at-rest board, never a still-sliding one.
+    # The moved row stays hidden until its settle flight ends; wait that out plus the 200ms FLIP so
+    # the NEXT `_press` in the same test always starts from a fully at-rest board.
+    page.locator(".goal-card__row--drag-source").first.wait_for(state="detached", timeout=2000)
     page.wait_for_timeout(300)
 
 
