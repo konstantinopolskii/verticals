@@ -96,11 +96,10 @@ const deckStyle = computed(() => ({
 const periodDirection = ref<PeriodDirection>(1)
 const periodSwapId = ref(0)
 
-async function loadPeriod(anchor: string, direction: PeriodDirection, today = false) {
+async function loadPeriod(anchor: string, direction: PeriodDirection) {
   periodDirection.value = direction
   if (await store.loadBoard(anchor)) {
     periodSwapId.value += 1
-    history.pushState(null, '', today ? '/' : `/h/${anchor}`)
   }
 }
 
@@ -114,7 +113,7 @@ function navigateToday() {
   const today = todayIso()
   const current = store.state.board?.anchor_date
   if (!current || current === today) return
-  void loadPeriod(today, current < today ? 1 : -1, true)
+  void loadPeriod(today, current < today ? 1 : -1)
 }
 
 // --- drag (AC-220/S-145) ------------------------------------------------------------------------

@@ -5,11 +5,10 @@
 // transport policy of its own.
 //
 // No `vue-router` (AC-086/183's dependency cap names it explicitly as absent, and it stays
-// absent) — "the URL changes by hash/param only" (AC-107/S-68) is met by hand with
-// `history.pushState`, the same one mechanism `GoalCard.vue`'s title click and every breadcrumb
-// entry in `GoalDetail.vue` both call through `openGoal` below. `pushState` over
-// `location.hash = ...` specifically so closing can restore the *exact* prior URL (no trailing
-// `#` left behind) rather than merely clear the fragment.
+// absent) — "the URL changes by hash/param only" (AC-107/S-68) is met by hand, but NOT here any
+// more: `lib/urlState.ts` projects `openGoalId` onto the fragment and applies Back/Forward back
+// onto it. `openGoal`/`closeGoal` below set state and nothing else, so the two of them plus the
+// nav's own `closeGoal + setView` pair cannot disagree about what the address bar should say.
 
 import { createGoal, getGoal, patchGoal, type BoardResponse, type GoalDetail } from './api'
 import { boardGoalHost, findGoal } from './boardIndex'
@@ -129,7 +128,6 @@ export function createDetailSurface(
     if (hostKey === null) state.hasOpenedGoal = true
     const cached = detailCache.get(id) ?? null
     state.goalDetail = cached
-    history.pushState(null, '', `#goal/${id}`)
     state.goalDetailLoading = cached === null
     try {
       const detail = await fetchGoalDetail(id)
@@ -252,15 +250,14 @@ export function createDetailSurface(
   }
 
   /** Escape (via `KModal`'s own handling, `GoalDetail.vue`) or the modal's scrim/close button both
-   *  land here. Guarded against a redundant call (nothing open) so a stray second close never
-   *  pushes a second identical history entry. */
+   *  land here. Guarded against a redundant call (nothing open) so a stray second close is not a
+   *  state change `lib/urlState.ts` would have to answer for. */
   function closeGoal(): void {
     if (state.openGoalId === null) return
     state.openGoalId = null
     state.openGoalVertical = null
     state.openGoalHostKey = null
     state.goalDetail = null
-    history.pushState(null, '', location.pathname + location.search)
   }
 
   return {

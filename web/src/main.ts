@@ -11,51 +11,31 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import { store, todayIso } from './store'
+import { createUrlSync } from './lib/urlState'
 // Kit CSS first (tokens, then rules), app overrides last so --font-body wins by cascade order.
 import '@konstantinopolskii/design-system/vars.css'
 import '@konstantinopolskii/design-system/style.css'
 import './style.css'
 
-/* Two URLs the app reads at boot, and nothing else — no router (docs/DEPENDENCIES.md caps the
-   dependency list and none is needed for two regexes over `location`).
+/* Routing lives in `lib/urlState.ts` — no router (`docs/DEPENDENCIES.md` caps the dependency list
+   and none is needed for three regexes over `location`). Two calls wire it:
 
-   1. `/h/<YYYY-MM-DD>` — the anchor-date board (AC-114, S-69's stale-board captures). `/` keeps
-      meaning today. A path that is not this shape falls back to today rather than erroring: a
-      static host serving this SPA answers every path with the same `index.html`, so an unknown
-      path is a typo, and a typo showing today's board is the honest, boring outcome. The date is
-      matched, never parsed — `GET /api/board` validates it server-side and a rejected value
-      surfaces through the store's own error path, so there is no second, client-side calendar
-      here to disagree with the server's.
-   2. `#goal/<id>` — after the board resolves, `store.navigateToGoal` (D248 WP-D) resolves the
-      goal against the rendered Verticals projection and opens its inline host. A goal absent from
-      that projection navigates instead: a board reload at the goal's own anchor date for a dated
-      goal, or the Inbox view for a Maybe-bucket goal — never the retired board modal.
-   3. `#doc/<id>` (D250, WP-3) — mirrors `#goal/<id>`: switches the shell to the Docs view and
-      opens the doc there (`store.openDoc`). No board resolution needed (docs are not placed on
-      the board at all), so this branch does not wait on anything `navigateToGoal` waits on — it
-      still runs after `loadBoard` resolves purely to keep one boot sequence, not two races.
-
-   `history.pushState` (openGoal's/openDoc's own mechanism) never re-runs this file, and neither
-   does a fragment change — a URL typed into the bar or a reload is what boots the app, which is
-   exactly the case this covers. Back/forward through pushState entries is a separate behaviour
-   nobody has specified; adding a `popstate` listener would be inventing it. */
-const ANCHOR_PATH_RE = /^\/h\/(\d{4}-\d{2}-\d{2})\/?$/
-const GOAL_FRAGMENT_RE = /^#goal\/(.+)$/
-const DOC_FRAGMENT_RE = /^#doc\/(.+)$/
-
-const pathMatch = ANCHOR_PATH_RE.exec(window.location.pathname)
-const fragmentMatch = GOAL_FRAGMENT_RE.exec(window.location.hash)
-const docFragmentMatch = DOC_FRAGMENT_RE.exec(window.location.hash)
-
-void store.loadBoard(pathMatch ? pathMatch[1] : todayIso()).then(() => {
-  if (fragmentMatch) {
-    const id = decodeURIComponent(fragmentMatch[1])
-    void store.navigateToGoal(id)
-  } else if (docFragmentMatch) {
-    const id = decodeURIComponent(docFragmentMatch[1])
-    store.setView('docs')
-    void store.openDoc(id)
-  }
+   - `startUrlSync()` installs the state→URL watcher and the `popstate` listener, so Back/Forward
+     walk the app rather than only the address bar. Installed BEFORE the boot read: `applyUrl`
+     holds the watcher quiet while it works, and anything the user manages to click during the
+     first load is reconciled when it finishes.
+   - `applyUrl()` is the boot read itself — the same one function every history entry goes through,
+     so a typed URL, a reload and a Back are not three code paths. */
+const urlSync = createUrlSync(store.state, todayIso, {
+  loadBoard: store.loadBoard,
+  setView: store.setView,
+  navigateToGoal: store.navigateToGoal,
+  openDoc: store.openDoc,
+  closeGoal: store.closeGoal,
+  closeDoc: store.closeDoc,
 })
+
+urlSync.startUrlSync()
+void urlSync.applyUrl()
 
 createApp(App).mount('#app')

@@ -145,7 +145,6 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
     state.docs.viewingRevision = null
     state.docs.currentLoading = !alreadyOpen
     if (!alreadyOpen) state.docs.current = null
-    history.pushState(null, '', `#doc/${id}`)
     try {
       const doc = await getDoc(id)
       if (state.docs.currentId === id) state.docs.current = doc
@@ -162,7 +161,6 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
     state.docs.historyOpen = false
     state.docs.history = null
     state.docs.viewingRevision = null
-    history.pushState(null, '', location.pathname + location.search)
   }
 
   /** Reached from a goal detail's own doc chip (`GoalDetail.vue`) — switches the shell to Docs
@@ -201,7 +199,6 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
       state.docs.current = created
       state.docs.currentLoading = false
       state.docs.historyOpen = false
-      history.pushState(null, '', `#doc/${created.id}`)
       return true
     } catch (err) {
       deps.reportError(err)
