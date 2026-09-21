@@ -362,6 +362,11 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
             "and the route each affordance issues) can be observed for the whole manifest"
         )
 
+    # The sweep above left the app on Inbox, and the URL now carries the view (`#inbox`), so a
+    # reload would restore Inbox rather than the board every block below is written against.
+    page.click('[data-nav-item="verticals"]')
+    page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
+
     by_cap = {row["cap"]: row for row in rows}
     observed: set[tuple[str, str, str]] = set()
     activation_start = len(session.request_log)
