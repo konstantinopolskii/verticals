@@ -4,7 +4,7 @@ The aim is to explain the *current* state of each material commitment, not to co
 
 ## Source windows and summaries
 
-Start with the previous report, unresolved comments, existing task/document state, and the reader's latest direct corrections. Inventory new items only within the relevant window since the last checked point. Summaries, search results, extracted action items, and session titles route attention; they do not prove exact words, agreement, delivery, or that the input was saved. For each consequential claim, inspect the primary passage, message, artifact, board record, or repository state at a sufficient read scope. If a summary says a new action exists, identify who actually committed and to what.
+Start with the latest *completed and reader-reviewed* report, unresolved comments, existing task/document state, and the reader's latest direct corrections. Inspect newer partial reports too; do not mistake their presence for a reviewed baseline or discard their verified inputs. Inventory new items from each source's last verified cutoff, allowing overlap where comments or later replies could change a state. Summaries, search results, extracted action items, and session titles route attention; they do not prove exact words, agreement, delivery, or that the input was saved. For each consequential claim, inspect the primary passage, message, artifact, board record, or repository state at a sufficient read scope. If a summary says a new action exists, identify who actually committed and to what.
 
 Record per-source coverage: source/account, actual range checked, read scope (index, selected passage, complete thread/artifact), and any missing part. A report-wide cutoff is the time through which the stated general collection really ran. State targeted later checks separately. For example, the 17 September report's general collection ended at 09:28 in the reader's timezone; one call-to-task correction was checked at 09:48. That does **not** mean all conversations were refreshed to 09:48. Neither time is the target publication hour. If a source was unavailable, give its last known check and the claims left uncertain; do not turn non-access into “nothing happened.”
 
@@ -17,7 +17,7 @@ For each new discussion, decision, result, or reply, make this internal check be
 | Primary source | What was actually said, by whom, and at what read scope? Is it a promise, proposal, observation, or agent inference? |
 | Existing destination | Which exact Verticals goal and owning session carry this work? What do the current body, document, comments, and result actually say? |
 | Later state | Did subsequent messages, a delivered artifact, a merge, payment, or another decision supersede the older status? |
-| Authorized incorporation | Was an update permitted, saved to the destination, and read back? A source mentioned only in the report is **not** incorporated into the task. |
+| Authorized incorporation | Was an update permitted, saved to the *authoritative* destination, and read back with its revision or equivalent state? A source mentioned only in the report, or saved only to a mirror, is **not** incorporated into the live task. |
 | Remaining action | Who acts next, under what condition? Is human acceptance still needed? |
 
 One call may update several existing goals; several sources may explain one goal. Do not manufacture a new goal or review session when a suitable owner already exists. Preserve distinctions between discussing a document, saving a draft, sending it, receiving a reply, and the reader accepting the result.
@@ -31,3 +31,5 @@ One call may update several existing goals; several sources may explain one goal
 **Discussion → separate financial states.** A package conversation established what base and premium options meant, and mentioned annual payment. The existing economics document was updated and read back. The report retained the actual package terms, while keeping annual payment, final price selection, and money received as different states.
 
 Before finalizing, compare every previous unresolved row and reviewer comment with the new report: it must remain visible under its owner, be resolved with evidence, be durably routed, or be deliberately deferred by the reader. Age and a compact child display never erase a real promise.
+
+For each reported save, retain a compact private source → destination → readback trail (exact task/document, backend, revision or observed state). Publish only the level of detail the reader needs. If a source is unavailable or a save cannot be verified, keep the claim pending; do not silently substitute another account or call the task updated.

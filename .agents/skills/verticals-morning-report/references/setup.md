@@ -15,7 +15,24 @@ The skill contains the method. The reader's private workspace instructions or lo
 
 The owner may store this mapping in their private workspace instructions, a local project note, or an existing configuration mechanism. A relative layout such as `reports/YYYY-MM-DD/Morning report.md` is only an example under the owner's chosen workspace root; the skill must not presume a home directory or fixed drive. A native copy is optional unless the owner configures it. Do not invent a coordination task or document ID to create one.
 
-Before relying on a connector, test read-only access to the intended account/board and an actual relevant item. Identify which mailbox, calendar, repository, meeting account, or message identity was checked; an empty search in the wrong account is not evidence that an event or reply does not exist. If the owner has only some sources, produce a narrower report with explicit gaps rather than silently swapping providers.
+## Minimum private configuration record
+
+Fill this in locally, using real values and access boundaries; the shared skill does not ship a person's configuration. An entry saying only “messages” or “calendar” is not enough to identify the account, conversation scope, or freshness check.
+
+| Field | Record locally |
+| --- | --- |
+| Reader and clock | Identity, timezone, report date rule, intended delivery time (if any). |
+| Baseline | Where completed/commented reports, native revisions, comments, and partial runs can be found; how to identify the latest reviewed one. |
+| Report destination | Local naming rule, optional existing native task/document, which backend is authoritative, and whether byte-identical copies are required. |
+| Verticals | Board/owner identity, relevant verticals, goal/document/comment readers, and permitted writes. Distinguish hosted service from local mirror. |
+| Work sessions | Search/list route, exact-title verification, owning-session link format, and what a finished result looks like. |
+| Each external source | Account or workspace, relevant scope, discovery method, primary-read method, incremental window, timestamp/timezone, and known gaps. Include meeting summaries **and** transcript access separately when both exist. |
+| Calendar and artifacts | Account, calendar set or repository/doc store, event/artifact read method, and the state each can or cannot prove. |
+| Authority | Which factual updates are pre-authorized, which actions need explicit approval, and any existing scheduler. Never infer permission to send, publish, merge, or book. |
+
+For example, a local setup might say: “Use my UTC+4 clock; daily report target 07:00. Find the last fully reviewed dated report and its native revision; inspect later partial drafts. Check selected work conversations with incoming **and outgoing** replies since each last verified cutoff. Use meeting summaries to find candidate calls, then read relevant primary passages. Confirm PR states in the repository and meetings in my selected calendar. Save the same report to my existing local destination and existing hosted document; read both back. If a connector is unavailable, name its last verified window.” The owner must replace each generic source and destination with an actual local connector, account, and route before a full-coverage claim is possible.
+
+Before relying on a connector, test read-only access to the intended account/board and an actual relevant item. Identify which mailbox, calendar, repository, meeting account, or message identity was checked; an empty search in the wrong account is not evidence that an event or reply does not exist. A local mirror and hosted board may expose the same goal ID: verify the configured backend before writing. If the owner has only some sources, produce a narrower report with explicit gaps rather than silently swapping providers.
 
 Example local instruction, to be filled with the new owner's own values:
 
