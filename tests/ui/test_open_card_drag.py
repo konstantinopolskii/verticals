@@ -447,12 +447,12 @@ def test_od4_hash_open_on_default_board(ui_f2: UiSession) -> None:
     silently stopped opening" and "it opened the wrong way".
 
     `page.goto` to a URL differing only in fragment from the current document does NOT reload
-    the page (ordinary browser fragment-navigation behaviour) — and `main.ts` reads the boot
-    fragment exactly once, with no `popstate` listener (`web/src/main.ts`'s own note: "nothing
-    reads the fragment back on load" after the first read). `ui_f2` already booted the SPA once
-    at a bare URL, so a same-document `goto` here would land on the ALREADY-RUNNING app instead
-    of exercising the boot path at all. The `about:blank` hop forces a genuine cross-document
-    navigation into the target URL, so `main.ts` actually boots fresh with the fragment present."""
+    the page (ordinary browser fragment-navigation behaviour), and it fires no `popstate` either
+    — so neither of the two paths `lib/urlState.ts` reads the URL on (the boot `applyUrl`, the
+    `popstate` listener) would run. `ui_f2` already booted the SPA once at a bare URL, so a
+    same-document `goto` here would land on the ALREADY-RUNNING app instead of exercising the
+    boot path at all. The `about:blank` hop forces a genuine cross-document navigation into the
+    target URL, so the app actually boots fresh with the fragment present."""
     session = ui_f2
     g_id = _create_goal(session, "SYN OD4 hash target", "week")
 
@@ -547,9 +547,9 @@ def test_od7_nested_maybe_subgoal_navigate_is_inert_not_a_crash(ui_f2: UiSession
     signal that this corner has become renderable and this scenario should be replaced with one
     that asserts the chain is actually readable, not one that asserts it stays inert.
 
-    `page.goto` to a URL differing only in fragment does not reload an already-booted SPA (see
-    OD-4's own note) — the `about:blank` hop forces a genuine boot so `main.ts`'s one-shot
-    fragment read (`store.navigateToGoal`, no `popstate` listener) actually runs."""
+    `page.goto` to a URL differing only in fragment does not reload an already-booted SPA, and
+    fires no `popstate` (see OD-4's own note) — the `about:blank` hop forces a genuine boot so
+    the fragment read in `lib/urlState.ts::applyUrl` (`store.navigateToGoal`) actually runs."""
     session = ui_f2
     top_id = _create_maybe(session, "SYN OD7 maybe top")
     nested_id = _create_maybe(session, "SYN OD7 nested subgoal", parent_id=top_id)
