@@ -250,15 +250,15 @@ export function createDetailSurface(
     await openViaBoardHost(id)
   }
 
-  /** Escape (via `KModal`'s own handling, `GoalDetail.vue`) or the modal's scrim/close button both
-   *  land here. Guarded against a redundant call (nothing open) so a stray second close is not a
-   *  state change `lib/urlState.ts` would have to answer for. */
   /** The ladder above as a single history entry — step (c)'s board reload must not leave a stop
    *  of its own behind the goal it was loading for. */
   function navigateToGoal(id: string): Promise<void> {
     return asOneHistoryStep(() => walkToGoal(id))
   }
 
+  /** Escape (via `KModal`'s own handling, `GoalDetail.vue`) or the modal's scrim/close button both
+   *  land here. Guarded against a redundant call (nothing open) so a stray second close is not a
+   *  state change `lib/urlState.ts` would have to answer for. */
   function closeGoal(): void {
     if (state.openGoalId === null) return
     state.openGoalId = null

@@ -322,3 +322,58 @@ def test_uh9_goal_to_doc_chip_back_reopens_goal(ui_f2: UiSession) -> None:
     _nav_current(page, "docs")
     expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
     assert _path_and_fragment(page) == (f"/h/{OFF_BOARD_ISO}", f"doc/{doc_id}")
+
+
+# --- UH-10 / UH-11: overlapping walks, failed loads ----------------------------------------------
+
+
+def test_uh10_fast_double_back_keeps_forward_history(ui_f2: UiSession) -> None:
+    """The second Back starts a new walk while the first still awaits its board. The first walk's
+    end must not hand the watcher the second one's half-applied state: that push would drop every
+    Forward entry."""
+    page = ui_f2.page
+    page.wait_for_selector("[data-goal-id]")
+    week = page.locator('.pattern-vertical-board__column[data-vertical="week"]')
+    key_today = week.get_attribute("data-period-key")
+    for _ in range(2):
+        before = week.get_attribute("data-period-key")
+        activate_column(page, "week")
+        week.locator('[data-cap="period-next"]').click()
+        expect(week).not_to_have_attribute("data-period-key", before or "")
+    key_far = week.get_attribute("data-period-key")
+    length = page.evaluate("history.length")
+
+    # Board fetches slowed so the walks overlap the way they do on a real network.
+    page.evaluate(
+        """() => {
+          const fetchNow = window.fetch.bind(window)
+          window.fetch = async (input, init) => {
+            const url = typeof input === 'string' ? input : input.url
+            if (url.includes('/api/board')) await new Promise((r) => setTimeout(r, 600))
+            return fetchNow(input, init)
+          }
+          history.back()
+          setTimeout(() => history.back(), 100)
+        }"""
+    )
+    expect(week).to_have_attribute("data-period-key", key_today or "", timeout=10000)
+    expect(page).to_have_url(re.compile(r"/$"))
+    assert page.evaluate("history.length") == length, "a walk pushed an entry and dropped the Forward history"
+
+    page.go_forward()
+    page.go_forward()
+    expect(week).to_have_attribute("data-period-key", key_far or "", timeout=10000)
+
+
+def test_uh11_failed_board_load_keeps_the_address(ui_f2: UiSession) -> None:
+    """A board that did not load is not a state to correct the address to: the address keeps what
+    was asked for, so a retry can get it."""
+    session = ui_f2
+    session.expects_network_failures = True  # the impossible date is a real 422 from GET /api/board
+    page = session.page
+
+    page.goto("about:blank")
+    page.goto(f"{session.base_url}/h/2026-02-31")
+    expect(page.locator(".toast-stack .toast")).to_be_visible(timeout=10000)
+    page.wait_for_timeout(300)
+    assert urlsplit(page.url).path == "/h/2026-02-31"

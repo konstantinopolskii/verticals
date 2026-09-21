@@ -18,7 +18,7 @@ import { watch } from 'vue'
 
 export type AppView = 'verticals' | 'inbox' | 'docs'
 
-export interface UrlState {
+interface UrlState {
   /** null = no date in the path (`/`, or any path that is not `/h/<date>`) — today. */
   anchor: string | null
   target: { kind: 'view'; view: AppView } | { kind: 'goal'; id: string } | { kind: 'doc'; id: string }
@@ -71,7 +71,7 @@ function decodeId(raw: string): string {
 /** A path that is not `/h/<date>` means today rather than an error — a static host answers every
  *  path with the same `index.html`, so an unknown path is a typo. The date is matched, never
  *  parsed: `GET /api/board` validates it server-side. */
-export function parseUrl(loc: { pathname: string; hash: string } = window.location): UrlState {
+function parseUrl(loc: { pathname: string; hash: string } = window.location): UrlState {
   const pathMatch = ANCHOR_PATH_RE.exec(loc.pathname)
   const anchor = pathMatch ? pathMatch[1] : null
   const goal = GOAL_FRAGMENT_RE.exec(loc.hash)
@@ -130,10 +130,13 @@ export function createUrlSync(
     closeDoc: () => void
   },
 ) {
-  // Set while `applyUrl` walks the state to a URL the browser has already navigated to. The
-  // intermediate states it passes through (board loaded, goal not open yet) are not entries
-  // anyone asked for, so the watcher stays quiet until the walk finishes.
-  let applying = false
+  // Walks in flight: while `applyUrl` moves the state to a URL the browser already shows, the
+  // states it passes through are not entries anyone asked for, so the watcher stays quiet. A
+  // count, not a flag — a fast double Back starts a second walk while the first still awaits its
+  // board, and a flag cleared by the first walk would let the watcher push the second one's
+  // half-applied state, dropping every Forward entry.
+  let applying = 0
+  let latestWalk = 0
 
   function currentUrl(): string {
     return `${location.pathname}${location.search}${location.hash}`
@@ -144,14 +147,13 @@ export function createUrlSync(
   }
 
   function write(): void {
-    if (applying || heldSteps > 0 || urlMatchesState()) return
+    if (applying > 0 || heldSteps > 0) return
+    const wanted = meaningOfState(state, todayIso)
+    if (meaningOfUrl(parseUrl(), todayIso) === wanted) return
     const entry = history.state as Partial<PushedEntry> | null
     // Closing what this session opened rewinds instead of stacking a third entry, so Forward
     // re-opens it and one Back leaves the board the way the user arrived.
-    if (
-      entry?.vtPrev !== undefined &&
-      meaningOfUrl(parseUrl(new URL(entry.vtPrev, location.origin)), todayIso) === meaningOfState(state, todayIso)
-    ) {
+    if (entry?.vtPrev !== undefined && meaningOfUrl(parseUrl(new URL(entry.vtPrev, location.origin)), todayIso) === wanted) {
       history.back()
       return
     }
@@ -163,10 +165,14 @@ export function createUrlSync(
    *  costs nothing and nothing re-fetches. */
   async function applyUrl(): Promise<void> {
     const url = parseUrl()
-    applying = true
+    const walk = ++latestWalk
+    applying += 1
+    let boardLoaded = true
     try {
       const anchor = url.anchor ?? todayIso()
-      if (state.board?.anchor_date !== anchor) await deps.loadBoard(anchor)
+      if (state.board?.anchor_date !== anchor) boardLoaded = await deps.loadBoard(anchor)
+      // A newer Back/Forward already owns the state; finishing this walk would undo it.
+      if (walk !== latestWalk) return
       const target = url.target
       if (target.kind === 'goal') {
         // "Showing", not merely open: Back from a goal to a doc leaves the goal open behind Docs,
@@ -184,10 +190,13 @@ export function createUrlSync(
         deps.setView(target.view)
       }
     } finally {
-      applying = false
+      applying -= 1
       // A goal deleted since its entry was pushed leaves the state without the overlay the URL
-      // names; replace rather than push, so the correction is not a new entry.
-      if (!urlMatchesState()) history.replaceState(history.state, '', stateUrl(state, todayIso, location.pathname))
+      // names; replace rather than push, so the correction is not a new entry. A board that failed
+      // to load is not corrected: the address keeps what was asked for, so a retry can get it.
+      if (applying === 0 && boardLoaded && !urlMatchesState()) {
+        history.replaceState(history.state, '', stateUrl(state, todayIso, location.pathname))
+      }
     }
   }
 
