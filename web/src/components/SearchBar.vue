@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { KCheckbox } from '@konstantinopolskii/vue'
 import TagChip from './TagChip.vue'
 import { store, todayIso } from '../store'
-import { formatUrl, urlOfState } from '../lib/urlState'
+import { stateUrl } from '../lib/urlState'
 
 const SEARCH_DEBOUNCE_MS = 300
 const SEARCH_PATH_RE = /^\/search(?:\/(.*))?\/?$/
@@ -13,6 +13,7 @@ const inputValue = ref('')
 const surfaceOpen = ref(false)
 const showRecent = ref(false)
 const pending = ref(false)
+const preSearchPath = ref('/')
 const trigger = ref<HTMLButtonElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
 
@@ -25,10 +26,11 @@ function clearTimer() {
 }
 
 /** What the address bar should say with the search surface shut — read off the state, not off a
- *  snapshot taken when the surface opened: Back/Forward can move the app underneath an open
- *  surface, and a stale snapshot would put the wrong page back. */
+ *  URL snapshot taken when the surface opened: Back/Forward can move the app underneath an open
+ *  surface, and a stale snapshot would put the wrong page back. Only the path is remembered, so a
+ *  hand-typed `/h/<today>` comes back spelled the way it was. */
 function underlyingUrl(): string {
-  return formatUrl(urlOfState(store.state, todayIso))
+  return stateUrl(store.state, todayIso, preSearchPath.value)
 }
 
 function replaceSearchUrl(query: string) {
@@ -83,6 +85,7 @@ function scheduleRecent() {
 
 function openSurface() {
   if (surfaceOpen.value) return
+  preSearchPath.value = location.pathname
   surfaceOpen.value = true
   showRecent.value = inputValue.value.trim() === ''
   replaceSearchUrl(inputValue.value.trim())
