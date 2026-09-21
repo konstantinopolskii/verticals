@@ -279,7 +279,7 @@ export function createDragActions(deps: DragActionDeps) {
     const grandparentId = deps.findGoalById(parentId)?.parent_id ?? null
     const reparent = reparentPlacement(state.board, id, grandparentId)
     const write = reorderWrite(state.board, id, target)
-    const reorder = write ? reorderPlacement(state.board, id, target) : null
+    const reorder = reorderPlacement(state.board, id, target)
     try {
       const updatedReparent = await apiReparentGoal(id, grandparentId)
       reparent?.reconcile(updatedReparent)
@@ -320,7 +320,7 @@ export function createDragActions(deps: DragActionDeps) {
   ): Promise<void> {
     const reparent = reparentPlacement(state.board, id, parentId)
     const write = reorderWrite(state.board, id, target)
-    const reorder = write ? reorderPlacement(state.board, id, target) : null
+    const reorder = reorderPlacement(state.board, id, target)
     try {
       const updatedReparent = await apiReparentGoal(id, parentId)
       reparent?.reconcile(updatedReparent)

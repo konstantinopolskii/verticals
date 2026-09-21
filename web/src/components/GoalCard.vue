@@ -263,6 +263,22 @@ function ackDoneOnTime(): void { void store.dueAckGhost(props.id, 'done_on_time'
 const isDragSource = computed(
   () => store.state.drag.id === props.id || store.state.drag.settling?.id === props.id,
 )
+/* The flying copy was cloned hovered; the browser re-hovers the landed card only on the next
+   pointer move, so hold the hover look until then. */
+const landedHover = ref(false)
+function releaseLandedHover(): void {
+  landedHover.value = false
+  window.removeEventListener('pointermove', releaseLandedHover)
+}
+watch(isDragSource, (now, was) => {
+  if (now || !was) return
+  const box = rootElement()?.getBoundingClientRect()
+  const { x, y } = store.state.drag
+  if (!box || x < box.left || x > box.right || y < box.top || y > box.bottom) return
+  landedHover.value = true
+  window.addEventListener('pointermove', releaseLandedHover)
+}, { flush: 'post' })
+onBeforeUnmount(releaseLandedHover)
 const isCombineTarget = computed(
   () => store.state.drag.id !== null
     && store.state.drag.target?.kind === 'combine'
@@ -305,7 +321,7 @@ const isNestedDragHole = computed(() => props.depth > 0 && isDragSource.value)
 // practical effect during a same-group nested drag is a slightly taller family block for the
 // gesture's duration (the source's own natural-height hole, plus the placeholder), never a
 // wrong position or a wrong write.
-const dragTarget = computed(() => store.state.drag.target)
+const dragSlot = computed(() => store.state.drag.slot)
 /* D249 hole-is-the-indicator rule, mirroring `reorderWrite`'s own no-op detection in drag.ts
    (same after_id -> null PATCH): when the resolved reorder slot lands exactly where the source
    already sits within THIS card's own children -- its current next sibling, or append when it's
@@ -318,14 +334,13 @@ const dragTarget = computed(() => store.state.drag.target)
    stacking a placeholder on top of it is redundant, so this rule only suppresses that redundant
    case -- every other position still renders the indicator normally. */
 const isNestedReorderHere = computed(() => {
-  const target = dragTarget.value
-  if (target?.kind !== 'reorder' || (target as { parentId: string | null }).parentId !== props.id) return false
+  const slot = dragSlot.value
+  if (!slot || slot.parentId !== props.id) return false
   const sourceId = store.state.drag.id
   const ownIndex = props.children.findIndex((child) => child.id === sourceId)
   if (ownIndex === -1) return true
   const currentNextId = props.children[ownIndex + 1]?.id ?? null
-  const beforeId = (target as { insertBeforeId: string | null }).insertBeforeId
-  return beforeId !== currentNextId
+  return slot.insertBeforeId !== currentNextId
 })
 /* Mirrors Column.vue's own `isSourceSlot`: true when this nested slot sits in the SAME COLUMN the
    drag started in (not necessarily the same parent — adopting into a different nested group in
@@ -334,10 +349,10 @@ const isNestedReorderHere = computed(() => {
    vacated box) instead of `previewHeight` (a measured destination row) — same CARD-vs-ROW law
    Column.vue's own `indicatorStyle` documents, reused rather than reinvented. */
 const isNestedSourceSlot = computed(() => {
-  if (!isNestedReorderHere.value) return false
-  const target = dragTarget.value as { vertical: string; periodKey: string | null }
-  return store.state.drag.sourceVertical === target.vertical
-    && (store.state.drag.sourcePeriodKey ?? null) === (target.periodKey ?? null)
+  const slot = dragSlot.value
+  if (!isNestedReorderHere.value || !slot) return false
+  return store.state.drag.sourceVertical === slot.vertical
+    && (store.state.drag.sourcePeriodKey ?? null) === (slot.periodKey ?? null)
 })
 const nestedIndicatorStyle = computed(() => {
   const drag = store.state.drag
@@ -368,7 +383,7 @@ type ChildRenderItem =
 function renderChildren(): ChildRenderItem[] {
   const items: ChildRenderItem[] = props.children.map((goal) => ({ kind: 'goal', key: goal.id, goal }))
   if (!isNestedReorderHere.value) return items
-  const beforeId = (dragTarget.value as { insertBeforeId: string | null }).insertBeforeId
+  const beforeId = dragSlot.value?.insertBeforeId ?? null
   const found = beforeId === null
     ? items.length
     : items.findIndex((item) => item.kind === 'goal' && item.goal.id === beforeId)
@@ -383,7 +398,7 @@ function renderChildren(): ChildRenderItem[] {
 const childrenListEl = ref<HTMLElement | null>(null)
 const nestedInsertionSlot = computed(() => (
   isNestedReorderHere.value
-    ? (dragTarget.value as { insertBeforeId: string | null }).insertBeforeId
+    ? (dragSlot.value?.insertBeforeId ?? null)
     : undefined
 ))
 /* The same tiny FLIP Column.vue's own `insertionSlot` watch runs, scoped to this card's own
@@ -470,6 +485,7 @@ function onRowKeydown(event: KeyboardEvent) {
       'goal-card--source-gap-closed': closesSourceGap,
       'goal-card--nested-drag-hole': isNestedDragHole,
       'goal-card--menu-open': menuOpen,
+      'goal-card--landed-hover': landedHover,
       'goal-card--colored': color,
       'goal-card--done': checked,
       'goal-card--detail-open': isInlineDetailHost,

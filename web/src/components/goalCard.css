@@ -63,6 +63,7 @@
 }
 .goal-card:hover,
 .goal-card.goal-card--menu-open,
+.goal-card.goal-card--landed-hover,
 .goal-card.goal-card--ancestor-hover,
 .goal-card.goal-card--open-related {
   background-color: var(--goal-hover-background) !important;
@@ -469,4 +470,31 @@
 }
 .pattern-vertical-board__column--active .column-add-row__checkbox .checkbox__box {
   border-radius: var(--kkov-expanded-new-task-checkbox-radius);
+}
+/* The drop indicator stands in for a card: it takes and keeps the card-to-card spacing. */
+.pattern-vertical-board__column--active .card-stack.card-stack--dense
+  > .goal-card:not(.goal-card--source-gap-closed) + .pattern-vertical-board__drop-indicator,
+.pattern-vertical-board__column--active .card-stack.card-stack--dense
+  > .pattern-vertical-board__drop-indicator + .goal-card {
+  margin-top: var(--kkov-expanded-goal-spacing);
+}
+.pattern-vertical-board__column--active .card-stack.card-stack--dense
+  > .goal-card--source-gap-closed + .goal-card {
+  margin-top: 0;
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list > .goal-card + .pattern-vertical-board__drop-indicator,
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list > .pattern-vertical-board__drop-indicator + .goal-card {
+  margin-top: calc(var(--kkov-collapsed-subtask-spacing)
+    + (6px - var(--kkov-collapsed-subtask-padding-block))
+    + (6px - var(--kkov-collapsed-subtask-padding-block)));
+}
+.pattern-vertical-board__column--active
+  .goal-card__children.subgoal-recursive-list > .goal-card + .pattern-vertical-board__drop-indicator,
+.pattern-vertical-board__column--active
+  .goal-card__children.subgoal-recursive-list > .pattern-vertical-board__drop-indicator + .goal-card {
+  margin-top: calc(var(--kkov-expanded-subtask-spacing)
+    + (6px - var(--kkov-expanded-subtask-padding-block))
+    + (6px - var(--kkov-expanded-subtask-padding-block)));
 }

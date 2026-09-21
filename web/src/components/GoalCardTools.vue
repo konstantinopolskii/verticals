@@ -341,6 +341,7 @@ defineExpose({ openMenu })
 }
 .goal-card:hover > .goal-card__row .goal-card__tools,
 .goal-card--menu-open > .goal-card__row .goal-card__tools,
+.goal-card--landed-hover > .goal-card__row .goal-card__tools,
 .goal-card__tools:focus-within { transition: none; }
 .goal-actions__trigger {
   position: absolute;
@@ -366,6 +367,7 @@ defineExpose({ openMenu })
 .goal-actions__trigger:focus { outline: none; }
 .goal-card:hover > .goal-card__row .goal-actions__trigger,
 .goal-card--menu-open > .goal-card__row .goal-actions__trigger,
+.goal-card--landed-hover > .goal-card__row .goal-actions__trigger,
 .goal-actions__trigger:focus-visible {
   opacity: 1;
   transition: none;

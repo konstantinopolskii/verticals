@@ -290,15 +290,17 @@ watch(
 const dragPreviewKey = computed(() => {
   const drag = store.state.drag
   if (!drag.id) return ''
-  const target = drag.target
-  if (!target) return `${drag.id}:none`
+  // Keyed on `slot`: re-measuring during a combine would resize the held placeholder.
+  const slot = drag.slot
   // D249: `parentId` is part of the key too — two different rendered groups sharing one column
   // can both resolve `insertBeforeId: null` (each group's own append slot), and without the
   // group owner in the key those two genuinely different targets would collapse onto the same
   // measurement, leaving the preview sized off whichever indicator happened to render first.
-  return target.kind === 'combine'
-    ? `${drag.id}:combine:${target.targetId}`
-    : `${drag.id}:reorder:${target.vertical}:${target.periodKey ?? ''}:${target.insertBeforeId ?? ''}:${target.parentId ?? ''}`
+  if (slot) {
+    return `${drag.id}:reorder:${slot.vertical}:${slot.periodKey ?? ''}:${slot.insertBeforeId ?? ''}:${slot.parentId ?? ''}`
+  }
+  const target = drag.target
+  return target?.kind === 'combine' ? `${drag.id}:combine:${target.targetId}` : `${drag.id}:none`
 })
 let previewMeasureVersion = 0
 watch(
@@ -311,16 +313,16 @@ watch(
     if (version !== previewMeasureVersion || key !== dragPreviewKey.value) return
     const drag = store.state.drag
     const target = drag.target
-    if (!target) {
-      store.setDragPreviewSize(drag.width, drag.height)
-      return
-    }
-    if (target.kind === 'combine') {
+    if (!drag.slot && target?.kind === 'combine') {
       const row = document.querySelector<HTMLElement>(
         `[data-goal-id="${CSS.escape(target.targetId)}"] > .goal-card__row`,
       )
       const rect = row?.getBoundingClientRect()
       if (rect) store.setDragPreviewSize(rect.width, renderedRowHeightAtWidth(id, rect.width) ?? drag.height)
+      return
+    }
+    if (!drag.slot) {
+      store.setDragPreviewSize(drag.width, drag.height)
       return
     }
     const indicator = document.querySelector<HTMLElement>('[data-role="drop-indicator"]')

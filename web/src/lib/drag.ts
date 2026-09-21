@@ -10,7 +10,7 @@
 // history, deleted once, rebuilt here).
 
 import { findGoal, siblingIds } from './boardIndex'
-import { idsInColumn, resolveReorderSlot } from './dragSlots'
+import { idsInColumn, resolveReorderSlot, slotBesideCard, sourceSlot } from './dragSlots'
 import type { BoardResponse } from './api'
 
 /** P-02/M1: desktop stays a click through exactly 5 CSS px and arms strictly beyond it. */
@@ -44,8 +44,7 @@ export function exceedsThreshold(dx: number, dy: number): boolean {
  *  the live pointer position; `offsetX`/`offsetY` is where inside the card the pointer grabbed
  *  it (so the overlay stays glued under the cursor); `width`/`height` is the source card's own
  *  footprint at press time. `target` is `computeDropTarget`'s live answer, recomputed every armed
- *  `pointermove` — what `Column.vue`'s indicator, `GoalCard.vue`'s combine highlight and
- *  `store.ts::pointerUpDrag`'s own commit all read. */
+ *  `pointermove`. The drop indicator renders `slot`, not `target`. */
 export interface DragState {
   pending: { id: string; x: number; y: number; pointerType: 'desktop' | 'touch' } | null
   id: string | null
@@ -83,6 +82,9 @@ export interface DragState {
   sourcePeriodKey: string | null
   combineMode: boolean
   target: DropTarget
+  /** Where the placeholder renders. Stays put while `target` is a combine, so the column does
+   *  not reflow under a pointer that has not moved. */
+  slot: ReorderTarget | null
   /** Destination ROW box. Live preview should already be here at pointer-up; these values keep
    *  release correct when a very fast pointer-up beats Board.vue's next-frame measurement. */
   settling:
@@ -129,11 +131,21 @@ function clearPendingTimer(): void {
   holdTimer = null
 }
 
+function applyTarget(drag: DragState, target: DropTarget): void {
+  drag.target = target
+  if (target?.kind !== 'combine') drag.slot = target
+}
+
+function retarget(drag: DragState, board: BoardResponse | null, hit: PointerHit): void {
+  if (!drag.id) return
+  applyTarget(drag, computeDropTarget(board, drag.id, drag.y, hit, drag.combineMode, drag.slot))
+}
+
 function activateDrag(drag: DragState, board: BoardResponse | null): void {
   if (!drag.pending || drag.id) return
   drag.id = drag.pending.id
-  lastPointerHit = hitTest(drag.x, drag.y)
-  drag.target = computeDropTarget(board, drag.id, drag.y, lastPointerHit, drag.combineMode)
+  lastPointerHit = hitTest(drag.x, drag.y, drag.id)
+  retarget(drag, board, lastPointerHit)
   ;(document.activeElement as HTMLElement | null)?.blur()
   window.getSelection()?.removeAllRanges()
   clearPendingTimer()
@@ -160,6 +172,8 @@ export function armPointerDown(
   settleTimer = null
   lastPointerHit = null
   drag.settling = null
+  drag.target = null
+  drag.slot = null
   const input = pointerType === 'touch' ? 'touch' : 'desktop'
   drag.pending = { id, x: clientX, y: clientY, pointerType: input }
   drag.x = clientX
@@ -229,8 +243,8 @@ export function trackPointerMove(
     activateDrag(drag, board)
   }
   if (!drag.id) return null
-  lastPointerHit = hitTest(clientX, clientY)
-  drag.target = computeDropTarget(board, drag.id, clientY, lastPointerHit, drag.combineMode)
+  lastPointerHit = hitTest(clientX, clientY, drag.id)
+  retarget(drag, board, lastPointerHit)
   return lastPointerHit
 }
 
@@ -245,8 +259,8 @@ export function setCombineMode(
 ): void {
   drag.combineMode = enabled
   if (drag.id) {
-    lastPointerHit ??= hitTest(drag.x, drag.y)
-    drag.target = computeDropTarget(board, drag.id, drag.y, lastPointerHit, drag.combineMode)
+    lastPointerHit ??= hitTest(drag.x, drag.y, drag.id)
+    retarget(drag, board, lastPointerHit)
   }
 }
 
@@ -330,8 +344,39 @@ function destinationRect(id: string, target: DropTarget): DOMRect | null {
       : indicator
     return row?.getBoundingClientRect() ?? sourceRect(id)
   }
-  if (target?.kind === 'combine') return sourceRect(target.targetId) ?? sourceRect(id)
+  if (target?.kind === 'combine') return combineDestinationRect(target.targetId) ?? sourceRect(id)
   return sourceRect(id)
+}
+
+function runningTranslateY(card: HTMLElement): number {
+  const transform = getComputedStyle(card).transform
+  return transform && transform !== 'none' ? new DOMMatrixReadOnly(transform).m42 : 0
+}
+
+function closingHeight(indicator: HTMLElement): number {
+  const next = indicator.nextElementSibling as HTMLElement | null
+  if (next) return next.offsetTop - indicator.offsetTop
+  const gap = parseFloat(getComputedStyle(indicator.parentElement as HTMLElement).rowGap) || 0
+  return indicator.offsetHeight + gap
+}
+
+/** Where the combine target's row ends up once the held placeholder unmounts. */
+function combineDestinationRect(targetId: string): DOMRect | null {
+  const row = document.querySelector<HTMLElement>(
+    `[data-goal-id="${CSS.escape(targetId)}"] > .goal-card__row`,
+  )
+  if (!row) return null
+  const rect = row.getBoundingClientRect()
+  let top = rect.top - runningTranslateY(row.parentElement as HTMLElement)
+  const indicator = document.querySelector<HTMLElement>('[data-role="drop-indicator"]')
+  if (
+    indicator
+    && indicator.closest('[data-vertical]') === row.closest('[data-vertical]')
+    && indicator.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING
+  ) {
+    top -= closingHeight(indicator)
+  }
+  return new DOMRect(rect.left, top, rect.width, rect.height)
 }
 
 export function settleDuration(distance: number | null): number {
@@ -353,6 +398,7 @@ export function releasePointerDrag(
   drag.combineMode = false
   if (!id) {
     drag.target = null
+    drag.slot = null
     rowRects.clear()
     return null
   }
@@ -377,12 +423,14 @@ export function releasePointerDrag(
   // dragged disappears and then reappears in the column").
   drag.settling = settling
   drag.target = target
+  drag.slot = target?.kind === 'reorder' ? target : null
   drag.id = null
   rowRects.clear()
   clearTimer(settleTimer)
   settleTimer = window.setTimeout(() => {
     drag.settling = null
     drag.target = null
+    drag.slot = null
     settleTimer = null
   }, duration + SETTLE_GRACE_MS)
   return { id, target }
@@ -390,68 +438,76 @@ export function releasePointerDrag(
 
 // --- hit-testing -----------------------------------------------------------------------------
 //
-// One `elementFromPoint` per pointer move, not a rect-cache walked by hand: `GoalCard.vue`'s own
-// nested recursion (a subgoal is itself a `.goal-card`) means "which card is under the cursor" is
-// exactly what the browser's own hit-test already answers, respecting real paint order and
-// `pointer-events: none` on the dragged source's own ghost (`GoalCard.vue`'s `isDragSource`
-// class) — which is what keeps the source's own row from hit-testing against itself.
+// Reads live row boxes, i.e. what the user sees. Two rules keep a live read from feeding back into
+// itself: the indicator under the pointer keeps its slot, and a combine never moves the placeholder.
+
+const LIVE_SLIDE = '[data-role="period-slide"]:not([data-state="outgoing"])'
 
 export interface PointerHit {
-  /** The nearest `[data-goal-id]` ancestor of whatever is under the pointer, or null. Never the
-   *  drag source itself — the source's ghost carries `pointer-events: none` while a drag is in
-   *  flight, so the browser's own hit-test walks straight through it. */
+  /** Rendered row nearest the pointer in the hovered column; never the drag source. */
   cardId: string | null
   cardRect: DOMRect | null
-  /** Outermost card in the column slot. A nested card remains `cardId` for combine mode, while
-   *  sortable mode resolves through it to this enclosing top-level slot. */
-  sortableCardId: string | null
-  sortableCardRect: DOMRect | null
-  /** The nearest `[data-vertical]` ancestor — every `Column.vue` root carries one, real scale or
-   *  the literal `"maybe"` (`store.ts::toColumnData`'s own mapping). */
+  /** Card ids rendered after `cardId` in its container, in DOM order. */
+  followingIds: string[]
   columnVertical: string | null
-  /** `Column.vue`'s own `periodKey` prop, mirrored onto its root as `data-period-key` for this
-   *  file to read back — `''` (empty attribute) reads back as `null`, matching the prop's own
-   *  `string | null` shape rather than inventing a second empty-string sentinel. */
   columnPeriodKey: string | null
+  overIndicator: boolean
+  /** The pointer is nearest the source's own box: a nested hole, or the card before it collapses. */
+  overSource: boolean
 }
 
-export function hitTest(x: number, y: number): PointerHit {
+function followingCardIds(card: HTMLElement): string[] {
+  const ids: string[] = []
+  for (let el = card.nextElementSibling; el; el = el.nextElementSibling) {
+    const id = (el as HTMLElement).dataset?.goalId
+    if (id) ids.push(id)
+  }
+  return ids
+}
+
+export function hitTest(x: number, y: number, sourceId: string | null = null): PointerHit {
   const el = document.elementFromPoint(x, y) as HTMLElement | null
-  let cardEl = el?.closest('[data-goal-id]') as HTMLElement | null
-  if (!cardEl) {
-    // The reorder indicator is in-flow: the moment it renders it displaces every row below it,
-    // so the card the pointer visibly entered can slide out from under `elementFromPoint` mid-
-    // gesture (the live hit is then the column's own gap). Same law as the reorder slot below —
-    // resolve identity against press-time row geometry, which nothing displaces.
-    for (const [id, rect] of rowRects) {
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-        cardEl = document.querySelector<HTMLElement>(`[data-goal-id="${CSS.escape(id)}"]`)
-        break
-      }
-    }
-  }
-  const rowEl = cardEl?.querySelector<HTMLElement>(':scope > .goal-card__row') ?? cardEl
-  const colEl = el?.closest('[data-vertical]') as HTMLElement | null
-  let sortableCardEl = cardEl
-  while (sortableCardEl && colEl) {
-    const parentCard = sortableCardEl.parentElement?.closest('[data-goal-id]') as HTMLElement | null
-    if (!parentCard || !colEl.contains(parentCard)) break
-    sortableCardEl = parentCard
-  }
-  const sortableRow = sortableCardEl?.querySelector<HTMLElement>(':scope > .goal-card__row')
-    ?? sortableCardEl
-  return {
-    cardId: cardEl?.dataset.goalId ?? null,
-    cardRect: (cardEl?.dataset.goalId ? rowRects.get(cardEl.dataset.goalId) : null)
-      ?? rowEl?.getBoundingClientRect()
-      ?? null,
-    sortableCardId: sortableCardEl?.dataset.goalId ?? null,
-    sortableCardRect: (sortableCardEl?.dataset.goalId ? rowRects.get(sortableCardEl.dataset.goalId) : null)
-      ?? sortableRow?.getBoundingClientRect()
-      ?? null,
+  const colEl = el?.closest<HTMLElement>('[data-vertical]') ?? null
+  const hit: PointerHit = {
+    cardId: null,
+    cardRect: null,
+    followingIds: [],
     columnVertical: colEl?.dataset.vertical ?? null,
     columnPeriodKey: colEl?.dataset.periodKey ? colEl.dataset.periodKey : null,
+    overIndicator: false,
+    overSource: false,
   }
+  if (!colEl) return hit
+
+  // Nearest of the indicator and every row, so no gap between them is left unowned.
+  const distance = (rect: DOMRect) => (y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0)
+  let best: { card: HTMLElement | null; rect: DOMRect; distance: number } | null = null
+  const indicator = colEl.querySelector<HTMLElement>(`${LIVE_SLIDE} [data-role="drop-indicator"]`)
+  if (indicator) {
+    const rect = indicator.getBoundingClientRect()
+    best = { card: null, rect, distance: distance(rect) }
+  }
+  const rows = colEl.querySelectorAll<HTMLElement>(`${LIVE_SLIDE} [data-goal-id] > .goal-card__row`)
+  for (const row of rows) {
+    const card = row.parentElement as HTMLElement
+    const rect = (card.dataset.goalId === sourceId ? card : row).getBoundingClientRect()
+    if (rect.height <= 0) continue
+    const d = distance(rect)
+    if (!best || d < best.distance) best = { card, rect, distance: d }
+  }
+  if (!best) return hit
+  if (!best.card) {
+    hit.overIndicator = true
+    return hit
+  }
+  hit.followingIds = followingCardIds(best.card)
+  if (best.card.dataset.goalId === sourceId) {
+    hit.overSource = true
+    return hit
+  }
+  hit.cardId = best.card.dataset.goalId ?? null
+  hit.cardRect = best.rect
+  return hit
 }
 
 // --- drop target ---------------------------------------------------------------------------------
@@ -486,14 +542,26 @@ export type DropTarget =
     }
   | null
 
+export type ReorderTarget = Extract<DropTarget, { kind: 'reorder' }>
+
 export function computeDropTarget(
   board: BoardResponse | null,
   sourceId: string,
   pointerY: number,
   hit: PointerHit,
   combineMode = false,
+  currentSlot: ReorderTarget | null = null,
 ): DropTarget {
   if (!findGoal(board, sourceId)) return null
+
+  // The indicator under the pointer keeps its slot.
+  if (hit.overIndicator && currentSlot) return currentSlot
+  if (hit.overSource && hit.columnVertical) {
+    const slot = sourceSlot(board, sourceId, hit.columnVertical, hit.columnPeriodKey, hit.followingIds)
+    if (slot) {
+      return { kind: 'reorder', ...slot, vertical: hit.columnVertical, periodKey: hit.columnPeriodKey }
+    }
+  }
 
   // D236 (KK, 2026-08-15): combine no longer hides behind the Alt key. The pointer's position on
   // the hit card disambiguates the two meanings a modifier used to: the middle band reads "into
@@ -520,20 +588,18 @@ export function computeDropTarget(
     }
   }
 
-  if (hit.sortableCardId && hit.sortableCardId !== sourceId && hit.sortableCardRect) {
-    const target = findGoal(board, hit.sortableCardId)
-    if (!target) return null
-    const vertical = target.vertical ?? 'maybe'
-    const periodKey = target.vertical !== null ? target.period_key : null
-    /* Resolve the ordered slot (and its group) against press-time row geometry, not whichever
-       FLIP-displaced card happens to paint under the pointer now. P-26's live resort can move the
-       hit element across the release point; feeding that transient identity back into the write
-       occasionally turns a real move into a no-op. Cached rects preserve the same upper/lower-
-       half law while keeping the committed `after_id` stable. */
-    const slot = resolveReorderSlot(board, sourceId, vertical, periodKey, pointerY, rowRects)
-    return { kind: 'reorder', insertBeforeId: slot.insertBeforeId, vertical, periodKey, parentId: slot.parentId }
+  // Upper half of a row: slot above it. Lower half: slot below it.
+  if (hit.cardId && hit.cardRect && hit.columnVertical) {
+    const after = pointerY >= hit.cardRect.top + hit.cardRect.height / 2
+    const slot = slotBesideCard(
+      board, sourceId, hit.columnVertical, hit.columnPeriodKey, hit.cardId, after, hit.followingIds,
+    )
+    if (slot) {
+      return { kind: 'reorder', ...slot, vertical: hit.columnVertical, periodKey: hit.columnPeriodKey }
+    }
   }
 
+  // Empty column, or a row that is no valid anchor: fall back to press-time geometry.
   if (hit.columnVertical) {
     const slot = resolveReorderSlot(
       board, sourceId, hit.columnVertical, hit.columnPeriodKey, pointerY, rowRects,
@@ -580,8 +646,10 @@ export function scheduleOrdering(
     .filter((id) => id !== sourceId)
   const index = siblings.indexOf(target.insertBeforeId)
   if (index === -1) return null
-  if (index === 0) return { position: 'first' }
-  return { after_id: siblings[index - 1] }
+  // Carryover ghosts render here but belong to their old period; the server refuses them as after_id.
+  const before = siblings.slice(0, index)
+    .filter((id) => findGoal(board, id)?.period_key === target.periodKey)
+  return before.length ? { after_id: before[before.length - 1] } : { position: 'first' }
 }
 
 // --- reorder write ---------------------------------------------------------------------------
@@ -608,11 +676,13 @@ export function reorderWrite(
   // ghost renders in today's column while its `period_key` stays the old period's, and naming it
   // as `after_id` gets a 422 ("not a sibling"). Filter to the source's own `(vertical, period_key)`
   // — for a nested-idea group this same filter also reproduces the server's `vertical IS NULL` cut.
-  const full = siblingIds(board, sourceId).filter((id) => {
-    const g = findGoal(board, id)
-    return !!g && g.vertical === source.vertical
-      && (g.period_key ?? null) === (source.period_key ?? null)
-  })
+  // The server orders this group by position; the wire order bands it by value.
+  const full = siblingIds(board, sourceId)
+    .map((id) => findGoal(board, id))
+    .filter((g): g is NonNullable<typeof g> => !!g && g.vertical === source.vertical
+      && (g.period_key ?? null) === (source.period_key ?? null))
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+    .map((g) => g.id)
   const filtered = full.filter((id) => id !== sourceId)
   if (filtered.length === 0) return null // only member of its own group: nowhere to move to
 
