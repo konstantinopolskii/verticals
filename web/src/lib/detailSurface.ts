@@ -12,6 +12,7 @@
 
 import { createGoal, getGoal, patchGoal, type BoardResponse, type GoalDetail } from './api'
 import { boardGoalHost, findGoal } from './boardIndex'
+import { asOneHistoryStep } from './urlState'
 import type { DragState } from './drag'
 
 /** The detail-owned fields in the app's reactive state, plus the two slices the cache sweep has
@@ -207,7 +208,7 @@ export function createDetailSurface(
    *  (c) no host, but the detail carries a real `anchor_date` — a dated goal that just is not on
    *      the board that happens to be loaded. Reload at its own anchor date and retry (a)'s path.
    *      A host that still does not resolve after that reload is reported, never swallowed. */
-  async function navigateToGoal(id: string): Promise<void> {
+  async function walkToGoal(id: string): Promise<void> {
     if (boardGoalHost(state.board, id)) {
       await openViaBoardHost(id)
       return
@@ -252,6 +253,12 @@ export function createDetailSurface(
   /** Escape (via `KModal`'s own handling, `GoalDetail.vue`) or the modal's scrim/close button both
    *  land here. Guarded against a redundant call (nothing open) so a stray second close is not a
    *  state change `lib/urlState.ts` would have to answer for. */
+  /** The ladder above as a single history entry — step (c)'s board reload must not leave a stop
+   *  of its own behind the goal it was loading for. */
+  function navigateToGoal(id: string): Promise<void> {
+    return asOneHistoryStep(() => walkToGoal(id))
+  }
+
   function closeGoal(): void {
     if (state.openGoalId === null) return
     state.openGoalId = null

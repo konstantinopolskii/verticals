@@ -44,6 +44,22 @@ interface PushedEntry {
   vtPrev: string
 }
 
+// A multi-step navigation (`navigateToGoal` reloading the board at the goal's own date, then
+// opening it) passes through states nobody asked to come back to — "the doc, but over another
+// week's board". Writes wait until it settles, so the whole jump is one history entry.
+let heldSteps = 0
+let flushHeldWrite: (() => void) | null = null
+
+export async function asOneHistoryStep<T>(navigate: () => Promise<T>): Promise<T> {
+  heldSteps += 1
+  try {
+    return await navigate()
+  } finally {
+    heldSteps -= 1
+    if (heldSteps === 0) flushHeldWrite?.()
+  }
+}
+
 function decodeId(raw: string): string {
   try {
     return decodeURIComponent(raw)
@@ -128,7 +144,7 @@ export function createUrlSync(
   }
 
   function write(): void {
-    if (applying || urlMatchesState()) return
+    if (applying || heldSteps > 0 || urlMatchesState()) return
     const entry = history.state as Partial<PushedEntry> | null
     // Closing what this session opened rewinds instead of stacking a third entry, so Forward
     // re-opens it and one Back leaves the board the way the user arrived.
@@ -153,7 +169,10 @@ export function createUrlSync(
       if (state.board?.anchor_date !== anchor) await deps.loadBoard(anchor)
       const target = url.target
       if (target.kind === 'goal') {
-        if (state.openGoalId !== target.id) await deps.navigateToGoal(target.id)
+        // "Showing", not merely open: Back from a goal to a doc leaves the goal open behind Docs,
+        // and skipping here would keep Docs on screen under a `#goal/<id>` address.
+        const shown = targetOfState(state)
+        if (shown.kind !== 'goal' || shown.id !== target.id) await deps.navigateToGoal(target.id)
       } else if (target.kind === 'doc') {
         deps.setView('docs')
         if (state.docs.currentId !== target.id) await deps.openDoc(target.id)
@@ -173,6 +192,7 @@ export function createUrlSync(
   }
 
   function startUrlSync(): void {
+    flushHeldWrite = write
     watch(() => meaningOfState(state, todayIso), write, { flush: 'post' })
     window.addEventListener('popstate', () => void applyUrl())
   }

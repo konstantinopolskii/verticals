@@ -248,3 +248,77 @@ def test_uh7_boot_keeps_search_and_hand_typed_today_paths(ui_f2: UiSession) -> N
     page.wait_for_selector("[data-goal-id]")
     page.wait_for_timeout(500)
     assert _path_and_fragment(page) == (f"/h/{ANCHOR_ISO}", "")
+
+
+# --- UH-8 / UH-9: doc ↔ goal ---------------------------------------------------------------------
+
+# A week outside the pinned board's, so the doc's link takes `navigateToGoal`'s step (c): reload the
+# board at the goal's own date, then open it.
+OFF_BOARD_ISO = "2026-09-16"
+
+
+def _doc_linking_goal(session: UiSession, slug: str) -> tuple[str, str]:
+    g_id = _post(
+        session, "/api/goals", {"title": f"SYN {slug} goal", "vertical": "week", "anchor_date": OFF_BOARD_ISO},
+    )
+    doc_id = _post(
+        session, "/api/docs",
+        {"path": f"syn-{slug.lower()}.md", "title": f"SYN {slug} doc", "body": f"[SYN {slug} goal](goal:{g_id})"},
+    )
+    return g_id, doc_id
+
+
+def test_uh8_doc_to_off_board_goal_is_one_entry_and_forward_reopens_it(ui_f2: UiSession) -> None:
+    """The board reload on the way to the goal must not leave its own stop ("the doc over the
+    goal's week"), and Forward after Back must open the goal — not keep Docs on screen because the
+    goal is still open behind it."""
+    page = ui_f2.page
+    g_id, doc_id = _doc_linking_goal(ui_f2, "UH8")
+    page.reload()
+
+    page.locator('[data-nav-item="docs"]').click()
+    page.locator(".docs-tree-folder__doc", has_text="SYN UH8 doc").click()
+    expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
+    length_doc = page.evaluate("history.length")
+
+    page.locator('[data-role="doc-detail"] a[data-link-kind="goal"]').click()
+    expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
+    # The address is written once the whole jump settles (the goal's detail fetch included).
+    expect(page).to_have_url(re.compile(rf"/h/{OFF_BOARD_ISO}#goal/{g_id}$"))
+    assert page.evaluate("history.length") == length_doc + 1, "the jump to the goal left more than one entry"
+
+    page.go_back()
+    _nav_current(page, "docs")
+    expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
+    assert _path_and_fragment(page) == ("/", f"doc/{doc_id}")
+
+    page.go_forward()
+    _nav_current(page, "verticals")
+    expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
+    assert _path_and_fragment(page) == (f"/h/{OFF_BOARD_ISO}", f"goal/{g_id}")
+
+
+def test_uh9_goal_to_doc_chip_back_reopens_goal(ui_f2: UiSession) -> None:
+    """The mirror case: the doc chip leaves the goal open behind Docs, so Back to `#goal/<id>` has to
+    bring the goal back on screen rather than find it "already open" and stay on the doc."""
+    session = ui_f2
+    page = session.page
+    g_id, doc_id = _doc_linking_goal(session, "UH9")
+
+    page.goto(f"{session.base_url}/h/{OFF_BOARD_ISO}#goal/{g_id}")
+    expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
+
+    page.locator(f'[data-role="goal-doc-chip"][data-doc-id="{doc_id}"]').click()
+    _nav_current(page, "docs")
+    expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
+    assert _path_and_fragment(page) == (f"/h/{OFF_BOARD_ISO}", f"doc/{doc_id}")
+
+    page.go_back()
+    _nav_current(page, "verticals")
+    expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
+    assert _path_and_fragment(page) == (f"/h/{OFF_BOARD_ISO}", f"goal/{g_id}")
+
+    page.go_forward()
+    _nav_current(page, "docs")
+    expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
+    assert _path_and_fragment(page) == (f"/h/{OFF_BOARD_ISO}", f"doc/{doc_id}")
