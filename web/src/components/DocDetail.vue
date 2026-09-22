@@ -136,6 +136,8 @@ function startTitleEdit(): void {
 }
 
 async function commitTitle(): Promise<void> {
+  // Enter unmounts the input, and Chromium then fires blur: without this, a second PATCH on a stale revision.
+  if (!editingTitle.value) return
   editingTitle.value = false
   const next = titleDraft.value.trim()
   const current = props.doc.title ?? ''
@@ -160,6 +162,7 @@ function startPathEdit(): void {
 }
 
 async function commitPath(): Promise<void> {
+  if (!editingPath.value) return
   editingPath.value = false
   const next = pathDraft.value.trim()
   if (!next || next === props.doc.path) return
