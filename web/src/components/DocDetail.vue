@@ -197,7 +197,7 @@ function onLinkedGoalClick(goalId: string): void {
   void store.navigateToGoal(goalId)
 }
 
-watch(() => props.doc.body, () => { if (!editingBody.value) paintBody() })
+watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) paintBody() })
 </script>
 
 <template>
@@ -273,6 +273,7 @@ watch(() => props.doc.body, () => { if (!editingBody.value) paintBody() })
       class="goal-detail__body doc-detail__body is-selectable"
       data-role="doc-body"
       data-placeholder="Write…"
+      :data-hide-title="props.doc.title ?? undefined"
       tabindex="0"
       role="textbox"
       aria-multiline="true"

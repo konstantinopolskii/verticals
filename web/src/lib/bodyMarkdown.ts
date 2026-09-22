@@ -298,7 +298,19 @@ export function renderBodyElement(root: HTMLElement, body: string): void {
     }
     fragment.append(element)
   }
+  hideRepeatedTitle(root, fragment)
   root.replaceChildren(fragment)
+}
+
+/** A leading `# X` that repeats the root's `data-hide-title` is hidden, not dropped:
+ *  `serializeBodyElement` still writes it back on save. */
+function hideRepeatedTitle(root: HTMLElement, fragment: DocumentFragment): void {
+  const normalize = (text: string) => text.replace(/\s+/g, ' ').trim()
+  const title = normalize(root.dataset.hideTitle ?? '')
+  const first = fragment.firstElementChild
+  if (title && first instanceof HTMLHeadingElement && first.tagName === 'H1' && normalize(first.textContent ?? '') === title) {
+    first.hidden = true
+  }
 }
 
 function serializeInlineNode(node: Node): string {

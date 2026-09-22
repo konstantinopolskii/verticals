@@ -75,7 +75,13 @@ function formatSavedAt(iso: string): string {
       <h2 class="docs-history__revision-title">
         {{ store.state.docs.viewingRevision.title || '(untitled)' }}
       </h2>
-      <div ref="bodyEl" class="goal-detail__body" data-role="docs-history-body" @click="onBodyClick"></div>
+      <div
+        ref="bodyEl"
+        class="goal-detail__body"
+        data-role="docs-history-body"
+        :data-hide-title="store.state.docs.viewingRevision.title ?? undefined"
+        @click="onBodyClick"
+      ></div>
     </template>
 
     <ul v-else class="docs-history__list" data-role="docs-history-list">

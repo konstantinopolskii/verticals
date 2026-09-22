@@ -125,6 +125,35 @@ def test_edit_body_and_save_bumps_revision(ui_f2: UiSession) -> None:
     assert fresh["body"] == "SYN edited body text"
 
 
+def test_leading_heading_repeating_title_is_hidden_and_kept_on_save(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        doc_id = _create_doc(conn, "syn-dup-title/doc.md", title="Dup Title", body="# Dup Title\n\nSYN body")
+
+    page.reload()
+    _open_docs(session)
+    page.click(f'[data-doc-id="{doc_id}"]')
+    expect(page.locator('[data-role="doc-title"]')).to_have_text("Dup Title", timeout=10000)
+
+    body = page.locator('[data-role="doc-body"]')
+    expect(body.locator("p")).to_have_text("SYN body")
+    expect(body.locator("h1")).to_be_hidden()
+
+    body.locator("p").click()
+    page.keyboard.press("End")
+    page.keyboard.type(" edited")
+    page.keyboard.press("Home")
+    page.keyboard.press("Backspace")
+    page.wait_for_timeout(BODY_SAVE_SETTLE_MS)
+    assert _api_get_doc(session, doc_id)["body"] == "# Dup Title\n\nSYN body edited"
+
+    page.click('[data-role="doc-title"]')
+    page.fill('[data-role="doc-title-input"]', "Renamed")
+    page.press('[data-role="doc-title-input"]', "Enter")
+    expect(body.locator("h1")).to_be_visible(timeout=5000)
+
+
 # --- concurrent write: conflict surfaces, no silent overwrite ------------------------------------
 
 

@@ -71,7 +71,8 @@
   font-weight: 600;
   line-height: 1.2;
 }
-.goal-detail__body > .goal-detail__body-heading:first-child { margin-top: 0; }
+.goal-detail__body > .goal-detail__body-heading:first-child,
+.goal-detail__body > [hidden]:first-child + .goal-detail__body-heading { margin-top: 0; }
 .goal-detail__body > h1.goal-detail__body-heading { font-size: 1.55em; }
 .goal-detail__body > h2.goal-detail__body-heading { font-size: 1.4em; }
 .goal-detail__body > h3.goal-detail__body-heading { font-size: 1.25em; }
