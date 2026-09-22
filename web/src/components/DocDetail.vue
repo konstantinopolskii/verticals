@@ -136,6 +136,8 @@ function startTitleEdit(): void {
 }
 
 async function commitTitle(): Promise<void> {
+  // Enter unmounts the input, and Chromium then fires blur: without this, a second PATCH on a stale revision.
+  if (!editingTitle.value) return
   editingTitle.value = false
   const next = titleDraft.value.trim()
   const current = props.doc.title ?? ''
@@ -160,6 +162,7 @@ function startPathEdit(): void {
 }
 
 async function commitPath(): Promise<void> {
+  if (!editingPath.value) return
   editingPath.value = false
   const next = pathDraft.value.trim()
   if (!next || next === props.doc.path) return
@@ -194,7 +197,7 @@ function onLinkedGoalClick(goalId: string): void {
   void store.navigateToGoal(goalId)
 }
 
-watch(() => props.doc.body, () => { if (!editingBody.value) paintBody() })
+watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) paintBody() })
 </script>
 
 <template>
@@ -270,6 +273,7 @@ watch(() => props.doc.body, () => { if (!editingBody.value) paintBody() })
       class="goal-detail__body doc-detail__body is-selectable"
       data-role="doc-body"
       data-placeholder="Write…"
+      :data-hide-title="props.doc.title ?? undefined"
       tabindex="0"
       role="textbox"
       aria-multiline="true"
