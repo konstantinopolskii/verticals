@@ -51,7 +51,7 @@ def test_portable_skills_are_repository_owned_and_linked_for_claude() -> None:
 def test_morning_report_references_resolve() -> None:
     skill_dir = SKILLS / "verticals-morning-report"
     text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
-    for name in ("setup.md", "report-contract.md"):
+    for name in ("setup.md", "source-reconciliation.md", "report-contract.md", "worked-example.md"):
         assert f"references/{name}" in text
         assert (skill_dir / "references" / name).is_file()
 
