@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 import uuid
 from pathlib import Path
 
@@ -338,11 +339,46 @@ def codex_policy(mode, cwd=None):
 
 
 def codex_args(chat):
+    """Keep the user's CLI sign-in, but expose only this desktop's MCP server.
+
+    CLI overrides merge tables; setting mcp_servers={} neither removes inherited servers
+    nor clears an existing HTTP transport when a stdio command is added under its name.
+    """
     q = json.dumps
-    return [which("codex"), "app-server",
-            "-c", f"mcp_servers.verticals.command={q(sys.executable)}",
-            "-c", f"mcp_servers.verticals.args={q([str(HERE / 'mcp_proxy.py')])}",
-            "-c", 'mcp_servers.verticals.env_vars=["VERTICALS_MCP_URL","VERTICALS_MCP_TOKEN"]']
+    config_path = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "config.toml"
+    try:
+        config = tomllib.loads(config_path.read_text()) if config_path.exists() else {}
+    except (OSError, ValueError) as e:
+        raise ChatError("Cannot read Codex configuration to isolate the desktop connection") from e
+    servers = config.get("mcp_servers", {})
+    if "verticals_desktop" in servers:
+        raise ChatError("Codex configuration already uses the reserved verticals_desktop server name")
+    overrides = []
+    for group in ("mcp_servers", "plugins"):
+        for name in config.get(group, {}):
+            overrides += ["-c", f"{group}.{name}.enabled=false"]
+    for event, handlers in config.get("hooks", {}).items():
+        if isinstance(handlers, list):
+            overrides += ["-c", f"hooks.{event}=[]"]
+    overrides += ["-c", "notify=[]", "-c", "features.apps=false", "-c", "features.shell_tool=false",
+                  "-c", "features.multi_agent=false", "-c", 'web_search="disabled"',
+                  "-c", f"mcp_servers.verticals_desktop.command={q(sys.executable)}",
+                  "-c", f"mcp_servers.verticals_desktop.args={q([str(HERE / 'mcp_proxy.py')])}",
+                  "-c", 'mcp_servers.verticals_desktop.env_vars=["VERTICALS_MCP_URL","VERTICALS_MCP_TOKEN"]',
+                  "-c", 'mcp_servers.verticals_desktop.default_tools_approval_mode="writes"']
+    # Includes system/project layers and plugin servers; fail closed if one escaped the overrides.
+    try:
+        result = subprocess.run([which("codex"), *overrides, "mcp", "list", "--json"], cwd=chat.workdir,
+                                env=child_env(), capture_output=True, text=True, timeout=20)
+    except subprocess.TimeoutExpired as e:
+        raise ChatError("Codex connection isolation check timed out; retry when the CLI responds") from e
+    try:
+        enabled = {s["name"] for s in json.loads(result.stdout) if s.get("enabled", True)}
+    except (ValueError, KeyError, TypeError):
+        enabled = set()
+    if result.returncode or enabled != {"verticals_desktop"}:
+        raise ChatError("Could not isolate Codex to the local Verticals desktop MCP server")
+    return [which("codex"), "app-server", *overrides]
 
 
 class CodexAgent:
@@ -361,7 +397,7 @@ class CodexAgent:
                                          "capabilities": {"experimentalApi": True}})
         self.proc.notify("initialized", {})
         params = {**codex_policy(settings.get("permission") or "auto-review"), "cwd": str(chat.workdir),
-                  "developerInstructions": PROMPT,
+                  "developerInstructions": PROMPT.replace('server "verticals"', 'server "verticals_desktop"'),
                   "config": {"sandbox_workspace_write.network_access": False, "features.multi_agent": False},
                   "serviceTier": "fast" if settings.get("fast") else None}
         if settings.get("model"):

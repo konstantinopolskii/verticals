@@ -75,8 +75,16 @@ quarantine (the app is ad-hoc signed, not notarized):
   requests; the UI bundle contains no token.
 - MCP bearer tokens reach agents through owner-only files or the environment, never command lines.
 - Agent processes get no variables of a parent Claude Code session.
+- Codex keeps its existing CLI sign-in but disables inherited MCP servers and plugins for the
+  desktop process. Its dedicated `verticals_desktop` server relays only to this app's local MCP
+  endpoint. Startup checks the effective server list and refuses to start if another server
+  remains enabled; the user's Codex configuration is not edited. The `verticals_desktop` name
+  is reserved for this connection. Shell, web search and app connectors are disabled in chat.
 
 ## Status
 
-MVP. Codex support follows Enjoy's `app-server` protocol and was exercised against a stand-in only.
+MVP. Codex support follows the `app-server` protocol. Verified with Codex CLI
+`0.155.0-alpha.16`, an existing ChatGPT sign-in, live model/usage discovery, a tool approval,
+and a read-only board query returning sample goals through the local MCP relay. This checks
+the backend flow; it does not establish every provider/model or packaged-app combination.
 No Developer ID signing or notarization yet.
