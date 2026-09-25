@@ -88,3 +88,7 @@ web/.claude/skills/
 !web/vendor/
 !web/vendor/konstantinopolskii-design-system-2.1.1.tgz
 !web/vendor/konstantinopolskii-vue-2.1.1.tgz
+
+# Desktop app (desktop/README.md): token-free UI build and the launcher's local state.
+/desktop/build/
+/.local-verticals-desktop/
