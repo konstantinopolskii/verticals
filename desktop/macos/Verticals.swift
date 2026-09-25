@@ -103,8 +103,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         process.environment = env
         let logURL = URL(fileURLWithPath: logPath)
         try? FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(),
-                                                 withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+                                                 withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        FileManager.default.createFile(atPath: logURL.path, contents: nil,
+                                       attributes: [.posixPermissions: 0o600])
         let log = try? FileHandle(forWritingTo: logURL)
         process.standardOutput = log
         process.standardError = log

@@ -379,12 +379,11 @@ def make_gateway(token, chat):
 
 # ---------------------------------------------------------------- run
 
-def mcp_instructions(token):
+def mcp_instructions():
     url = f"http://127.0.0.1:{MCP_PORT}/mcp"
     return (f"MCP (streamable HTTP): {url}\n"
-            f"  Claude Code: claude mcp add --transport http verticals-desktop {url} "
-            f"--header \"Authorization: Bearer {token}\"\n"
-            f"  JSON config: {STATE / 'mcp.json'}")
+            f"  Private JSON config: {STATE / 'mcp.json'}\n"
+            "  Authentication stays in that owner-only file; do not share it.")
 
 
 def write_mcp_config(token):
@@ -419,7 +418,8 @@ def main():
                  "  VITE_VERTICALS_TOKEN= npm --prefix web run build -- --outDir ../desktop/build/web --emptyOutDir")
     cfg = settings()
     if sys.argv[1:] == ["mcp"]:
-        print(mcp_instructions(cfg["token"]))
+        write_mcp_config(cfg["token"])
+        print(mcp_instructions())
         return
     pg = pg_bin()
     for port in (UI_PORT, API_PORT, MCP_PORT):
@@ -442,7 +442,7 @@ def main():
         threading.Thread(target=gateway.serve_forever, daemon=True).start()
         wait_healthy()
         write_mcp_config(cfg["token"])
-        print(f"\nVerticals desktop is up\n  UI:  http://127.0.0.1:{UI_PORT}/\n  {mcp_instructions(cfg['token'])}\n"
+        print(f"\nVerticals desktop is up\n  UI:  http://127.0.0.1:{UI_PORT}/\n  {mcp_instructions()}\n"
               f"Ctrl-C stops everything; data stays in {STATE}.\n", flush=True)
         while all(p.poll() is None for p in procs):
             time.sleep(1)
