@@ -18,7 +18,7 @@ For each new discussion, decision, result, or reply, make this internal check be
 | Existing destination | Which exact Verticals goal and owning session carry this work? What do the current body, document, comments, and result actually say? |
 | Later state | Did subsequent messages, a delivered artifact, a merge, payment, or another decision supersede the older status? |
 | Authorized incorporation | Was an update permitted, saved to the *authoritative* destination, and read back with its revision or equivalent state? A source mentioned only in the report, or saved only to a mirror, is **not** incorporated into the live task. |
-| Remaining action | Who acts next, under what condition? Is human acceptance still needed? |
+| Remaining action | Who acts next, under what condition? Is a separate direct reader command or human acceptance still needed? A transferred comment or information-only notification is not execution authorization. |
 
 One call may update several existing goals; several sources may explain one goal. Do not manufacture a new goal or review session when a suitable owner already exists. Preserve distinctions between discussing a document, saving a draft, sending it, receiving a reply, and the reader accepting the result.
 
@@ -30,6 +30,6 @@ One call may update several existing goals; several sources may explain one goal
 
 **Discussion → separate financial states.** A package conversation established what base and premium options meant, and mentioned annual payment. The existing economics document was updated and read back. The report retained the actual package terms, while keeping annual payment, final price selection, and money received as different states.
 
-Before finalizing, compare every previous unresolved row and reviewer comment with the new report: it must remain visible under its owner, be resolved with evidence, be durably routed, or be deliberately deferred by the reader. Age and a compact child display never erase a real promise.
+Before finalizing, compare every previous unresolved row and reviewer comment with the new report. A comment with verified transfer to its exact task belongs in history and leaves an empty fourth-column cell; its unfinished work remains visible in the next-action column. A failed or ambiguous transfer keeps the original comment visible. Follow [the comment-transfer procedure](report-contract.md#comments-and-second-copy); do not execute the comment while routing it. Age and a compact child display never erase a real promise.
 
 For each reported save, retain a compact private source → destination → readback trail (exact task/document, backend, revision or observed state). Publish only the level of detail the reader needs. If a source is unavailable or a save cannot be verified, keep the claim pending; do not silently substitute another account or call the task updated.

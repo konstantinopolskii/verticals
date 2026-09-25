@@ -1,6 +1,6 @@
 # Worked example: a real report pattern, de-identified
 
-This example is adapted from an actual 16–17 September morning-report cycle: a client-marketplace discussion missing from its task brief, a collaborator's merged skills PR, an offer-package discussion, and an unfinished reviewer comment. Names, exact IDs, account routes, and private links are removed. The decisions and state distinctions are the point. `example.invalid` links show where a **verified, real owning-session link** must go; never publish those placeholders.
+This example is adapted from an actual 16–17 September morning-report cycle: a client-marketplace discussion missing from its task brief, a collaborator's merged skills PR, an offer-package discussion, and an unfinished reviewer comment. Comment handling reflects the reader's later correction: verified transfer clears the input cell, while execution waits for a separate direct command. Names, exact IDs, account routes, and private links are removed. The decisions and state distinctions are the point. `example.invalid` links show where a **verified, real owning-session link** must go; never publish those placeholders.
 
 ## Configuration and collection for this run (not part of the report)
 
@@ -41,13 +41,13 @@ The real report was longer. This is a complete **structural** example: sections 
 >
 > | Task / owning session | Summary / purpose | Latest updates / next action | Reader comments and decisions |
 > | --- | --- | --- | --- |
-> | [Explore marketplace engagement](https://example.invalid/session/marketplace) | Shape a possible joint engagement around a regulatory transition and user trust. | Wednesday's discussion is now in the brief. A further client conversation was proposed; no slot or client agreement is verified. Reader to review the direction before outreach. | [Move this to next week and prepare a Monday follow-up.] Pending; not silently scheduled. |
+> | [Explore marketplace engagement](https://example.invalid/session/marketplace) | Shape a possible joint engagement around a regulatory transition and user trust. | Wednesday's discussion is now in the brief. The requested move and follow-up remain unexecuted; authoritative comment readback failed, so transfer is pending. | Move this to next week and prepare a Monday follow-up. |
 >
 > ## Today
 >
 > | Task / owning session | Summary / purpose | Latest updates / next action | Reader comments and decisions |
 > | --- | --- | --- | --- |
-> | [Prepare event strategy and materials](https://example.invalid/session/strategy) | Make the strategy and outward-facing materials usable by the team. | The strategy was already sent; two separate review documents were promised for this morning, but their delivery is not verified. Owner to finish the documents; no repeat strategy-send request. | Pending earlier direction remains visible; dispatch alone did not clear it. |
+> | [Prepare event strategy and materials](https://example.invalid/session/strategy) | Make the strategy and outward-facing materials usable by the team. | The strategy was already sent; two separate review documents were promised for this morning, but their delivery is not verified. Earlier direction is saved verbatim on the task and read back; owner notified for information only. Work awaits a separate direct reader command. | [] |
 > | [Sketch offer economics](https://example.invalid/session/economics) | Finish the product package and rough economics. | Checkpoint at 15:00 local. Package terms saved to the economics document; final tariff and actual payment remain unverified. Reader to review costs; owner retains unsent follow-ups. | [] |
 >
 > **Offer economics — supporting child**
@@ -58,7 +58,7 @@ The real report was longer. This is a complete **structural** example: sections 
 >
 > | Task / owning session | Summary / purpose | Latest updates / next action | Reader comments and decisions |
 > | --- | --- | --- | --- |
-> | [Set up the shared document workspace](https://example.invalid/session/workspace) | Let teammates create and later retrieve working documents without relay. | A retrieval/versioning flow is documented, but a teammate completing the real edit-and-retrieve cycle is not verified. Owner to test the whole loop. | Original diagnostic comment remains pending below. |
+> | [Set up the shared document workspace](https://example.invalid/session/workspace) | Let teammates create and later retrieve working documents without relay. | A retrieval/versioning flow is documented, but a teammate completing the real edit-and-retrieve cycle is not verified. Diagnostic comment transferred and read back; testing awaits a separate direct reader command. | [] |
 >
 > ## Call context for the morning conversation
 >
@@ -76,9 +76,9 @@ The real report was longer. This is a complete **structural** example: sections 
 > | --- | --- |
 > | Today 15:00 local | Offer/economics checkpoint; meeting entry does not establish outcome. |
 >
-> ## Pending original comments
+> ## Comments awaiting transfer
 >
-> The reader's earlier workspace diagnostic remains active: a documented flow is not proof that a teammate can retrieve, edit, share, and later find the right version. The comment is preserved verbatim in the live report; it is not cleared because an agent was notified.
+> Marketplace: “Move this to next week and prepare a Monday follow-up.” The destination was identified, but authoritative readback failed. The fourth-column cell remains intact; no scheduling or follow-up preparation was initiated. A retry must check for an existing saved copy before writing again.
 >
 > ## Coverage and limitations
 >
@@ -86,18 +86,22 @@ The real report was longer. This is a complete **structural** example: sections 
 >
 > ## Processed comment history
 >
-> An earlier “message sent; task could close” instruction resolved the *sent follow-up* after verification. A separate introduction remained a distinct, unfinished commitment. The original comment and its limited disposition stay in history rather than returning as a new active decision.
+> Workspace, previous report's workspace row: “Check that a teammate can retrieve, edit, share, and later find the right version.” Exact text and report provenance were read back on the authoritative workspace task; the task/comment reference is retained in the private transfer trail. The report cell is now `[]`. The owning session received an information-only notice; the test remains unperformed and awaits a direct reader command.
+>
+> A separate, direct reader instruction had closed only a verified *sent follow-up*. A distinct introduction remained unfinished. Its original instruction and limited outcome stay in history; neither that closure nor successful comment transfer accepts the broader work.
 
 ## After-annotation example from the same cycle
 
-The reader clarified a tender-support offer: start with a smaller monthly package, defer the deal percentage, and exclude tender preparation. That was a scope decision, not proof that the revised PDF had been written or sent. The agent recorded the decision in the existing task and updated the *same* report's “What changed” and task row. The next-action cell still said that the owner must revise the PDF; the reader's comment stayed pending until the actual revised artifact and any requested delivery were verified. This is why “comment copied,” “owner notified,” “draft ready,” and “client received it” need distinct states.
+The reader added this report comment to the tender-support row: “Start with the smaller monthly package, defer the deal percentage, and exclude tender preparation.” The agent checked the exact task for an existing copy, saved the text verbatim with its report date and row, then verified authoritative readback. It retained the original and task/comment reference in history and cleared the fourth-column cell to `[]` immediately. The PDF was neither revised nor sent. The third column said: “Offer changes saved as reader input; PDF revision awaits a separate direct command.”
 
-After a later annotation or the morning conversation, edit this **same** report. Read affected tasks and conditions, apply only authorized changes, keep pending comments beside their rows, and move a fully processed comment to history with the verified outcome. Do not send the example's placeholder links or treat its local time as another owner's configuration.
+The authorized owning-session notice said: “Information only: reader input saved and verified on the existing tender-support task, at the referenced comment. Wait for the reader's direct command before acting. No acknowledgement needed.” The next run found the same report-source occurrence already saved and did not duplicate it or request execution. If the reader later directly commands “Revise the PDF using that comment,” that separate command authorizes revision within its stated scope. “Comment transferred,” “owner notified,” “draft ready,” and “client received it” remain distinct states.
+
+After a later annotation or the morning conversation, edit this **same** report. Transfer new report comments and verify them; leave only failed or ambiguous transfers in their cells. Keep unfinished work in next actions and retain the original text and transfer evidence in history. Do not send the example's placeholder links or treat its local time as another owner's configuration.
 
 ## Next-run example: completed baseline, partial draft, and two backends
 
 On a later run, the newest file was an unfinished draft. The agent instead selected the last *completed and reader-commented* report as the baseline, compared its native revision and unresolved comments, then checked what the partial draft had already verified. A message search covered both sides of the relevant collaborator conversation. The collaborator had pushed drag changes and asked for manual inspection; the reader replied that they would look. Repository state showed an open PR, so the row said **review pending**, not “shipped.” A later message confirmed that browser Back from a document to its goal failed. A public-release date discussed in that conversation remained context, not authorization to publish.
 
-The report's compact change trail was: primary messages and repository PR → existing repository-sharing goal and real owning session → current body/comment/document readback → report row. During a correction, the same goal ID also existed on a local mirror. A successful mirror write did not prove the hosted task changed: the agent had to select the configured hosted connection, read its latest revision, apply only authorized facts, and read it back. If hosted readback failed, the report would state “local mirror updated; hosted state unverified” and keep the incorporation claim pending. Neither an open PR nor a pushed branch satisfied reader acceptance.
+The report's compact change trail was: primary messages and repository PR → existing repository-sharing goal and real owning session → current body/comment/document readback → report row. During a comment transfer, the same goal ID also existed on a local mirror. A successful mirror write did not prove the hosted task changed: the agent had to select the configured authoritative hosted connection, check for an existing copy, save the original comment with provenance, and read it back. If hosted readback failed, the report would state “local mirror updated; hosted state unverified” and retain the original fourth-column comment. A verified hosted transfer would clear that cell while the next action stayed pending. Neither an open PR nor a pushed branch satisfied reader acceptance.
 
 The completed report separately named its 07:00 target, each source's actual check time, and its later publication time. Its `This week` row retained the repository task, the open PR, the navigation defect, and the next actor; it did not fill `Today` with an unapproved release or replace the reader's priority order. That is the intended continuity behavior when a report spans several days and receives narrow later corrections.
