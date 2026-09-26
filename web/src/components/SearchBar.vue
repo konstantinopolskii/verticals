@@ -1,391 +1,256 @@
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { KCheckbox } from '@konstantinopolskii/vue'
-import { type GoalCard } from '../lib/api'
-import { store, todayIso } from '../store'
-import { stateUrl } from '../lib/urlState'
+import { getGoal, searchGoals, type GoalCard } from '../lib/api'
+import { store } from '../store'
+import type { GoalCardData } from '../types'
+import { boardMatches, commandFilter, commandSuggestions, effectiveTokens, filterActive, queryTerms, recognizeCommand, remoteMatchesFilter, type CommandToken } from '../lib/commandFilter'
 
 const props = defineProps<{ agentAvailable: boolean }>()
-const SEARCH_DEBOUNCE_MS = 300
-const SEARCH_PATH_RE = /^\/search(?:\/(.*))?\/?$/
-const inputValue = ref('')
-const surfaceOpen = ref(false)
-const pending = ref(false)
-const activeIndex = ref(0)
-const preSearchPath = ref('/')
 const root = ref<HTMLElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
-let debounceTimer: number | undefined
-let searchVersion = 0
-let searchChain = Promise.resolve()
-let skipNextFocusOpen = false
-
-const query = computed(() => inputValue.value.trim())
-const recognizedTag = computed(() => /^#(\S+)/.exec(query.value)?.[1] ?? null)
-const values = computed(() => (store.state.board?.values ?? []).map(value => ({
-  ...value,
-  label: store.state.board?.short_labels?.[value.id] ?? value.title.split(/\s+/)[0] ?? value.title,
-})))
-const activeArea = computed(() => values.value.find(value => value.id === store.state.valueFilter))
-
-interface SearchOption {
-  key: string
-  kind: 'area' | 'tag' | 'goal' | 'ask'
-  label: string
-  meta: string
-  id?: string
-  goal?: GoalCard
-}
-const options = computed<SearchOption[]>(() => {
-  const rows: SearchOption[] = []
-  if (!recognizedTag.value) {
-    for (const value of values.value) {
-      if (!query.value || value.label.toLocaleLowerCase().includes(query.value.toLocaleLowerCase())) {
-        rows.push({ key: `area-${value.id}`, kind: 'area', label: value.label, meta: 'Filter area', id: value.id })
+const focused = ref(false)
+const activeIndex = ref(-1)
+const remoteResults = ref<GoalCard[]>([])
+const remoteTruncated = ref(false)
+const remoteError = ref(false)
+const remotePending = ref(false)
+let requestVersion = 0
+let remoteInventory: Promise<{ goals: GoalCard[]; truncated: boolean; verticalsComplete: boolean }> | null = null
+const remoteAncestors = new Map<string, Promise<string[]>>()
+watch(() => store.state.board, () => { remoteInventory = null; remoteAncestors.clear() })
+function allRemoteCandidates() {
+  if (!remoteInventory) remoteInventory = Promise.all([
+    searchGoals({ limit: 200 }),
+    ...['day', 'week', 'month', 'quarter', 'year', 'decade', 'life'].map(vertical => searchGoals({ vertical, limit: 200 })),
+  ]).then(async responses => {
+    const goals = new Map(responses.flatMap(response => response.goals).map(goal => [goal.id, goal]))
+    for (const column of store.state.board?.columns ?? []) for (const goal of column.goals) goals.set(goal.id, goal)
+    for (const children of Object.values(store.state.board?.children ?? {})) for (const goal of children) goals.set(goal.id, goal)
+    // Existing detail reads expose the complete child/idea graph of each known root,
+    // including parked descendants omitted from both dated search and the current board.
+    const queue = [...goals.values()]
+    const visited = new Set<string>()
+    const worker = async () => {
+      while (queue.length) {
+        const goal = queue.shift()!
+        if (visited.has(goal.id)) continue
+        visited.add(goal.id)
+        const detail = await getGoal(goal.id)
+        remoteAncestors.set(goal.id, Promise.resolve(detail.ancestors.map(parent => parent.id)))
+        for (const child of [...detail.children, ...detail.ideas]) {
+          if (!goals.has(child.id)) { goals.set(child.id, child); queue.push(child) }
+        }
       }
     }
-  }
-  if (recognizedTag.value && store.state.searchTag !== recognizedTag.value) {
-    rows.push({ key: 'tag', kind: 'tag', label: `#${recognizedTag.value}`, meta: 'Filter tag' })
-  }
-  const resultsMatchInput = recognizedTag.value
-    ? store.state.searchTag === recognizedTag.value
-    : (!query.value || (query.value.length >= 3 && store.state.searchQuery.trim() === query.value))
-  if (!pending.value && resultsMatchInput) {
-    for (const goal of store.state.searchResults) {
-      rows.push({ key: `goal-${goal.id}`, kind: 'goal', label: goal.title, id: goal.id, goal,
-        meta: goal.vertical && goal.anchor_date ? `${goal.vertical} · ${goal.anchor_date}` : 'Inbox' })
-    }
-  }
-  if (query.value) {
-    rows.push({ key: 'ask', kind: 'ask', label: `Ask agent: ${query.value}`,
-      meta: props.agentAvailable ? 'Opens a draft' : 'Agent unavailable in this browser' })
-  }
-  return rows
-})
-const noMatches = computed(() => !pending.value && (query.value.length >= 3 || store.state.searchTag !== null)
-  && !options.value.some(option => option.kind !== 'ask'))
+    await Promise.all(Array.from({ length: 8 }, worker))
+    // The Maybe board contains undone parentless null-vertical goals, including parked
+    // roots. Older parentless DONE null-vertical goals can remain outside recent200.
+    // Area subtrees are complete once every dated vertical root and its graph was read.
+    return { goals: [...goals.values()], truncated: responses.some(response => response.truncated), verticalsComplete: responses.slice(1).every(response => !response.truncated) }
+  }).catch(error => { remoteInventory = null; throw error })
+  return remoteInventory
+}
+const suggestions = computed(() => commandSuggestions.value.filter(item => !commandFilter.tokens.some(token => token.key === item.key)))
+const showSuggestions = computed(() => focused.value && !commandFilter.text && !commandFilter.chatOpen)
+const label = computed(() => [...commandFilter.tokens.map(token => token.label), commandFilter.text.trim()].filter(Boolean).join(' '))
+const noMatches = computed(() => filterActive.value && !remotePending.value && !boardMatches.value.length && !remoteResults.value.length)
+const hint = computed(() => commandFilter.chatOpen ? '⌘↵ send' : label.value ? '⌘↵ ask agent' : '⌘K')
 
-function clearTimer() {
-  if (debounceTimer !== undefined) window.clearTimeout(debounceTimer)
-  debounceTimer = undefined
+function addToken(token: CommandToken) {
+  if (token.kind === 'view') commandFilter.tokens = commandFilter.tokens.filter(item => item.kind !== 'view')
+  if (!commandFilter.tokens.some(item => item.key === token.key)) commandFilter.tokens.push(token)
+  activeIndex.value = -1
+  void focusInput()
 }
-function underlyingUrl() {
-  return stateUrl(store.state, todayIso, preSearchPath.value)
-}
-function replaceSearchUrl() {
-  // Search still borrows the current history entry. Preserve its view/goal fragment and state.
-  const hash = new URL(underlyingUrl(), location.origin).hash
-  history.replaceState(history.state, '', `${query.value ? `/search/${encodeURIComponent(query.value)}` : '/search/'}${hash}`)
-}
-async function focusInput(openResults = true) {
-  await nextTick()
-  if (!openResults && document.activeElement !== input.value) skipNextFocusOpen = true
-  input.value?.focus()
-}
-function onInputFocus() {
-  if (skipNextFocusOpen) { skipNextFocusOpen = false; return }
-  openSurface()
-}
-function runSearch(immediate = false, tag: string | null = null) {
-  clearTimer()
-  const version = ++searchVersion
-  const text = query.value
-  store.clearSearch()
-  if ((recognizedTag.value && !tag) || (text.length > 0 && text.length < 3 && !tag)) {
-    pending.value = false
-    return
-  }
-  pending.value = true
-  const start = () => {
-    debounceTimer = undefined
-    // Existing search actions share one result slice. Serialize them so an older response can
-    // never paint over the latest query; obsolete queued requests never reach the API.
-    searchChain = searchChain.then(async () => {
-      if (version !== searchVersion) return
-      try {
-        if (tag) await store.filterByTag(tag)
-        else if (text) await store.runSearch(text)
-        else await store.loadRecentSearch()
-      } finally {
-        if (version === searchVersion) pending.value = false
-      }
-    }).catch(() => { if (version === searchVersion) pending.value = false })
-  }
-  if (immediate) start()
-  else debounceTimer = window.setTimeout(start, SEARCH_DEBOUNCE_MS)
-}
-function openSurface() {
-  if (surfaceOpen.value) return
-  preSearchPath.value = location.pathname
-  surfaceOpen.value = true
-  activeIndex.value = 0
-  replaceSearchUrl()
-  runSearch()
-  window.dispatchEvent(new CustomEvent('verticals:agent-close'))
-}
-function dismiss(restoreUrl = true) {
-  clearTimer()
-  searchVersion += 1
-  pending.value = false
-  surfaceOpen.value = false
-  inputValue.value = ''
-  store.clearSearch()
-  if (restoreUrl && SEARCH_PATH_RE.test(location.pathname)) {
-    history.replaceState(history.state, '', underlyingUrl())
-  }
-}
-defineExpose({ dismiss })
+function removeToken(index: number) { commandFilter.tokens.splice(index, 1); void focusInput() }
 function onInput(event: Event) {
-  inputValue.value = (event.target as HTMLInputElement).value
-  if (!surfaceOpen.value) openSurface()
-  activeIndex.value = 0
-  replaceSearchUrl()
-  runSearch()
+  const value = (event.target as HTMLInputElement).value
+  if (commandFilter.chatOpen) { commandFilter.text = value; return }
+  // Tokenize complete words only. Bare keywords apply the same filter without moving the caret.
+  commandFilter.text = value.replace(/(^|\s)(\S+)(?=\s)/g, (whole, leading: string, word: string) => {
+    const token = recognizeCommand(word)
+    if (!token) return whole
+    addToken(token)
+    return leading
+  }).replace(/^\s+/, '')
+  activeIndex.value = -1
 }
-function pick(option: SearchOption) {
-  if (option.kind === 'tag') {
-    runSearch(true, recognizedTag.value)
-    return
-  }
-  if (option.kind === 'ask') {
-    if (!props.agentAvailable) return
-    const text = query.value
-    dismiss()
-    input.value?.blur()
-    window.dispatchEvent(new CustomEvent('verticals:agent-draft', { detail: { text } }))
-    return
-  }
-  dismiss()
+function clear() { commandFilter.text = ''; commandFilter.tokens = []; remoteResults.value = [] }
+function dismiss() { clear(); input.value?.blur() }
+defineExpose({ dismiss })
+async function focusInput() { await nextTick(); input.value?.focus() }
+
+watch(() => effectiveTokens.value.find(token => token.kind === 'view')?.value, (view, previous) => {
+  if (commandFilter.chatOpen) return
+  if (view === 'inbox' || view === 'docs') { store.closeGoal(); store.setView(view) }
+  else if (previous) { store.closeGoal(); store.setView('verticals') }
+})
+
+watch([queryTerms, effectiveTokens, () => store.state.board], async () => {
+  const version = ++requestVersion
+  remoteResults.value = []
+  remoteTruncated.value = false
+  remoteError.value = false
+  remotePending.value = false
+  if (!filterActive.value) return
+  // The existing endpoint has a three-character floor and returns at most 200 records.
+  // Use one title term as the server candidate query; apply ALL terms and tokens locally.
+  const term = [...queryTerms.value].sort((a, b) => b.length - a.length)[0]
+  const vertical = effectiveTokens.value.find(token => token.kind === 'vertical')?.value
+  remotePending.value = true
+  try {
+    const response = term && term.length < 3
+      ? await allRemoteCandidates()
+      : term || vertical
+        ? await searchGoals({ q: term?.slice(0, 200), vertical, limit: 200 })
+        : await allRemoteCandidates()
+    if (version !== requestVersion) return
+    const shown = new Set<string>()
+    const collect = (goals: GoalCardData[]) => { for (const goal of goals) { shown.add(goal.id); collect(goal.children ?? []) } }
+    for (const column of store.columns.value) if (column.vertical !== 'maybe') collect(column.goals)
+    const area = effectiveTokens.value.some(token => token.kind === 'area')
+    const candidates = response.goals.filter(goal => !shown.has(goal.id))
+    const matches: GoalCard[] = []
+    // Keep requests bounded and interrupt obsolete queries between batches.
+    for (let offset = 0; offset < candidates.length; offset += 8) {
+      if (version !== requestVersion) return
+      const batch = await Promise.all(candidates.slice(offset, offset + 8).map(async goal => {
+        let ancestors = store.state.board?.ancestors[goal.id]?.map(parent => parent.id) ?? []
+        if (area && !ancestors.length) {
+          let request = remoteAncestors.get(goal.id)
+          if (!request) { request = getGoal(goal.id).then(detail => detail.ancestors.map(parent => parent.id)); remoteAncestors.set(goal.id, request) }
+          ancestors = await request
+        }
+        return remoteMatchesFilter(goal, ancestors) ? goal : null
+      }))
+      matches.push(...batch.filter((goal): goal is GoalCard => !!goal))
+    }
+    if (version !== requestVersion) return
+    remoteResults.value = matches
+    remoteTruncated.value = area && !term && 'verticalsComplete' in response && response.verticalsComplete ? false : response.truncated
+  } catch { if (version === requestVersion) remoteError.value = true }
+  finally { if (version === requestVersion) remotePending.value = false }
+}, { flush: 'post' })
+
+function where(goal: GoalCard) {
+  const date = goal.anchor_date ? new Date(`${goal.anchor_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
+  const state = goal.parked_from_vertical ? 'parked' : goal.done_at ? 'done' : goal.vertical ?? 'Inbox'
+  return [state, date].filter(Boolean).join(' · ')
+}
+async function openRemote(goal: GoalCard) { dismiss(); await store.navigateToGoal(goal.id) }
+async function openOnlyMatch() {
+  if (remotePending.value) return
+  const matches = [...new Map(boardMatches.value.map(goal => [goal.id, goal])).values()]
+  if (matches.length + remoteResults.value.length !== 1) return
+  if (remoteResults.value.length === 1) { await openRemote(remoteResults.value[0]!); return }
   input.value?.blur()
-  if (option.kind === 'area') {
-    store.closeGoal()
-    store.setView('verticals')
-    void store.setValueFilter(option.id!)
-  } else if (option.id) {
-    // Keep existing navigation, including its parked-goal limitation (issue 8c).
-    void store.navigateToGoal(option.id)
-  }
+  await store.openBoardGoal(matches[0]!.id)
+}
+function askAgent() {
+  if (!props.agentAvailable || !label.value) return
+  const text = label.value
+  // Cancelable bridge supports a draft-only proof: preventDefault preserves the handoff without submitting.
+  const event = new CustomEvent('verticals:agent-draft', { cancelable: true, detail: { text, submit: true } })
+  commandFilter.chatOpen = true
+  commandFilter.tokens = []
+  commandFilter.text = text
+  const send = window.dispatchEvent(event)
+  if (send) commandFilter.text = ''
+  void focusInput()
 }
 function onKeyDown(event: KeyboardEvent) {
   if (event.isComposing) return
+  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); askAgent(); return }
   if (event.key === 'Escape') {
-    event.preventDefault()
-    event.stopPropagation()
-    dismiss()
-    void focusInput(false)
+    event.preventDefault(); event.stopPropagation()
+    if (commandFilter.chatOpen) { window.dispatchEvent(new CustomEvent('verticals:agent-close')); commandFilter.chatOpen = false; clear() }
+    else if (commandFilter.text) commandFilter.text = ''
+    else if (commandFilter.tokens.length) commandFilter.tokens.pop()
+    else input.value?.blur()
     return
   }
-  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return
-  if (!surfaceOpen.value) openSurface()
-  if (!options.value.length) return
-  // Native checkbox and button activation stays native; the field owns Enter selection.
-  if (event.key === 'Enter' && event.target !== input.value) return
-  event.preventDefault()
-  if (event.key === 'Enter') pick(options.value[activeIndex.value]!)
-  else {
-    const direction = event.key === 'ArrowDown' ? 1 : -1
-    activeIndex.value = (activeIndex.value + direction + options.value.length) % options.value.length
-    input.value?.focus()
-    void nextTick(() => root.value?.querySelector(`#command-option-${activeIndex.value}`)?.scrollIntoView({ block: 'nearest' }))
+  if (event.key === 'Backspace' && input.value?.selectionStart === 0 && input.value.selectionEnd === 0 && commandFilter.tokens.length) {
+    event.preventDefault(); commandFilter.tokens.pop(); return
+  }
+  if (showSuggestions.value && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+    event.preventDefault()
+    const direction = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1
+    activeIndex.value = (activeIndex.value + direction + suggestions.value.length) % suggestions.value.length
+    void nextTick(() => root.value?.querySelector(`#command-suggestion-${activeIndex.value}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
+    return
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    if (showSuggestions.value && activeIndex.value >= 0) addToken(suggestions.value[activeIndex.value]!)
+    else if (!commandFilter.chatOpen && filterActive.value) void openOnlyMatch()
   }
 }
 function onShortcut(event: KeyboardEvent) {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-    event.preventDefault()
-    window.dispatchEvent(new CustomEvent('verticals:agent-close'))
-    openSurface()
-    void focusInput()
-  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); event.stopImmediatePropagation(); void focusInput() }
 }
-function onCommandFocus() {
-  // Chat closing returns focus without opening results over the conversation just dismissed.
-  void focusInput(false)
-}
-function onOutsidePointer(event: PointerEvent) {
-  if (surfaceOpen.value && event.target instanceof Node && !root.value?.contains(event.target)) dismiss()
-}
-function onFocusOut(event: FocusEvent) {
-  if (event.relatedTarget instanceof Node && !root.value?.contains(event.relatedTarget)) dismiss()
-}
-function readSearchUrl() {
-  const match = SEARCH_PATH_RE.exec(location.pathname)
-  if (!match) { dismiss(false); return }
-  let value = match[1] ?? ''
-  try { value = decodeURIComponent(value) } catch { /* A malformed link remains editable. */ }
-  preSearchPath.value = new URL(stateUrl(store.state, todayIso, '/'), location.origin).pathname
-  inputValue.value = value
-  surfaceOpen.value = true
-  activeIndex.value = 0
-  runSearch()
-}
-watch(options, rows => { activeIndex.value = Math.min(activeIndex.value, Math.max(0, rows.length - 1)) })
+function onAgentState(event: Event) { commandFilter.chatOpen = !!(event as CustomEvent).detail?.expanded }
+function onCommandFocus() { commandFilter.chatOpen = false; clear(); void focusInput() }
+function onComposerDraft(event: Event) { commandFilter.text = (event as CustomEvent).detail?.text ?? ''; void focusInput() }
+function onFocusOut(event: FocusEvent) { if (!(event.relatedTarget instanceof Node) || !root.value?.contains(event.relatedTarget)) focused.value = false }
 onMounted(() => {
-  readSearchUrl()
-  window.addEventListener('keydown', onShortcut)
+  const match = /^\/search\/(.*)/.exec(location.pathname)
+  if (match?.[1]) { try { commandFilter.text = decodeURIComponent(match[1]) } catch { commandFilter.text = match[1] } }
+  window.addEventListener('keydown', onShortcut, true)
+  window.addEventListener('verticals:agent-state', onAgentState)
   window.addEventListener('verticals:command-focus', onCommandFocus)
-  window.addEventListener('popstate', readSearchUrl)
-  document.addEventListener('pointerdown', onOutsidePointer)
+  window.addEventListener('verticals:composer-draft', onComposerDraft)
 })
 onBeforeUnmount(() => {
-  clearTimer()
-  searchVersion += 1
-  window.removeEventListener('keydown', onShortcut)
+  requestVersion++
+  window.removeEventListener('keydown', onShortcut, true)
+  window.removeEventListener('verticals:agent-state', onAgentState)
   window.removeEventListener('verticals:command-focus', onCommandFocus)
-  window.removeEventListener('popstate', readSearchUrl)
-  document.removeEventListener('pointerdown', onOutsidePointer)
+  window.removeEventListener('verticals:composer-draft', onComposerDraft)
 })
 </script>
 
 <template>
-  <div ref="root" class="search-bar" data-cap="search" @keydown="onKeyDown" @focusout="onFocusOut">
-    <section v-if="surfaceOpen" class="search-modal" data-cap="search-modal" aria-label="Find or ask">
-      <div id="command-results" class="search-modal__results" data-cap="search-results" role="grid" aria-label="Search results" :aria-busy="pending">
-        <p v-if="pending" class="search-modal__status" role="status">Searching…</p>
-        <p v-else-if="noMatches" class="search-modal__status" data-role="search-empty" role="status">{{ store.state.searchTag ? 'No goals with this tag.' : 'No matching goals or areas.' }}</p>
-        <p v-else-if="query.length > 0 && query.length < 3 && !recognizedTag" class="search-modal__status">Type at least 3 characters to find goals.</p>
-        <p v-else-if="!query" class="search-modal__status">Areas and recent goals</p>
-        <p v-if="store.state.searchTruncated && !pending" class="search-modal__status">Showing the first results only.</p>
-        <div
-          v-for="(option, index) in options"
-          :id="`command-option-${index}`"
-          :key="option.key"
-          class="search-result"
-          :class="{ 'search-result--active': activeIndex === index, 'search-result--ask': option.kind === 'ask' }"
-          role="row"
-          :aria-selected="activeIndex === index"
-          :data-goal-id="option.goal?.id"
-          :data-value-id="option.kind === 'area' ? option.id : undefined"
-          :data-role="option.kind === 'ask' ? 'ask-agent' : option.kind === 'area' ? 'area-option' : undefined"
-          @pointermove="activeIndex = index"
-          @focusin="activeIndex = index"
-        >
-          <div v-if="option.goal" class="search-result__check" role="gridcell">
-            <KCheckbox size="xl" data-cap="complete" :model-value="option.goal.done_at !== null"
-              @update:model-value="value => void store.completeGoal(option.id!, value)" />
-          </div>
-          <div class="search-result__cell" role="gridcell">
-            <button type="button" class="search-result__open" :data-role="option.kind === 'goal' ? 'search-open' : undefined"
-              :disabled="option.kind === 'ask' && !agentAvailable" @click="pick(option)">
-              <span class="search-result__title" :class="{ 'search-result__title--done': option.goal?.done_at }">{{ option.label }}</span>
-              <span class="search-result__meta" :data-role="option.kind === 'goal' ? 'search-period' : undefined">{{ option.meta }}</span>
-            </button>
-          </div>
-        </div>
+  <div ref="root" class="command-field" data-cap="search" :data-mode="commandFilter.chatOpen ? 'chat' : 'find'" @keydown="onKeyDown" @focusout="onFocusOut">
+    <div class="command-field__surface" aria-hidden="true"></div>
+    <div v-if="showSuggestions" class="command-field__line command-field__suggestions" aria-label="Find, filter or switch view">
+      <template v-for="(item, index) in suggestions" :key="item.key">
+        <span v-if="index" class="command-field__separator" aria-hidden="true">·</span>
+        <button :id="`command-suggestion-${index}`" type="button" :class="{ 'is-active': index === activeIndex }" :data-token="item.key" @mousedown.prevent @click="addToken(item)">{{ item.label }}</button>
+      </template>
+    </div>
+    <div v-else-if="!commandFilter.chatOpen && remoteResults.length" class="command-field__line command-field__remote" data-role="offboard-matches">
+      <span class="command-field__muted">Maybe this?</span>
+      <button v-for="goal in remoteResults.slice(0, 3)" :key="goal.id" type="button" :data-goal-id="goal.id" @click="openRemote(goal)"><span>{{ goal.title }}</span> <small>{{ where(goal) }}</small></button>
+      <span v-if="remoteResults.length > 3 || remoteTruncated" class="command-field__muted">+{{ Math.max(0, remoteResults.length - 3) }}{{ remoteTruncated ? '+' : '' }}</span>
+    </div>
+    <div v-else-if="!commandFilter.chatOpen && noMatches" class="command-field__line command-field__muted" data-role="search-empty">Nothing matches ‘{{ label }}’ · ⌘↵ asks the agent<span v-if="remoteError"> · Other goals unavailable</span><span v-else-if="remoteTruncated"> · Other goals limited</span></div>
+    <div class="command-field__input" data-cap="search-input">
+      <div v-if="commandFilter.tokens.length && !commandFilter.chatOpen" class="command-field__tokens">
+        <button v-for="(token, index) in commandFilter.tokens" :key="token.key" type="button" class="command-field__token" :aria-label="`Remove ${token.label} filter`" @click="removeToken(index)">{{ token.label }} <span aria-hidden="true">×</span></button>
       </div>
-    </section>
-    <div class="search-modal__input" data-cap="search-input">
-      <button type="button" class="search-bar__trigger" data-cap="search-trigger" aria-label="Search goals and areas" @click="openSurface(); focusInput()">
-        <AppIcon name="search" :size="20" />
-      </button>
-      <button v-if="activeArea" type="button" class="search-bar__area" data-cap="value-filter" :aria-label="`Clear ${activeArea.label} area filter`" @click="store.setValueFilter(null)">{{ activeArea.label }} ×</button>
-      <input ref="input" :value="inputValue" type="text" role="combobox" aria-label="Search goals, areas, or ask agent"
-        placeholder="Search goals, areas, or ask agent" autocomplete="off" aria-autocomplete="list" aria-haspopup="grid"
-        :aria-expanded="surfaceOpen" :aria-controls="surfaceOpen ? 'command-results' : undefined"
-        :aria-activedescendant="surfaceOpen && options.length ? `command-option-${activeIndex}` : undefined"
-        @focus="onInputFocus" @input="onInput">
-      <span class="search-bar__shortcut" aria-hidden="true">⌘K</span>
+      <input ref="input" :value="commandFilter.text" type="text" :aria-label="commandFilter.chatOpen ? 'Message agent' : 'Find, filter or ask'" placeholder="Find, filter or ask" autocomplete="off" :aria-activedescendant="showSuggestions && activeIndex >= 0 ? `command-suggestion-${activeIndex}` : undefined" @focus="focused = true" @input="onInput">
+      <span class="command-field__hint" :title="!agentAvailable ? 'Agent unavailable in this browser' : undefined">{{ hint }}</span>
     </div>
   </div>
 </template>
 
 <style>
-.search-bar { position: relative; font-family: var(--font-body); }
-.search-modal__input {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
-  height: 46px;
-  padding: 0 10px 0 0;
-  border: 1px solid #d4d4d4;
-  border-radius: 8px;
-  background: #fff;
-}
-.search-modal__input:focus-within { border-color: #2d3036; outline: 1px solid #2d3036; }
-.search-modal__input input {
-  display: block;
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  outline: none;
-  color: #2d3036;
-  background: transparent;
-  font: 400 15px/20px var(--font-body);
-}
-.search-modal__input input::placeholder { color: #626262; opacity: 1; }
-.search-bar__trigger {
-  flex: 0 0 44px;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  color: #626262;
-  background: transparent;
-  cursor: pointer;
-}
-.search-bar__shortcut { color: #626262; font: 400 13px/20px var(--font-body); white-space: nowrap; }
-.search-bar__area {
-  flex: 0 0 auto;
-  min-width: 44px;
-  height: 44px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: #f0f0f0;
-  color: #2d3036;
-  font: 400 13px/20px var(--font-body);
-  cursor: pointer;
-}
-.search-modal {
-  box-sizing: border-box;
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  width: 100%;
-  overflow: hidden;
-  border: 1px solid #dedede;
-  border-radius: 8px;
-  background: #fff;
-  color: #2d3036;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, .12);
-}
-.search-modal__results { max-height: min(440px, calc(100dvh - var(--app-bar-height) - 32px)); overflow: auto; overscroll-behavior: contain; }
-.search-modal__status { margin: 0; padding: 12px; color: #626262; font: 400 13px/20px var(--font-body); }
-.search-result { display: flex; align-items: center; min-height: 44px; padding: 0 12px; gap: 10px; background: #fff; }
-.search-result--active, .search-result:hover { background: #f0f0f0; }
-.search-result--ask { position: sticky; bottom: 0; border-top: 1px solid #dedede; }
-.search-result__check { flex: 0 0 auto; }
-.search-result__cell { flex: 1 1 auto; min-width: 0; }
-.search-result__open {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 0;
-  border: 0;
-  background: transparent;
-  color: #2d3036;
-  font: 400 15px/22px var(--font-body);
-  text-align: left;
-  cursor: pointer;
-}
-.search-result__title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.search-result__title--done { color: #626262; text-decoration: line-through; }
-.search-result__meta { flex: 0 0 auto; color: #626262; font-size: 13px; line-height: 20px; }
-.search-result__open:disabled { cursor: default; }
-.search-result__open:focus-visible,
-.search-bar__trigger:focus-visible,
-.search-bar__area:focus-visible { outline: 2px solid #2d3036; outline-offset: 2px; }
-@media (max-width: 900px) {
-  .search-result__open { display: block; }
-  .search-result__meta { display: block; }
-  .search-bar__shortcut { display: none; }
-}
+.command-field { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 300; width: min(720px, calc(100vw - 32px)); background: #fff; border: 0; border-radius: var(--radius, 12px); box-shadow: none; color: #242424; font-family: var(--font-body); }
+.command-field__surface { position: absolute; inset: calc(-1 * var(--conversation-height, 0px)) 0 0; z-index: -1; pointer-events: none; border-radius: var(--radius, 12px); background: #fff; box-shadow: var(--shadow-float); }
+.command-field__input { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; box-sizing: border-box; }
+.command-field__input input { flex: 1; min-width: 40px; width: 100%; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: #242424; font: 400 16px/24px var(--font-body); }
+.command-field__input input::placeholder { color: #686868; opacity: 1; }
+.command-field__hint, .command-field__muted, .command-field__separator, .command-field__remote small { color: #686868; font: 400 12px/18px var(--font-body); }
+.command-field__hint { flex: 0 0 auto; white-space: nowrap; }
+.command-field__line { display: flex; align-items: baseline; gap: 5px; padding: 12px 16px 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.command-field__line::-webkit-scrollbar { display: none; }
+.command-field__line button { padding: 0; border: 0; background: transparent; color: #242424; font: 400 12px/18px var(--font-body); cursor: pointer; }
+.command-field__line button.is-active, .command-field__line button:hover { text-decoration: underline; }
+.command-field__tokens { display: flex; gap: 8px; min-width: 0; max-width: 65%; overflow: auto; scrollbar-width: none; flex-shrink: 0; }
+.command-field__token { flex-shrink: 0; border: 0; padding: 4px 0; background: none; color: #242424; font: 400 13px/20px var(--font-body); cursor: pointer; white-space: nowrap; }
+.command-field__token span { color: #686868; }
+.command-field__remote { gap: 10px; }
+.command-field__remote button { min-width: 0; flex: 0 1 auto; display: flex; gap: 4px; }
+.command-field__remote button > span { max-width: 145px; overflow: hidden; text-overflow: ellipsis; }
+.command-field button:focus-visible { outline: 1px solid #242424; outline-offset: 3px; }
 </style>

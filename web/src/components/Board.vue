@@ -21,6 +21,7 @@ import {
 import type { BoardColumnData } from '../types'
 import { mountIridescentOverlay } from '../kit-ext/iridescent'
 import { devDeck } from '../lib/devDeck'
+import { filterColumns } from '../lib/commandFilter'
 
 const props = withDefaults(defineProps<{ columns: BoardColumnData[]; showSampleBanner?: boolean }>(), {
   showSampleBanner: false,
@@ -57,7 +58,7 @@ onBeforeUnmount(() => unmountIridescentOverlay?.())
  *  ruling called for: nothing server-side moved (`verticals/core/board.py` still returns all eight
  *  columns in one statement, IR-07), and `store.ts` still projects all eight — the board is the
  *  one place that now drops a column before drawing it. */
-const dated = computed(() => props.columns.filter((c) => c.vertical !== 'maybe'))
+const dated = computed(() => filterColumns(props.columns).filter((c) => c.vertical !== 'maybe'))
 
 /** D234: the value bar's buttons — parentless life-vertical goals, in the life column's own
  *  (position) order. Read from the same projected columns the board draws; the life column is

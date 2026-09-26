@@ -55,14 +55,16 @@
     --canvas:#fafaf9; --panel:#fff; --field-bg:#f0f0eb; --strong:#242523; --text:#353630; --body:#353630; --muted:#72736d;
     --surface-border:#e5e5df; --surface-strong:#e5e5df; --timestamp:#72736d; --subtle-surface:#f5f5f1; --input-border:#cdcec5;
     --muted-detail:#72736d; --panel-shadow:#0002; --button-bg:var(--logo-blue); --button-fg:#fff; --success:#2f8a5b; --error-fg:#c2362b;
-    --project-accent:#215fae; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --project-accent:#215fae; --font:"Commissioner",sans-serif;
     --agent-usage-accent:color-mix(in srgb,var(--logo-blue) 70%,var(--strong));
     position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 2147483000;
     font: 14px/1.45 var(--font); color: var(--strong); width: min(560px, calc(100vw - 32px));
   }
   .wrap.open { width: min(880px, calc(100vw - 32px)); }
   .wrap.open.with-sidebar { width: min(1180px, calc(100vw - 32px)); }
-  .wrap.integrated { bottom:var(--command-bar-offset, 90px); }
+  .wrap.integrated, .wrap.integrated.open, .wrap.integrated.open.with-sidebar { bottom:var(--command-bar-offset, 64px); width:min(720px, calc(100vw - 32px)); --canvas:#fff; --panel:#fff; --strong:#242424; --text:#242424; --body:#242424; --muted:#686868; }
+  .wrap.integrated .workspace-composer { display:none; }
+  .wrap.integrated .panel { border:0; border-radius:12px 12px 0 0; box-shadow:none; }
   .wrap.integrated:not(.open) { display:none; }
   .wrap.integrated .panel { height:min(78vh, 760px, calc(100dvh - var(--command-bar-offset, 90px) - 16px)); }
   button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
@@ -638,7 +640,7 @@
   }
   function newThread(goal = null) {
     openThread(uuid(), goal);
-    textarea.focus();
+    focusComposer();
   }
   // "Discuss" on a goal card: a new conversation that carries a reference to that goal.
   function openGoalChat(goal) {
@@ -894,13 +896,20 @@
   // ---------------------------------------------------------------- behaviour
 
   // Keep the existing conversation surface, with one entry point on the board.
-  // The event bridge only prepares a draft. Sending still needs the composer's action.
+  // One external field composes every turn; the draft event is cancelable before sending.
   let commandBar = null;
   const commandBarObserver = new ResizeObserver(positionConversation);
+  const conversationPanel = $('.panel');
+  commandBarObserver.observe(conversationPanel);
   function positionConversation() {
     if (!commandBar) return;
-    const offset = Math.max(18, window.innerHeight - commandBar.getBoundingClientRect().top + 12);
-    wrap.style.setProperty('--command-bar-offset', `${offset}px`);
+    const offset = Math.max(18, window.innerHeight - commandBar.getBoundingClientRect().top);
+    const offsetValue = `${offset}px`;
+    if (wrap.style.getPropertyValue('--command-bar-offset') !== offsetValue) wrap.style.setProperty('--command-bar-offset', offsetValue);
+    // The field owns the union's one white surface and shadow. Its absolute extension
+    // never changes either observed box, so the observer cannot feed back into layout.
+    const height = `${expanded ? conversationPanel.getBoundingClientRect().height : 0}px`;
+    if (commandBar.style.getPropertyValue('--conversation-height') !== height) commandBar.style.setProperty('--conversation-height', height);
   }
   function syncCommandBar() {
     const next = document.getElementById('verticals-command-bar');
@@ -917,21 +926,27 @@
       needsYou: threads.some((thread) => thread.status === 'needs-you'),
     } }));
   }
+  function focusComposer() {
+    if (commandBar) commandBar.querySelector('input')?.focus();
+    else textarea.focus();
+  }
   function expand() {
-    if (expanded) { textarea.focus(); return; }
+    if (expanded) { focusComposer(); return; }
     expanded = true;
     wrap.classList.add('open');
     badge.hidden = true;
     if (barInput.value) { textarea.value = barInput.value; barInput.value = ''; }
     autosize(); updateSend(); scroll();
-    setTimeout(() => { if (expanded) textarea.focus(); }, 0);
+    setTimeout(() => { if (expanded) focusComposer(); }, 0);
     publishAgentState();
+    positionConversation();
   }
   function collapse() {
     expanded = false;
     wrap.classList.remove('open');
     closePicker();
     publishAgentState();
+    positionConversation();
     if (commandBar) window.dispatchEvent(new CustomEvent('verticals:command-focus'));
   }
   function autosize() { textarea.style.height = 'auto'; textarea.style.height = `${Math.min(180, textarea.scrollHeight)}px`; }
@@ -946,16 +961,19 @@
     if (!text) return;
     syncCommandBar();
     expand();
-    // Preserve work already in the composer; select the new text so the handoff is visible.
-    const existing = textarea.value;
-    const separator = existing.trim() ? '\n\n' : '';
-    const start = existing.trim() === text ? 0 : existing.length + separator.length;
-    if (existing.trim() !== text) textarea.value = existing + separator + text;
-    autosize();
-    updateSend();
-    textarea.focus();
-    textarea.setSelectionRange(start, textarea.value.length);
-    textarea.scrollTop = textarea.scrollHeight;
+    textarea.value = text;
+    autosize(); updateSend();
+    // Draft-only callers omit submit. Tests may cancel the actual Cmd+Enter bridge.
+    // Check after every listener ran; canceled handoffs never call the send API.
+    queueMicrotask(() => {
+      if (event.detail?.submit && !event.defaultPrevented) {
+        void submit(running ? 'now' : 'send');
+        if (commandBar) window.dispatchEvent(new CustomEvent('verticals:composer-draft', { detail: { text: '' } }));
+      } else if (commandBar) {
+        window.dispatchEvent(new CustomEvent('verticals:composer-draft', { detail: { text } }));
+      }
+      focusComposer();
+    });
   });
   barInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && barInput.value.trim()) { e.preventDefault(); expand(); submit('send'); }

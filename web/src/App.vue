@@ -3,6 +3,7 @@
    Supersedes D10/D111's floating bottom-left navigation and D238's permanent area buttons. */
 import { onMounted, onUnmounted, ref } from 'vue'
 import Board from './components/Board.vue'
+import GoalCard from './components/GoalCard.vue'
 import InboxView from './components/InboxView.vue'
 import DocsView from './components/DocsView.vue'
 import SearchBar from './components/SearchBar.vue'
@@ -99,41 +100,10 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onWindowKeyUp)
 })
 
-type NavKey = 'inbox' | 'verticals' | 'docs'
-const NAV_ITEMS: { key: NavKey; label: string }[] = [
-  { key: 'inbox', label: 'Inbox' },
-  { key: 'verticals', label: 'Verticals' },
-  { key: 'docs', label: 'Docs' },
-]
-const search = ref<InstanceType<typeof SearchBar> | null>(null)
 const agentState = ref({ available: false, expanded: false, needsYou: false, working: false })
-
 function onAgentState(event: Event) {
   const detail = (event as CustomEvent).detail
   if (detail) agentState.value = { ...agentState.value, ...detail }
-}
-function openAgent() {
-  search.value?.dismiss()
-  window.dispatchEvent(new CustomEvent('verticals:agent-open'))
-}
-function onNavClick(item: (typeof NAV_ITEMS)[number]): void {
-  search.value?.dismiss()
-  store.closeGoal()
-  store.setView(item.key)
-  // The Verticals segment always returns to the whole board.
-  if (item.key === 'verticals') void store.setValueFilter(null)
-}
-function onNavKeyDown(event: KeyboardEvent, index: number) {
-  let next = index
-  if (event.key === 'ArrowRight') next = (index + 1) % NAV_ITEMS.length
-  else if (event.key === 'ArrowLeft') next = (index + NAV_ITEMS.length - 1) % NAV_ITEMS.length
-  else if (event.key === 'Home') next = 0
-  else if (event.key === 'End') next = NAV_ITEMS.length - 1
-  else return
-  event.preventDefault()
-  const item = NAV_ITEMS[next]!
-  onNavClick(item)
-  document.querySelector<HTMLButtonElement>(`[data-nav-item="${item.key}"]`)?.focus()
 }
 onMounted(() => {
   window.addEventListener('verticals:agent-state', onAgentState)
@@ -145,31 +115,7 @@ onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentSta
 
 <template>
   <div class="app-shell">
-    <nav id="verticals-command-bar" class="app-nav" data-cap="nav" aria-label="Workspace">
-      <div class="app-nav__links" aria-label="Views">
-        <button
-          v-for="(item, index) in NAV_ITEMS"
-          :key="item.key"
-          type="button"
-          class="app-nav__link"
-          :class="{ 'app-nav__link--active': item.key === store.state.activeView }"
-          :data-nav-item="item.key"
-          :aria-current="item.key === store.state.activeView ? 'page' : undefined"
-          @click="onNavClick(item)"
-          @keydown="onNavKeyDown($event, index)"
-        >{{ item.label }}</button>
-      </div>
-      <SearchBar ref="search" class="app-nav__search" :agent-available="agentState.available" />
-      <button
-        type="button"
-        class="app-nav__agent"
-        data-cap="agent-open"
-        :disabled="!agentState.available"
-        :aria-expanded="agentState.expanded"
-        :title="agentState.available ? 'Open agent conversation' : 'Agent is unavailable in this browser'"
-        @click="openAgent"
-      >{{ agentState.needsYou ? 'Agent · needs you' : agentState.working ? 'Agent · working' : 'Agent' }}</button>
-    </nav>
+    <SearchBar id="verticals-command-bar" :agent-available="agentState.available" />
     <div class="app-content">
       <!-- Mutually exclusive (`v-if`/`v-else`), not `v-show`: before ruling 1 (owner, 2026-08-09),
            `InboxView` rendered the same Maybe-bucket goals as Board's own eighth column
@@ -186,7 +132,10 @@ onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentSta
            other pair of alternatives in this app and because `GoalDetail` moved out from under
            `Board` this pass (see `detailMounted`'s own header comment above) specifically so an
            "Inbox" click no longer tears an open goal detail down with it. -->
-      <InboxView v-if="store.state.activeView === 'inbox'" />
+      <div v-if="store.state.openGoalVertical === 'search' && store.state.openGoalId" class="search-goal-surface">
+        <GoalCard :id="store.state.openGoalId" :title="store.state.goalDetail?.title ?? 'Loading…'" :done="!!store.state.goalDetail?.done_at" :color="store.state.goalDetail?.color" :vertical="store.state.goalDetail?.vertical" column-vertical="search" />
+      </div>
+      <InboxView v-else-if="store.state.activeView === 'inbox'" />
       <DocsView v-else-if="store.state.activeView === 'docs'" />
       <Board
         v-else
@@ -213,70 +162,8 @@ onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentSta
 </template>
 
 <style>
-:root { --app-bar-height: 72px; }
-.app-shell {
-  display: block;
-  height: 100%;
-  overflow: hidden;
-  background: #fff;
-}
-.app-nav {
-  box-sizing: border-box;
-  position: fixed;
-  inset: auto 0 0;
-  z-index: 300;
-  height: var(--app-bar-height);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-  border-top: 1px solid #dedede;
-  background: #fff;
-  color: #2d3036;
-  font-family: var(--font-body);
-}
-.app-nav__links {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 2px;
-  padding: 0;
-  background: #f0f0f0;
-  border-radius: 8px;
-}
-.app-nav__link,
-.app-nav__agent {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 44px;
-  width: auto;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #626262;
-  font: 400 15px/20px var(--font-body);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.app-nav__link:hover,
-.app-nav__agent:hover { background: #e7e7e7; color: #2d3036; }
-.app-nav__link--active { background: #fff; color: #2d3036; }
-.app-nav__agent { flex: 0 0 auto; color: #2d3036; }
-.app-nav__agent:disabled { color: #626262; cursor: default; }
-.app-nav__link:focus-visible,
-.app-nav__agent:focus-visible { outline: 2px solid #2d3036; outline-offset: 2px; }
-.app-nav__search { flex: 1 1 auto; min-width: 0; }
-.app-content {
-  box-sizing: border-box;
-  height: calc(100% - var(--app-bar-height));
-  min-width: 0;
-  overflow: hidden;
-  position: relative;
-}
-@media (max-width: 900px) {
-  .app-nav { gap: 8px; padding-inline: 12px; }
-  .app-nav__link { padding-inline: 10px; }
-}
+:root { --app-bar-height: 0px; --shadow-float: 0 8px 24px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08); --radius: 12px; }
+.app-shell { display: block; height: 100%; overflow: hidden; background: #fff; }
+.app-content { box-sizing: border-box; height: 100%; min-width: 0; overflow: hidden; position: relative; }
+.search-goal-surface { box-sizing: border-box; max-width: 720px; height: 100%; margin: 0 auto; padding: 32px 16px 80px; overflow-y: auto; }
 </style>

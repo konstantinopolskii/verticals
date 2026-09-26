@@ -14,6 +14,7 @@ import GoalCardTools from './GoalCardTools.vue'
 import GoalDetail from './GoalDetail.vue'
 import GoalAffordance from '../kit-ext/goal-affordance/GoalAffordance.vue'
 import { store } from '../store'
+import { filterActive, highlightTitle, isContextGoal } from '../lib/commandFilter'
 import type { GoalCardData } from '../types'
 import type { RepeatRule } from '../lib/api'
 import { goalWashInk } from '../lib/goalColor'
@@ -71,6 +72,8 @@ const props = withDefaults(
 )
 
 const checked = computed(() => props.done)
+const titleParts = computed(() => highlightTitle(props.title))
+const filterContext = computed(() => isContextGoal(props.id, props.columnVertical))
 const cardStyle = computed(() => {
   const palette = devPaletteFor(props.color)
   return { '--goal-hover-background': palette?.card
@@ -141,7 +144,7 @@ const isSelfOrAncestorOfOpen = computed(() => {
   return ancestorIds(store.state.board, openId).includes(props.id)
 })
 const showChildren = computed(() => (
-  props.children.length > 0 && (props.depth < 2 || isSelfOrAncestorOfOpen.value)
+  props.children.length > 0 && (filterActive.value || props.depth < 2 || isSelfOrAncestorOfOpen.value)
 ))
 
 function onOpenDetail() {
@@ -490,6 +493,7 @@ function onRowKeydown(event: KeyboardEvent) {
       'carryover-ghost': ghost,
     }"
     :data-goal-id="id"
+    :data-filter-context="filterContext ? true : undefined"
     :style="cardStyle"
     :data-parent-id="parentId ?? undefined"
     :data-colored="color ? 'true' : 'false'"
@@ -541,9 +545,9 @@ function onRowKeydown(event: KeyboardEvent) {
           :data-cap="isInlineDetailHost ? 'edit-title' : undefined"
           @click.stop="onTitleClick"
         >
-          <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat }">
+          <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat, 'goal-card__title-text--context': filterContext, 'goal-card__title-text--finding': titleParts.some(part => part.match) || filterContext }">
             <RepeatMark v-if="repeat" />
-            {{ title }}
+            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template>
           </span>
         </p>
         <textarea

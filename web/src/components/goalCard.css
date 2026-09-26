@@ -494,3 +494,9 @@
     + (6px - var(--kkov-expanded-subtask-padding-block))
     + (6px - var(--kkov-expanded-subtask-padding-block)));
 }
+
+/* Finding keeps the full parent path quiet and bolds only matching title characters. */
+.goal-card__title-text--context { color: #686868; }
+.goal-card__title-text strong { font-weight: 600; }
+
+.goal-card .goal-card__title-text.goal-card__title-text--finding { font-weight: 400; }

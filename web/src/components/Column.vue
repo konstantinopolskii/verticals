@@ -10,6 +10,7 @@ import { store } from '../store'
 import { playSound } from '../lib/sound'
 import type { PeriodDirection } from '../lib/periodNavigation'
 import type { GoalCardData } from '../types'
+import { filterActive } from '../lib/commandFilter'
 
 const props = withDefaults(
   defineProps<{
@@ -336,7 +337,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
                 v-bind="cardProps(item.goal)"
               />
             </template>
-            <InlineAdd :placeholder="addPlaceholder" data-cap="create-goal" @add="onAdd" />
+            <InlineAdd v-if="!filterActive" :placeholder="addPlaceholder" data-cap="create-goal" @add="onAdd" />
           </KCardStack>
         </div>
       </section>
@@ -464,7 +465,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
   padding: 4px 12px 0 14px;
 }
 .period-slide > .pattern-vertical-board__body {
-  padding: 88px 2px 64px;
+  padding: 88px 2px 80px;
 }
 .period-track--swapping > .period-slide {
   flex: 0 0 50%;

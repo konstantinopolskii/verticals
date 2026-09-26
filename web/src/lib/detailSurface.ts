@@ -224,14 +224,11 @@ export function createDetailSurface(
 
     if (detail.vertical === null) {
       state.activeView = 'inbox'
-      // Root Maybe items (`parent_id IS NULL`) are depth 0 under the Inbox column's own "maybe"
-      // host, matching `GoalCard.vue`'s `detailHostKey` for that card exactly. A goal that is a
-      // pure subgoal (`vertical IS NULL` but parented) is not itself a Maybe-bucket row — best
-      // effort keys it by its real parent and ancestor-chain depth.
-      const hostKey = detail.parent_id === null
-        ? ['maybe', 'root', 0, id].join(':')
-        : ['maybe', detail.parent_id, detail.ancestors.length, id].join(':')
-      await openGoal(id, 'maybe', hostKey)
+      // Parked goals and parented ideas are absent from the Inbox projection. The shell
+      // renders the same GoalCard/detail surface for this explicit host instead of opening
+      // a key with no corresponding card.
+      const inInbox = state.board?.columns.find(column => column.vertical === null)?.goals.some(goal => goal.id === id)
+      await openGoal(id, inInbox ? 'maybe' : 'search', [inInbox ? 'maybe' : 'search', 'root', 0, id].join(':'))
       return
     }
 
@@ -242,9 +239,8 @@ export function createDetailSurface(
 
     await deps.loadBoard(detail.anchor_date)
     if (!boardGoalHost(state.board, id)) {
-      deps.reportError(
-        new Error(`navigateToGoal: goal ${id} not found on its board after loading anchor date ${detail.anchor_date}`),
-      )
+      state.activeView = 'verticals'
+      await openGoal(id, 'search', ['search', 'root', 0, id].join(':'))
       return
     }
     await openViaBoardHost(id)
