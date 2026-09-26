@@ -128,7 +128,7 @@ defineExpose({ openMenu })
     <template v-if="props.showIgnore">
       <div data-menu-section="carryover">
         <button
-          v-for="option in CARRYOVER_ACTIONS"
+          v-for="option in CARRYOVER_ACTIONS.filter(item => item.action !== 'done')"
           :key="option.action"
           type="button"
           role="menuitem"
@@ -136,7 +136,7 @@ defineExpose({ openMenu })
           :data-menu-item="`carryover-${option.action}`"
           :data-carryover-action="option.action"
           :data-cap="option.action === 'missed' ? 'due-ack' : undefined"
-          :title="option.action === 'move' && vertical && vertical !== 'day' ? `Move to the current ${vertical}` : undefined"
+          :title="option.action === 'keep' && vertical ? `Keep in the current ${vertical}` : undefined"
           @click="resolveCarriedOver(option.action)"
         >{{ option.label }}</button>
       </div>
@@ -152,7 +152,7 @@ defineExpose({ openMenu })
         @click="act('details')"
       >Details</button>
       <button
-        v-if="props.isParent"
+        v-if="props.isParent && !props.showIgnore"
         type="button"
         role="menuitem"
         class="dropdown__item goal-actions__item"

@@ -495,8 +495,18 @@
     + (6px - var(--kkov-expanded-subtask-padding-block)));
 }
 
+/* Review uses the existing inline Details host. Commands stay plain text below its title. */
+.goal-card__carryover-answers { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 8px; }
+.goal-card__carryover-answers button { padding: 3px 0; border: 0; background: transparent; color: #242424; font: inherit; font-size: 13px; line-height: 20px; cursor: pointer; white-space: nowrap; }
+.goal-card__carryover-answers kbd { color: #686868; font: inherit; margin-left: 3px; }
+.goal-card__carryover-answers button:hover { text-decoration: underline; }
+.goal-card__carryover-answers button:focus-visible { outline: 2px solid #242424; outline-offset: 2px; }
+.goal-card__carryover-answers button[aria-disabled='true'] { opacity: .5; cursor: wait; }
+
 /* Finding keeps the full parent path quiet and bolds only matching title characters. */
 .goal-card__title-text--context { color: #686868; }
 .goal-card__title-text strong { font-weight: 600; }
 
 .goal-card .goal-card__title-text.goal-card__title-text--finding { font-weight: 400; }
+
+.goal-card__carryover-error { flex-basis: 100%; color: #686868; font-size: 13px; font-weight: 400; }

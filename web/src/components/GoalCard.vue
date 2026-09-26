@@ -20,6 +20,7 @@ import type { RepeatRule } from '../lib/api'
 import { goalWashInk } from '../lib/goalColor'
 import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
 import { ancestorIds, subtreeIds } from '../lib/boardIndex'
+import { CARRYOVER_ACTIONS, carryoverState, resolveCarryover } from '../lib/carryover'
 import '../kit-ext/carryover-ghost/carryover-ghost.css'
 
 const props = withDefaults(
@@ -114,6 +115,7 @@ const isParent = computed(
 
 function onToggle(value: boolean) {
   playSound(value ? 'checked' : 'unchecked')
+  if (props.ghost && value) { void resolveCarryover(props, 'done'); return }
   void store.completeGoal(props.id, value)
 }
 
@@ -125,6 +127,13 @@ const isInlineDetailHost = computed(() => (
   && store.state.openGoalHostKey === detailHostKey.value
   && store.state.openGoalVertical === props.columnVertical
 ))
+const reviewingCarryover = computed(() => carryoverState.goalId === props.id && carryoverState.vertical === props.columnVertical)
+watch(isInlineDetailHost, (open) => {
+  if (!open && reviewingCarryover.value && !carryoverState.busy) {
+    carryoverState.goalId = null
+    carryoverState.vertical = null
+  }
+})
 const isOpenRelated = computed(() => {
   const openId = store.state.openGoalId
   if (!openId || !store.state.board) return false
@@ -226,6 +235,12 @@ function openContextMenu(): void {
 }
 
 function onAffordanceClick(event: MouseEvent): void {
+  if (props.ghost) {
+    event.preventDefault()
+    event.stopPropagation()
+    void resolveCarryover(props, 'done')
+    return
+  }
   if (!isParent.value) return
   event.preventDefault()
   event.stopPropagation()
@@ -235,7 +250,7 @@ function onAffordanceClick(event: MouseEvent): void {
 /** Keyboard path (space on the focused checkbox) bypasses the click capture above, so the
  *  parent guard lives here too: a parent affordance never one-click completes. */
 function onAffordanceToggle(value: boolean): void {
-  if (isParent.value) {
+  if (isParent.value && !props.ghost) {
     openContextMenu()
     return
   }
@@ -524,9 +539,9 @@ function onRowKeydown(event: KeyboardEvent) {
       <span
         class="goal-card__affordance-slot"
         data-role="goal-affordance"
-        :data-affordance="isParent ? 'parent' : 'leaf'"
-        :role="isParent ? 'button' : undefined"
-        :aria-haspopup="isParent ? 'menu' : undefined"
+        :data-affordance="isParent && !ghost ? 'parent' : 'leaf'"
+        :role="isParent && !ghost ? 'button' : undefined"
+        :aria-haspopup="isParent && !ghost ? 'menu' : undefined"
         @click.capture="onAffordanceClick"
       >
         <GoalAffordance
@@ -564,6 +579,24 @@ function onRowKeydown(event: KeyboardEvent) {
           @keydown.esc.prevent.stop="cancelInlineTitleEdit"
           @blur="commitInlineTitle"
         />
+        <div
+          v-if="reviewingCarryover"
+          class="goal-card__carryover-answers"
+          data-role="carryover-answers"
+          :aria-busy="carryoverState.busy"
+          @click.stop
+          @pointerdown.stop
+        >
+          <button
+            v-for="item in CARRYOVER_ACTIONS"
+            :key="item.action"
+            type="button"
+            :data-carryover-action="item.action"
+            :aria-disabled="carryoverState.busy"
+            @click="resolveCarryover(props, item.action)"
+          >{{ item.label }} <kbd>{{ item.key }}</kbd></button>
+          <span v-if="carryoverState.reviewError" class="goal-card__carryover-error" role="status">{{ carryoverState.reviewError }}</span>
+        </div>
         <p
           v-if="searchPeriod !== undefined"
           data-role="search-period"
@@ -660,6 +693,7 @@ function onRowKeydown(event: KeyboardEvent) {
           :color="item.goal.color"
           :context-label="item.goal.contextLabel"
           :vertical="item.goal.vertical"
+          :repeat="item.goal.repeat"
           :column-vertical="columnVertical"
           :foil="item.goal.foil"
           :ghost="item.goal.ghost"

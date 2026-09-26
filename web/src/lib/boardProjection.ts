@@ -11,6 +11,7 @@
 import { columnPeriodLabel, verticalHeadline } from './schedule'
 import type { BoardColumn, BoardResponse, GoalCard } from './api'
 import type { BoardColumnData, GoalCardData } from '../types'
+import { carryoverFirst } from './carryoverState'
 
 function completedLast(goals: GoalCard[]): GoalCard[] {
   return [...goals].sort((left, right) => Number(left.done_at !== null) - Number(right.done_at !== null))
@@ -34,6 +35,9 @@ export function toCardData(
   projectTags: ReadonlySet<string> = new Set(),
   columnIds: ReadonlySet<string> = new Set(),
 ): GoalCardData {
+  // Column records carry ghost/ghost_until; children records deliberately do not. Resolve
+  // the canonical visible record before recursing so nested carryovers keep their metadata.
+  if (columnIds.has(g.id)) g = goalById(board, g.id) ?? g
   const kids = board.children[g.id] ?? []
   // R7: the wire lists every direct child. A child nests under this card EXACTLY when
   // `toColumnData` below dropped its top-level copy from the column this card renders in —
@@ -125,7 +129,7 @@ export function toColumnData(
     // gets no special width any more (KK ruling 2026-08-17).
     active: verticalKey !== 'maybe' && verticalKey === expandedVertical,
     addPlaceholder: addLabel[verticalKey] ?? 'Add…',
-    goals: completedLast(col.goals.filter((goal) => {
+    goals: carryoverFirst(completedLast(col.goals.filter((goal) => {
       if (!goal.parent_id) return true
       const parent = goalById(board, goal.parent_id)
       // R7 dedupes only when the parent is another card in this exact column. A same-vertical
@@ -134,7 +138,7 @@ export function toColumnData(
       // into toCardData is the OTHER half of the same predicate: exactly the ids dropped here
       // are the ids toCardData nests, so no row can fall through the gap between the two.
       return !parent || parent.vertical !== goal.vertical || !cardIds.has(parent.id)
-    })).map((g) => toCardData(g, board, projectTags, cardIds)),
+    })).map((g) => toCardData(g, board, projectTags, cardIds)), verticalKey, col.period_key),
     // `types.ts::BoardColumnData.periodKey`'s own doc comment: the same field `columnTitle` above
     // just read to build `title`, carried through unchanged for `dropOnColumn` below.
     periodKey: col.period_key,
