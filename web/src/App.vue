@@ -1,36 +1,7 @@
 <script setup lang="ts">
-/* The application shell: full-viewport content with a compact fixed nav, replacing main.ts's old direct
-   `h(SearchBar), h(Board)` mount. Geometry was `docs/UI_MEASURED.md` §1, re-probed live against
-   the committed reference fixtures (`tests/uidiff/reference/{board,inbox,search}.html`) rather
-   than trusted blind — all three surfaces shared one shell (`.App [0,0,1458,739]`, nav
-   `[0,0,310,739]`, content pane `[310,0,1148,739]`).
-
-   Nav is now 240px wide, items starting 10px from the window's left edge, not the measured 310px
-   (70px empty rail + 240px panel) above — owner ruling (2026-08-09): "from the items we have
-   extra space that is not needed make the space simple 10px from the left side." The rail carried
-   no content and nothing since the original measurement ever claimed it, so it is gone outright
-   rather than kept and hidden; content pane width follows the nav's own `flex: 1 1 auto`
-   automatically and needed no number of its own changed. See `.app-nav`'s own style comment below
-   for the exact before/after.
-
-   Hand-rolled, not `KApp`/`KSidebar`/`KNavGroup` — a deliberate, documented deviation from using
-   a kit *component* here (the kit's own CSS tokens/classes are still used throughout: --space-*,
-   --color-border, KField via SearchBar). Each kit component was checked against the target shape
-   and did not fit:
-     - `KApp`: a 3-pane doc-site grid (sidebar/.book/inspector) with a max-width-capped reading
-       column and a forced inspector pane — wrong shape for a 2-pane product shell.
-     - `KSidebar`: single-band padding, no rail concept, no explicit width — this shell needs a
-       310px = 70px rail + 240px bordered panel split the kit has no equivalent for.
-     - `KSidebarNav`: a scroll-spy TOC generator over `.book__section` headings
-       (IntersectionObserver-driven) — irrelevant to a static, three-item menu (ruling 2, owner,
-       2026-08-09, trimmed this from eight — see `NAV_ITEMS`'s own comment below).
-     - `KNavGroup`: always renders a heading element (`nav-group__head` link or `<h4>`) — this
-       menu has no heading at all (`SubMenu-block` in the reference is a bare link list). A real
-       kit gap for a headingless flat menu, not worked around by force-fitting it here.
-   Revert path: this file and `InboxView.vue` are net-new (delete them), plus the four `store.ts`
-   lines marked "nav (app shell)" and `main.ts`'s one changed import/mount call — nothing here
-   edits kit source or overrides a kit CSS rule, so there is nothing upstream to unwind. */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+/* Issue 1: navigation, search, areas and agent access share one solid bottom surface.
+   Supersedes D10/D111's floating bottom-left navigation and D238's permanent area buttons. */
+import { onMounted, onUnmounted, ref } from 'vue'
 import Board from './components/Board.vue'
 import InboxView from './components/InboxView.vue'
 import DocsView from './components/DocsView.vue'
@@ -128,125 +99,76 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onWindowKeyUp)
 })
 
-/** `NavItem` shape per the kit's own `index.d.ts` (`{ label, href, current? }`) is not used
- *  verbatim: there is no `vue-router` in this app (dependency cap, `docs/DEPENDENCIES.md`) and no
- *  page navigation happens here at all — every item is an in-place content-pane swap or (for the
- *  one remaining unwired item) a no-op, never a URL. `href` would be a value nothing reads, so
- *  `key`/`wired` replace it; `label` is carried over unchanged since it is the one field this menu
- *  actually needs from that shape. `current` becomes the `store.state.activeView` comparison below
- *  instead of a per-item boolean, since exactly one of two (not three) views is ever active.
- *
- *  Ruling 2 (owner, 2026-08-09): "Remove tabs days weeks months quarters and years from left
- *  menu." Supersedes this array's own prior claim to be `tools/uiref/render.mjs`'s literal,
- *  pinned eight-item list — that pin describes the *reference* fixture's nav, used for the S-100/
- *  S-101 pixel gate, which `tests/harness/report.py::backlog` already defers for unrelated
- *  reasons (`docs/PENDING_DOC_FIXES.md` row 85) and stays deferred; this array no longer tracks
- *  it and the two are allowed to disagree. Five items are gone outright (`days`, `weeks`,
- *  `months`, `quarters`, `years`) — removed, not hidden, per the owner's own word "remove".
- *
- *  The owner now keeps only the two real view switches. The scale labels are board columns, not
- *  navigation destinations, so no third tab is needed.
- *
- *  D250 WP-3: a third, real view switch joins them — "Docs", documents as first-class residents
- *  alongside goals. Same in-place content-pane swap as the other two, no URL of its own beyond
- *  the `#doc/<id>` fragment `main.ts`'s boot path reads (mirroring `#goal/<id>`). */
 type NavKey = 'inbox' | 'verticals' | 'docs'
-const NAV_ITEMS: { key: NavKey; label: string; wired: boolean }[] = [
-  { key: 'inbox', label: 'Inbox', wired: true },
-  { key: 'verticals', label: 'Verticals', wired: true },
-  { key: 'docs', label: 'Docs', wired: true },
+const NAV_ITEMS: { key: NavKey; label: string }[] = [
+  { key: 'inbox', label: 'Inbox' },
+  { key: 'verticals', label: 'Verticals' },
+  { key: 'docs', label: 'Docs' },
 ]
+const search = ref<InstanceType<typeof SearchBar> | null>(null)
+const agentState = ref({ available: false, expanded: false, needsYou: false, working: false })
 
-/* D238 (KK, 2026-08-15, correcting D234): the value filter lives HERE, as more items in the one
- * nav row this shell already has — "Inbox | Verticals | Money | Health | Family" — not in an
- * invented bottom pill bar with colour dots (that component is gone). Same `.app-nav__link`
- * class, plain text, no colour identity in the menu: the board's cards already wear the derived
- * colour (D231), the menu does not repeat it. "Verticals" doubles as the unfiltered board, so no
- * separate "All" button exists; a value click from Inbox switches to the board filtered. */
-/* D240: sourced from the board's own `values` list, NOT the life column — a selected value
- * narrows the life column with the rest of the board, and a menu read off the column would
- * collapse to the one active button, eating its own escape hatch. `values` is unfiltered by
- * contract (core/board.py). */
-const values = computed(() => store.state.board?.values ?? [])
-
-/* D239: each element of the menu is ONE word — the value's explicit `short_label` (set via
- * MCP/API, value roots only), falling back to the title's first word for values that have not
- * been given one yet. The full title never renders in the nav. */
-function valueLabel(id: string, title: string): string {
-  return store.state.board?.short_labels?.[id] ?? title.split(/\s+/)[0] ?? title
+function onAgentState(event: Event) {
+  const detail = (event as CustomEvent).detail
+  if (detail) agentState.value = { ...agentState.value, ...detail }
 }
-
+function openAgent() {
+  search.value?.dismiss()
+  window.dispatchEvent(new CustomEvent('verticals:agent-open'))
+}
 function onNavClick(item: (typeof NAV_ITEMS)[number]): void {
-  if (item.key === 'inbox' || item.key === 'verticals' || item.key === 'docs') {
-    // Closes any open goal detail through the same path the X button/Escape use. `GoalDetail` no
-    // longer risks losing `KModal`'s close-side cleanup here — it is mounted at this file's own
-    // level now (see `detailMounted`'s header comment above), not as a child `Board` could tear
-    // down mid-close — but switching the main nav section while a goal's detail is still open is
-    // still a real state change worth resolving deliberately rather than leaving stale, so the
-    // close stays.
-    store.closeGoal()
-    store.setView(item.key)
-    // "Verticals" is the whole board (D238): reaching it through the menu clears any value filter,
-    // the same way it would read to a user — the wider item resets the narrower one.
-    if (item.key === 'verticals') void store.setValueFilter(null)
-  }
-}
-
-function onValueClick(id: string): void {
+  search.value?.dismiss()
   store.closeGoal()
-  store.setView('verticals')
-  void store.setValueFilter(id)
+  store.setView(item.key)
+  // The Verticals segment always returns to the whole board.
+  if (item.key === 'verticals') void store.setValueFilter(null)
 }
+function onNavKeyDown(event: KeyboardEvent, index: number) {
+  let next = index
+  if (event.key === 'ArrowRight') next = (index + 1) % NAV_ITEMS.length
+  else if (event.key === 'ArrowLeft') next = (index + NAV_ITEMS.length - 1) % NAV_ITEMS.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = NAV_ITEMS.length - 1
+  else return
+  event.preventDefault()
+  const item = NAV_ITEMS[next]!
+  onNavClick(item)
+  document.querySelector<HTMLButtonElement>(`[data-nav-item="${item.key}"]`)?.focus()
+}
+onMounted(() => {
+  window.addEventListener('verticals:agent-state', onAgentState)
+  window.dispatchEvent(new CustomEvent('verticals:agent-request-state'))
+})
+onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentState))
 
-function valueActive(id: string): boolean {
-  return store.state.activeView === 'verticals' && store.state.valueFilter === id
-}
 </script>
 
 <template>
   <div class="app-shell">
-    <nav class="app-nav" data-cap="nav">
-      <div class="app-nav__panel">
-        <div class="app-nav__menu">
-          <!-- Search stays first; view buttons float immediately to its right. -->
-          <div class="app-nav__search">
-            <SearchBar />
-          </div>
-          <!-- data-cap on the row: the value links below are the filter_value gesture (S-77). -->
-          <div class="app-nav__links" data-cap="value-filter">
-            <button
-              v-for="item in NAV_ITEMS"
-              :key="item.key"
-              type="button"
-              class="app-nav__link"
-              :class="{
-                'app-nav__link--active':
-                  item.key === store.state.activeView &&
-                  (item.key !== 'verticals' || store.state.valueFilter === null),
-              }"
-              :data-nav-item="item.key"
-              :aria-current="item.key === store.state.activeView ? 'page' : undefined"
-              @click="onNavClick(item)"
-            >
-              {{ item.label }}
-            </button>
-            <!-- D238: one plain link per value (parentless life root), same component as the two
-                 view links above. Active = that value's filtered board is what the pane shows. -->
-            <button
-              v-for="v in values"
-              :key="v.id"
-              type="button"
-              class="app-nav__link"
-              :class="{ 'app-nav__link--active': valueActive(v.id) }"
-              :data-value-id="v.id"
-              :aria-current="valueActive(v.id) ? 'page' : undefined"
-              @click="onValueClick(v.id)"
-            >
-              {{ valueLabel(v.id, v.title) }}
-            </button>
-          </div>
-        </div>
+    <nav id="verticals-command-bar" class="app-nav" data-cap="nav" aria-label="Workspace">
+      <div class="app-nav__links" aria-label="Views">
+        <button
+          v-for="(item, index) in NAV_ITEMS"
+          :key="item.key"
+          type="button"
+          class="app-nav__link"
+          :class="{ 'app-nav__link--active': item.key === store.state.activeView }"
+          :data-nav-item="item.key"
+          :aria-current="item.key === store.state.activeView ? 'page' : undefined"
+          @click="onNavClick(item)"
+          @keydown="onNavKeyDown($event, index)"
+        >{{ item.label }}</button>
       </div>
+      <SearchBar ref="search" class="app-nav__search" :agent-available="agentState.available" />
+      <button
+        type="button"
+        class="app-nav__agent"
+        data-cap="agent-open"
+        :disabled="!agentState.available"
+        :aria-expanded="agentState.expanded"
+        :title="agentState.available ? 'Open agent conversation' : 'Agent is unavailable in this browser'"
+        @click="openAgent"
+      >{{ agentState.needsYou ? 'Agent · needs you' : agentState.working ? 'Agent · working' : 'Agent' }}</button>
     </nav>
     <div class="app-content">
       <!-- Mutually exclusive (`v-if`/`v-else`), not `v-show`: before ruling 1 (owner, 2026-08-09),
@@ -291,82 +213,70 @@ function valueActive(id: string): boolean {
 </template>
 
 <style>
-/* Global, matching every other product-side component's convention (GoalCard.vue,
-   SchedulePopover.vue, Board.vue, InboxView.vue) — plain CSS, new classes only, no kit rule
-   touched. Every number is docs/UI_MEASURED.md §1, re-verified live against the reference
-   fixtures before this file was written (see this file's own header comment). */
+:root { --app-bar-height: 72px; }
 .app-shell {
   display: block;
   height: 100%;
   overflow: hidden;
-  background: #ffffff;
+  background: #fff;
 }
-
 .app-nav {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 200;
-  width: auto;
-}
-
-.app-nav__panel {
-  width: max-content;
-}
-
-.app-nav__menu {
   box-sizing: border-box;
-  padding: 0;
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 300;
+  height: var(--app-bar-height);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid #dedede;
+  background: #fff;
+  color: #2d3036;
+  font-family: var(--font-body);
 }
-
 .app-nav__links {
+  flex: 0 0 auto;
   display: flex;
-  align-items: center;
-  gap: 4px;
+  gap: 2px;
+  padding: 0;
+  background: #f0f0f0;
+  border-radius: 8px;
 }
-
-.app-nav__link {
+.app-nav__link,
+.app-nav__agent {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  height: 32px;
-  padding: 0 10px 0 16px;
+  justify-content: center;
+  height: 44px;
+  width: auto;
+  padding: 0 12px;
   border: 0;
   border-radius: 6px;
-  width: auto;
   background: transparent;
-  color: rgb(121, 121, 120);
-  font-size: 15px;
-  line-height: 32px;
-  font-weight: 400;
-  letter-spacing: 0.15px;
-  text-align: left;
+  color: #626262;
+  font: 400 15px/20px var(--font-body);
+  white-space: nowrap;
   cursor: pointer;
 }
-.app-nav__link:hover:not(.app-nav__link--active) {
-  background: var(--color-surface-overlay);
-}
-.app-nav__link--active {
-  color: rgb(45, 48, 54);
-  background: rgba(226, 226, 226, 0.77);
-}
-
-.app-nav__search {
-}
-
+.app-nav__link:hover,
+.app-nav__agent:hover { background: #e7e7e7; color: #2d3036; }
+.app-nav__link--active { background: #fff; color: #2d3036; }
+.app-nav__agent { flex: 0 0 auto; color: #2d3036; }
+.app-nav__agent:disabled { color: #626262; cursor: default; }
+.app-nav__link:focus-visible,
+.app-nav__agent:focus-visible { outline: 2px solid #2d3036; outline-offset: 2px; }
+.app-nav__search { flex: 1 1 auto; min-width: 0; }
 .app-content {
-  flex: 1 1 auto;
-  height: 100%;
-  /* Without this, a flex item's default `min-width: auto` refuses to shrink below its content's
-     intrinsic width — and Board's own content is deliberately wider than the viewport
-     (design-system/style.css's A7 comment: "2340px content against a 1148px visible area... the
-     board scrolls horizontally"). Omitting `min-width: 0` here does not show up as a broken
-     layout in a quick look; it shows up as the content pane silently refusing to stay at 1148px
-     and the whole shell gaining a page-level horizontal scrollbar. */
+  box-sizing: border-box;
+  height: calc(100% - var(--app-bar-height));
   min-width: 0;
   overflow: hidden;
   position: relative;
+}
+@media (max-width: 900px) {
+  .app-nav { gap: 8px; padding-inline: 12px; }
+  .app-nav__link { padding-inline: 10px; }
 }
 </style>

@@ -1,543 +1,391 @@
 <script setup lang="ts">
 import AppIcon from './AppIcon.vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { KCheckbox } from '@konstantinopolskii/vue'
-import TagChip from './TagChip.vue'
+import { type GoalCard } from '../lib/api'
 import { store, todayIso } from '../store'
 import { stateUrl } from '../lib/urlState'
 
+const props = defineProps<{ agentAvailable: boolean }>()
 const SEARCH_DEBOUNCE_MS = 300
 const SEARCH_PATH_RE = /^\/search(?:\/(.*))?\/?$/
-
 const inputValue = ref('')
 const surfaceOpen = ref(false)
-const showRecent = ref(false)
 const pending = ref(false)
+const activeIndex = ref(0)
 const preSearchPath = ref('/')
-const trigger = ref<HTMLButtonElement | null>(null)
+const root = ref<HTMLElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
-
 let debounceTimer: number | undefined
-let previousBodyOverflow: string | null = null
+let searchVersion = 0
+let searchChain = Promise.resolve()
+let skipNextFocusOpen = false
+
+const query = computed(() => inputValue.value.trim())
+const recognizedTag = computed(() => /^#(\S+)/.exec(query.value)?.[1] ?? null)
+const values = computed(() => (store.state.board?.values ?? []).map(value => ({
+  ...value,
+  label: store.state.board?.short_labels?.[value.id] ?? value.title.split(/\s+/)[0] ?? value.title,
+})))
+const activeArea = computed(() => values.value.find(value => value.id === store.state.valueFilter))
+
+interface SearchOption {
+  key: string
+  kind: 'area' | 'tag' | 'goal' | 'ask'
+  label: string
+  meta: string
+  id?: string
+  goal?: GoalCard
+}
+const options = computed<SearchOption[]>(() => {
+  const rows: SearchOption[] = []
+  if (!recognizedTag.value) {
+    for (const value of values.value) {
+      if (!query.value || value.label.toLocaleLowerCase().includes(query.value.toLocaleLowerCase())) {
+        rows.push({ key: `area-${value.id}`, kind: 'area', label: value.label, meta: 'Filter area', id: value.id })
+      }
+    }
+  }
+  if (recognizedTag.value && store.state.searchTag !== recognizedTag.value) {
+    rows.push({ key: 'tag', kind: 'tag', label: `#${recognizedTag.value}`, meta: 'Filter tag' })
+  }
+  const resultsMatchInput = recognizedTag.value
+    ? store.state.searchTag === recognizedTag.value
+    : (!query.value || (query.value.length >= 3 && store.state.searchQuery.trim() === query.value))
+  if (!pending.value && resultsMatchInput) {
+    for (const goal of store.state.searchResults) {
+      rows.push({ key: `goal-${goal.id}`, kind: 'goal', label: goal.title, id: goal.id, goal,
+        meta: goal.vertical && goal.anchor_date ? `${goal.vertical} · ${goal.anchor_date}` : 'Inbox' })
+    }
+  }
+  if (query.value) {
+    rows.push({ key: 'ask', kind: 'ask', label: `Ask agent: ${query.value}`,
+      meta: props.agentAvailable ? 'Opens a draft' : 'Agent unavailable in this browser' })
+  }
+  return rows
+})
+const noMatches = computed(() => !pending.value && (query.value.length >= 3 || store.state.searchTag !== null)
+  && !options.value.some(option => option.kind !== 'ask'))
 
 function clearTimer() {
   if (debounceTimer !== undefined) window.clearTimeout(debounceTimer)
   debounceTimer = undefined
 }
-
-/** What the address bar should say with the search surface shut — read off the state, not off a
- *  URL snapshot taken when the surface opened: Back/Forward can move the app underneath an open
- *  surface, and a stale snapshot would put the wrong page back. Only the path is remembered, so a
- *  hand-typed `/h/<today>` comes back spelled the way it was. */
-function underlyingUrl(): string {
+function underlyingUrl() {
   return stateUrl(store.state, todayIso, preSearchPath.value)
 }
-
-function replaceSearchUrl(query: string) {
-  // Keep whatever `lib/urlState.ts` stored on this entry: the search surface borrows the address
-  // bar, it does not replace the entry the app is standing on.
-  history.replaceState(history.state, '', query ? `/search/${encodeURIComponent(query)}` : '/search/')
+function replaceSearchUrl() {
+  // Search still borrows the current history entry. Preserve its view/goal fragment and state.
+  const hash = new URL(underlyingUrl(), location.origin).hash
+  history.replaceState(history.state, '', `${query.value ? `/search/${encodeURIComponent(query.value)}` : '/search/'}${hash}`)
 }
-
-function schedule(search: () => void) {
-  clearTimer()
-  debounceTimer = window.setTimeout(() => {
-    debounceTimer = undefined
-    search()
-  }, SEARCH_DEBOUNCE_MS)
-}
-
-function lockPageScroll() {
-  if (previousBodyOverflow !== null) return
-  previousBodyOverflow = document.body.style.overflow
-  document.body.style.overflow = 'hidden'
-}
-
-function unlockPageScroll() {
-  if (previousBodyOverflow === null) return
-  document.body.style.overflow = previousBodyOverflow
-  previousBodyOverflow = null
-}
-
-async function focusInput() {
+async function focusInput(openResults = true) {
   await nextTick()
+  if (!openResults && document.activeElement !== input.value) skipNextFocusOpen = true
   input.value?.focus()
 }
-
-async function loadRecent() {
-  try {
-    await store.loadRecentSearch()
-  } finally {
+function onInputFocus() {
+  if (skipNextFocusOpen) { skipNextFocusOpen = false; return }
+  openSurface()
+}
+function runSearch(immediate = false, tag: string | null = null) {
+  clearTimer()
+  const version = ++searchVersion
+  const text = query.value
+  store.clearSearch()
+  if ((recognizedTag.value && !tag) || (text.length > 0 && text.length < 3 && !tag)) {
     pending.value = false
+    return
   }
-}
-
-function scheduleRecent() {
   pending.value = true
-  schedule(() => {
-    if (surfaceOpen.value && inputValue.value.trim() === '' && store.state.searchTag === null) {
-      void loadRecent()
-    } else {
-      pending.value = false
-    }
-  })
+  const start = () => {
+    debounceTimer = undefined
+    // Existing search actions share one result slice. Serialize them so an older response can
+    // never paint over the latest query; obsolete queued requests never reach the API.
+    searchChain = searchChain.then(async () => {
+      if (version !== searchVersion) return
+      try {
+        if (tag) await store.filterByTag(tag)
+        else if (text) await store.runSearch(text)
+        else await store.loadRecentSearch()
+      } finally {
+        if (version === searchVersion) pending.value = false
+      }
+    }).catch(() => { if (version === searchVersion) pending.value = false })
+  }
+  if (immediate) start()
+  else debounceTimer = window.setTimeout(start, SEARCH_DEBOUNCE_MS)
 }
-
 function openSurface() {
   if (surfaceOpen.value) return
   preSearchPath.value = location.pathname
   surfaceOpen.value = true
-  showRecent.value = inputValue.value.trim() === ''
-  replaceSearchUrl(inputValue.value.trim())
-  lockPageScroll()
-  if (showRecent.value) scheduleRecent()
-  void focusInput()
+  activeIndex.value = 0
+  replaceSearchUrl()
+  runSearch()
+  window.dispatchEvent(new CustomEvent('verticals:agent-close'))
 }
-
-async function closeSurface(restoreFocus = true) {
+function dismiss(restoreUrl = true) {
   clearTimer()
+  searchVersion += 1
   pending.value = false
-  inputValue.value = ''
   surfaceOpen.value = false
-  showRecent.value = false
+  inputValue.value = ''
   store.clearSearch()
-  history.replaceState(history.state, '', underlyingUrl())
-  unlockPageScroll()
-  await nextTick()
-  if (restoreFocus) trigger.value?.focus()
-}
-
-const recognizedTag = computed(() => {
-  const match = /^#(\S+)/.exec(inputValue.value.trim())
-  return match ? match[1] : null
-})
-
-async function runTextSearch(query: string) {
-  try {
-    await store.runSearch(query)
-  } finally {
-    pending.value = false
+  if (restoreUrl && SEARCH_PATH_RE.test(location.pathname)) {
+    history.replaceState(history.state, '', underlyingUrl())
   }
 }
-
+defineExpose({ dismiss })
 function onInput(event: Event) {
-  clearTimer()
-  const value = (event.target as HTMLInputElement).value
-  inputValue.value = value
-  replaceSearchUrl(value.trim())
-
-  if (recognizedTag.value) {
-    pending.value = false
-    showRecent.value = false
-    store.clearSearch()
+  inputValue.value = (event.target as HTMLInputElement).value
+  if (!surfaceOpen.value) openSurface()
+  activeIndex.value = 0
+  replaceSearchUrl()
+  runSearch()
+}
+function pick(option: SearchOption) {
+  if (option.kind === 'tag') {
+    runSearch(true, recognizedTag.value)
     return
   }
-
-  const trimmed = value.trim()
-  if (trimmed.length < 3) {
-    pending.value = false
-    store.clearSearch()
-    showRecent.value = trimmed.length === 0
-    if (showRecent.value) scheduleRecent()
+  if (option.kind === 'ask') {
+    if (!props.agentAvailable) return
+    const text = query.value
+    dismiss()
+    input.value?.blur()
+    window.dispatchEvent(new CustomEvent('verticals:agent-draft', { detail: { text } }))
     return
   }
-
-  showRecent.value = false
-  pending.value = true
-  store.clearSearch()
-  schedule(() => void runTextSearch(trimmed))
-}
-
-async function onPickTag(tag: string) {
-  clearTimer()
-  pending.value = true
-  try {
-    await store.filterByTag(tag)
-  } finally {
-    pending.value = false
+  dismiss()
+  input.value?.blur()
+  if (option.kind === 'area') {
+    store.closeGoal()
+    store.setView('verticals')
+    void store.setValueFilter(option.id!)
+  } else if (option.id) {
+    // Keep existing navigation, including its parked-goal limitation (issue 8c).
+    void store.navigateToGoal(option.id)
   }
 }
-
-function searchPeriod(goal: { vertical: string | null; anchor_date: string | null }): string {
-  return goal.vertical && goal.anchor_date ? `${goal.vertical} · ${goal.anchor_date}` : ''
+function onKeyDown(event: KeyboardEvent) {
+  if (event.isComposing) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    dismiss()
+    void focusInput(false)
+    return
+  }
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return
+  if (!surfaceOpen.value) openSurface()
+  if (!options.value.length) return
+  // Native checkbox and button activation stays native; the field owns Enter selection.
+  if (event.key === 'Enter' && event.target !== input.value) return
+  event.preventDefault()
+  if (event.key === 'Enter') pick(options.value[activeIndex.value]!)
+  else {
+    const direction = event.key === 'ArrowDown' ? 1 : -1
+    activeIndex.value = (activeIndex.value + direction + options.value.length) % options.value.length
+    input.value?.focus()
+    void nextTick(() => root.value?.querySelector(`#command-option-${activeIndex.value}`)?.scrollIntoView({ block: 'nearest' }))
+  }
 }
-
-function onToggle(id: string, value: boolean) {
-  void store.completeGoal(id, value)
+function onShortcut(event: KeyboardEvent) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    window.dispatchEvent(new CustomEvent('verticals:agent-close'))
+    openSurface()
+    void focusInput()
+  }
 }
-
-function openGoal(id: string) {
-  void closeSurface(false).then(() => store.navigateToGoal(id))
+function onCommandFocus() {
+  // Chat closing returns focus without opening results over the conversation just dismissed.
+  void focusInput(false)
 }
-
-const hasQuery = computed(() => store.state.searchQuery.trim().length >= 3)
-const showResults = computed(
-  () => showRecent.value || store.state.searchTag !== null || (!recognizedTag.value && hasQuery.value),
-)
-const noMatches = computed(
-  () => showResults.value && !pending.value && store.state.searchResults.length === 0,
-)
-
-onMounted(() => {
+function onOutsidePointer(event: PointerEvent) {
+  if (surfaceOpen.value && event.target instanceof Node && !root.value?.contains(event.target)) dismiss()
+}
+function onFocusOut(event: FocusEvent) {
+  if (event.relatedTarget instanceof Node && !root.value?.contains(event.relatedTarget)) dismiss()
+}
+function readSearchUrl() {
   const match = SEARCH_PATH_RE.exec(location.pathname)
-  if (!match) return
-
-  let query = ''
-  try {
-    query = decodeURIComponent(match[1] ?? '')
-  } catch {
-    query = match[1] ?? ''
-  }
-
+  if (!match) { dismiss(false); return }
+  let value = match[1] ?? ''
+  try { value = decodeURIComponent(value) } catch { /* A malformed link remains editable. */ }
+  preSearchPath.value = new URL(stateUrl(store.state, todayIso, '/'), location.origin).pathname
+  inputValue.value = value
   surfaceOpen.value = true
-  inputValue.value = query
-  lockPageScroll()
-  void focusInput()
-
-  if (query.trim().length >= 3 && !/^#\S+/.test(query.trim())) {
-    pending.value = true
-    schedule(() => void runTextSearch(query.trim()))
-  } else if (query.trim() === '') {
-    showRecent.value = true
-    scheduleRecent()
-  }
+  activeIndex.value = 0
+  runSearch()
+}
+watch(options, rows => { activeIndex.value = Math.min(activeIndex.value, Math.max(0, rows.length - 1)) })
+onMounted(() => {
+  readSearchUrl()
+  window.addEventListener('keydown', onShortcut)
+  window.addEventListener('verticals:command-focus', onCommandFocus)
+  window.addEventListener('popstate', readSearchUrl)
+  document.addEventListener('pointerdown', onOutsidePointer)
 })
-
 onBeforeUnmount(() => {
   clearTimer()
-  unlockPageScroll()
+  searchVersion += 1
+  window.removeEventListener('keydown', onShortcut)
+  window.removeEventListener('verticals:command-focus', onCommandFocus)
+  window.removeEventListener('popstate', readSearchUrl)
+  document.removeEventListener('pointerdown', onOutsidePointer)
 })
 </script>
 
 <template>
-  <div class="search-bar" data-cap="search">
-    <button
-      ref="trigger"
-      type="button"
-      class="search-bar__trigger"
-      data-cap="search-trigger"
-      aria-label="Search"
-      @click="openSurface"
-    >
-      <AppIcon
-        name="search"
-        class="search-bar__trigger-icon"
-        :class="{ 'search-bar__trigger-icon--return': surfaceOpen }"
-        data-role="search-icon"
-      />
-    </button>
-
-    <Teleport to="body">
-      <div
-        v-if="surfaceOpen"
-        class="search-backdrop"
-        data-cap="search-backdrop"
-        @pointerup.self="() => void closeSurface()"
-      >
-        <section class="search-modal" data-cap="search-modal">
-          <div class="search-modal__input" data-cap="search-input">
-            <span class="search-modal__input-slot" aria-hidden="true">
-              <svg
-                v-if="pending"
-                class="search-modal__spinner"
-                data-role="search-spinner"
-                viewBox="0 0 20 20"
-              >
-                <circle cx="10" cy="10" r="8" />
-              </svg>
-              <AppIcon
-                v-else
-                name="search"
-                class="search-modal__input-icon"
-                data-role="search-input-icon"
-              />
-            </span>
-            <input
-              ref="input"
-              :value="inputValue"
-              type="text"
-              placeholder="Search"
-              autocomplete="off"
-              @input="onInput"
-              @keydown.esc="() => void closeSurface()"
-            >
+  <div ref="root" class="search-bar" data-cap="search" @keydown="onKeyDown" @focusout="onFocusOut">
+    <section v-if="surfaceOpen" class="search-modal" data-cap="search-modal" aria-label="Find or ask">
+      <div id="command-results" class="search-modal__results" data-cap="search-results" role="grid" aria-label="Search results" :aria-busy="pending">
+        <p v-if="pending" class="search-modal__status" role="status">Searching…</p>
+        <p v-else-if="noMatches" class="search-modal__status" data-role="search-empty" role="status">{{ store.state.searchTag ? 'No goals with this tag.' : 'No matching goals or areas.' }}</p>
+        <p v-else-if="query.length > 0 && query.length < 3 && !recognizedTag" class="search-modal__status">Type at least 3 characters to find goals.</p>
+        <p v-else-if="!query" class="search-modal__status">Areas and recent goals</p>
+        <p v-if="store.state.searchTruncated && !pending" class="search-modal__status">Showing the first results only.</p>
+        <div
+          v-for="(option, index) in options"
+          :id="`command-option-${index}`"
+          :key="option.key"
+          class="search-result"
+          :class="{ 'search-result--active': activeIndex === index, 'search-result--ask': option.kind === 'ask' }"
+          role="row"
+          :aria-selected="activeIndex === index"
+          :data-goal-id="option.goal?.id"
+          :data-value-id="option.kind === 'area' ? option.id : undefined"
+          :data-role="option.kind === 'ask' ? 'ask-agent' : option.kind === 'area' ? 'area-option' : undefined"
+          @pointermove="activeIndex = index"
+          @focusin="activeIndex = index"
+        >
+          <div v-if="option.goal" class="search-result__check" role="gridcell">
+            <KCheckbox size="xl" data-cap="complete" :model-value="option.goal.done_at !== null"
+              @update:model-value="value => void store.completeGoal(option.id!, value)" />
           </div>
-
-          <div class="search-modal__results" data-cap="search-results">
-            <div v-if="recognizedTag" class="search-modal__tag">
-              <TagChip
-                :tag="recognizedTag"
-                :pressed="store.state.searchTag === recognizedTag"
-                @select="onPickTag"
-              />
-            </div>
-            <p v-if="store.state.searchTruncated" class="search-modal__truncated">
-              Showing the first results only.
-            </p>
-            <p v-if="noMatches" class="search-modal__empty" data-role="search-empty">
-              No results matched your search
-            </p>
-            <ul v-else-if="showResults && store.state.searchResults.length" class="search-modal__list">
-              <li
-                v-for="goal in store.state.searchResults"
-                :key="goal.id"
-                class="search-result"
-                :data-goal-id="goal.id"
-                @click="openGoal(goal.id)"
-              >
-                <KCheckbox
-                  size="xl"
-                  data-cap="complete"
-                  :model-value="goal.done_at !== null"
-                  @click.stop
-                  @update:model-value="value => onToggle(goal.id, value)"
-                />
-                <div class="search-result__content">
-                  <p
-                    class="goal-card__title"
-                    :class="{ 'search-result__title--done': goal.done_at !== null }"
-                  >{{ goal.title }}</p>
-                  <p data-role="search-period">{{ searchPeriod(goal) }}</p>
-                </div>
-                <button
-                  type="button"
-                  class="search-result__open"
-                  data-role="search-open"
-                  :aria-label="`Open ${goal.title}`"
-                  @click.stop="openGoal(goal.id)"
-                >
-                  <AppIcon name="chevron-right" :size="16" />
-                </button>
-              </li>
-            </ul>
+          <div class="search-result__cell" role="gridcell">
+            <button type="button" class="search-result__open" :data-role="option.kind === 'goal' ? 'search-open' : undefined"
+              :disabled="option.kind === 'ask' && !agentAvailable" @click="pick(option)">
+              <span class="search-result__title" :class="{ 'search-result__title--done': option.goal?.done_at }">{{ option.label }}</span>
+              <span class="search-result__meta" :data-role="option.kind === 'goal' ? 'search-period' : undefined">{{ option.meta }}</span>
+            </button>
           </div>
-        </section>
+        </div>
       </div>
-    </Teleport>
+    </section>
+    <div class="search-modal__input" data-cap="search-input">
+      <button type="button" class="search-bar__trigger" data-cap="search-trigger" aria-label="Search goals and areas" @click="openSurface(); focusInput()">
+        <AppIcon name="search" :size="20" />
+      </button>
+      <button v-if="activeArea" type="button" class="search-bar__area" data-cap="value-filter" :aria-label="`Clear ${activeArea.label} area filter`" @click="store.setValueFilter(null)">{{ activeArea.label }} ×</button>
+      <input ref="input" :value="inputValue" type="text" role="combobox" aria-label="Search goals, areas, or ask agent"
+        placeholder="Search goals, areas, or ask agent" autocomplete="off" aria-autocomplete="list" aria-haspopup="grid"
+        :aria-expanded="surfaceOpen" :aria-controls="surfaceOpen ? 'command-results' : undefined"
+        :aria-activedescendant="surfaceOpen && options.length ? `command-option-${activeIndex}` : undefined"
+        @focus="onInputFocus" @input="onInput">
+      <span class="search-bar__shortcut" aria-hidden="true">⌘K</span>
+    </div>
   </div>
 </template>
 
 <style>
-.search-bar {
-  position: relative;
+.search-bar { position: relative; font-family: var(--font-body); }
+.search-modal__input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 10px 0 0;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
 }
-
-.search-bar__trigger {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 25px;
-  margin: 0;
+.search-modal__input:focus-within { border-color: #2d3036; outline: 1px solid #2d3036; }
+.search-modal__input input {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: 0;
+  outline: none;
+  color: #2d3036;
   background: transparent;
-  color: rgb(45, 48, 54);
+  font: 400 15px/20px var(--font-body);
+}
+.search-modal__input input::placeholder { color: #626262; opacity: 1; }
+.search-bar__trigger {
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  color: #626262;
+  background: transparent;
   cursor: pointer;
 }
-.search-bar__trigger:focus-visible {
-  outline: 2px solid rgba(45, 48, 54, 0.3);
-  outline-offset: 2px;
-}
-.search-bar__trigger-icon {
-  position: relative;
-  top: -4px;
-  display: block;
-  width: 24px;
-  height: 25px;
-  opacity: 0.3;
-  transition: opacity 250ms cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-.search-bar__trigger:hover .search-bar__trigger-icon,
-.search-bar__trigger:active .search-bar__trigger-icon {
-  opacity: 1;
-}
-.search-bar__trigger-icon--return {
-  animation: search-trigger-icon-return 250ms cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-@keyframes search-trigger-icon-return {
-  from { opacity: 1; }
-  to { opacity: 0.3; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .search-bar__trigger-icon--return { animation: none; }
-}
-
-.search-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  overflow: scroll;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: none;
+.search-bar__shortcut { color: #626262; font: 400 13px/20px var(--font-body); white-space: nowrap; }
+.search-bar__area {
+  flex: 0 0 auto;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #f0f0f0;
+  color: #2d3036;
+  font: 400 13px/20px var(--font-body);
+  cursor: pointer;
 }
 .search-modal {
   box-sizing: border-box;
-  width: min(100vw, 824px);
-  max-width: 824px;
-  margin: 50px auto 0;
-  padding: 0;
-  overflow: hidden;
-  background: #ffffff;
-  border: 0;
-  border-radius: 12px;
-  box-shadow: none;
-  font-family: 'Inter', sans-serif;
-  opacity: 1;
-  transform: none;
-}
-.search-modal__input {
-  position: relative;
-  width: 100%;
-}
-.search-modal__input input {
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  height: 65.891px;
-  margin: 0;
-  padding: 16px 16px 16px 44px;
-  color: rgb(45, 48, 54);
-  background: #ffffff;
-  border: 2px solid rgb(255, 255, 255);
-  border-radius: 8px;
-  outline: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 26px;
-  font-weight: 400;
-  line-height: 29.9px;
-}
-.search-modal__input-slot {
-  box-sizing: border-box;
   position: absolute;
-  inset: 0 auto 0 0;
-  z-index: 1;
-  display: flex;
-  width: 48px;
-  padding: 0 14px;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.search-modal__spinner,
-.search-modal__input-icon {
-  display: block;
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
-}
-.search-modal__input-icon {
-  opacity: 0.6;
-  cursor: default;
-}
-.search-modal__spinner {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2px;
-  stroke-linecap: round;
-  stroke-dasharray: 36 16;
-  animation: search-spinner-rotation 700ms linear infinite;
-}
-@keyframes search-spinner-rotation {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.search-modal__results {
-  box-sizing: border-box;
+  bottom: calc(100% + 8px);
+  left: 0;
   width: 100%;
-  max-height: 450px;
-  padding: 0 0 15px;
-  overflow: scroll;
+  overflow: hidden;
+  border: 1px solid #dedede;
+  border-radius: 8px;
+  background: #fff;
+  color: #2d3036;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .12);
 }
-.search-modal__list {
-  display: block;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.search-result {
-  box-sizing: border-box;
-  display: flex;
-  min-height: 37px;
-  padding: 8px 18px;
-  align-items: center;
-  gap: 14px;
-  background: transparent;
-  border-bottom: 1px solid rgba(45, 48, 54, 0.1);
-  cursor: pointer;
-  transition: background-color 300ms cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-.search-result:hover {
-  background: #ecedef;
-}
-.search-result__content {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  align-items: baseline;
-  gap: 8px;
-}
-.search-result .goal-card__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  color: rgb(45, 48, 54);
-  font-family: 'Inter', sans-serif;
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 20px;
-  cursor: pointer;
-}
-.search-result .search-result__title--done {
-  color: rgba(45, 48, 54, 0.3);
-}
-.search-result [data-role='search-period'] {
-  flex: 0 0 auto;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  opacity: 0.5;
-  white-space: nowrap;
-}
+.search-modal__results { max-height: min(440px, calc(100dvh - var(--app-bar-height) - 32px)); overflow: auto; overscroll-behavior: contain; }
+.search-modal__status { margin: 0; padding: 12px; color: #626262; font: 400 13px/20px var(--font-body); }
+.search-result { display: flex; align-items: center; min-height: 44px; padding: 0 12px; gap: 10px; background: #fff; }
+.search-result--active, .search-result:hover { background: #f0f0f0; }
+.search-result--ask { position: sticky; bottom: 0; border-top: 1px solid #dedede; }
+.search-result__check { flex: 0 0 auto; }
+.search-result__cell { flex: 1 1 auto; min-width: 0; }
 .search-result__open {
-  box-sizing: border-box;
-  display: block;
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  padding: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
   border: 0;
   background: transparent;
-  color: rgb(45, 48, 54);
-  opacity: 0.5;
+  color: #2d3036;
+  font: 400 15px/22px var(--font-body);
+  text-align: left;
   cursor: pointer;
 }
-.search-result__open svg {
-  display: block;
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.search-modal__empty {
-  margin: 30px 0;
-  text-align: center;
-  font-family: 'Inter', sans-serif;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 18.4px;
-}
-.search-modal__tag {
-  padding: 8px 18px;
-}
-.search-modal__truncated {
-  margin: 8px 18px;
-  font-size: 14px;
-  line-height: 20px;
+.search-result__title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.search-result__title--done { color: #626262; text-decoration: line-through; }
+.search-result__meta { flex: 0 0 auto; color: #626262; font-size: 13px; line-height: 20px; }
+.search-result__open:disabled { cursor: default; }
+.search-result__open:focus-visible,
+.search-bar__trigger:focus-visible,
+.search-bar__area:focus-visible { outline: 2px solid #2d3036; outline-offset: 2px; }
+@media (max-width: 900px) {
+  .search-result__open { display: block; }
+  .search-result__meta { display: block; }
+  .search-bar__shortcut { display: none; }
 }
 </style>

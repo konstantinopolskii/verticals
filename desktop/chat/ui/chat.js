@@ -1,4 +1,4 @@
-// Verticals chat: a bar at the bottom centre that opens into a conversation with a local agent.
+// Verticals chat: the board's command bar opens a conversation with a local agent.
 // The conversation view, composer and agent picker are ported from Enjoy (markup, styles,
 // strings, behaviour); agents work on the board through the Verticals MCP server.
 (() => {
@@ -62,6 +62,9 @@
   }
   .wrap.open { width: min(880px, calc(100vw - 32px)); }
   .wrap.open.with-sidebar { width: min(1180px, calc(100vw - 32px)); }
+  .wrap.integrated { bottom:var(--command-bar-offset, 90px); }
+  .wrap.integrated:not(.open) { display:none; }
+  .wrap.integrated .panel { height:min(78vh, 760px, calc(100dvh - var(--command-bar-offset, 90px) - 16px)); }
   button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
   button:disabled { cursor: default; }
 
@@ -569,6 +572,7 @@
     saveThreads();
     renderHeader();
     renderList();
+    publishAgentState();
   }
   function renderHeader() {
     const t = threads.find((x) => x.id === current);
@@ -814,6 +818,7 @@
       if (turn) turn.indicator.querySelector('.working-timer') && (turn.indicator.querySelector('.working-timer').textContent = clock(Date.now() - turn.started));
     }, 1000);
     renderHeader();
+    publishAgentState();
   }
   function updateSend() {
     const has = !!textarea.value.trim();
@@ -888,19 +893,70 @@
 
   // ---------------------------------------------------------------- behaviour
 
+  // Keep the existing conversation surface, with one entry point on the board.
+  // The event bridge only prepares a draft. Sending still needs the composer's action.
+  let commandBar = null;
+  const commandBarObserver = new ResizeObserver(positionConversation);
+  function positionConversation() {
+    if (!commandBar) return;
+    const offset = Math.max(18, window.innerHeight - commandBar.getBoundingClientRect().top + 12);
+    wrap.style.setProperty('--command-bar-offset', `${offset}px`);
+  }
+  function syncCommandBar() {
+    const next = document.getElementById('verticals-command-bar');
+    if (next === commandBar) return;
+    if (commandBar) commandBarObserver.unobserve(commandBar);
+    commandBar = next;
+    wrap.classList.toggle('integrated', !!commandBar);
+    if (commandBar) commandBarObserver.observe(commandBar);
+    positionConversation();
+  }
+  function publishAgentState() {
+    window.dispatchEvent(new CustomEvent('verticals:agent-state', { detail: {
+      available: true, expanded, working: running,
+      needsYou: threads.some((thread) => thread.status === 'needs-you'),
+    } }));
+  }
   function expand() {
-    if (expanded) return;
+    if (expanded) { textarea.focus(); return; }
     expanded = true;
     wrap.classList.add('open');
     badge.hidden = true;
     if (barInput.value) { textarea.value = barInput.value; barInput.value = ''; }
     autosize(); updateSend(); scroll();
-    setTimeout(() => textarea.focus(), 0);
+    setTimeout(() => { if (expanded) textarea.focus(); }, 0);
+    publishAgentState();
   }
-  function collapse() { expanded = false; wrap.classList.remove('open'); closePicker(); }
+  function collapse() {
+    expanded = false;
+    wrap.classList.remove('open');
+    closePicker();
+    publishAgentState();
+    if (commandBar) window.dispatchEvent(new CustomEvent('verticals:command-focus'));
+  }
   function autosize() { textarea.style.height = 'auto'; textarea.style.height = `${Math.min(180, textarea.scrollHeight)}px`; }
   function clearSelection() { lastSelection = ''; $('.composer-selection').hidden = true; }
 
+  window.addEventListener('resize', positionConversation);
+  window.addEventListener('verticals:agent-request-state', () => { syncCommandBar(); publishAgentState(); });
+  window.addEventListener('verticals:agent-open', () => { syncCommandBar(); expand(); });
+  window.addEventListener('verticals:agent-close', () => { if (expanded) collapse(); });
+  window.addEventListener('verticals:agent-draft', (event) => {
+    const text = typeof event.detail?.text === 'string' ? event.detail.text.trim() : '';
+    if (!text) return;
+    syncCommandBar();
+    expand();
+    // Preserve work already in the composer; select the new text so the handoff is visible.
+    const existing = textarea.value;
+    const separator = existing.trim() ? '\n\n' : '';
+    const start = existing.trim() === text ? 0 : existing.length + separator.length;
+    if (existing.trim() !== text) textarea.value = existing + separator + text;
+    autosize();
+    updateSend();
+    textarea.focus();
+    textarea.setSelectionRange(start, textarea.value.length);
+    textarea.scrollTop = textarea.scrollHeight;
+  });
   barInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && barInput.value.trim()) { e.preventDefault(); expand(); submit('send'); }
     if (e.key === 'Escape') barInput.blur();
@@ -914,7 +970,12 @@
       // Enjoy: while the agent works, Enter queues and Cmd/Ctrl+Enter sends immediately.
       submit(running && !(e.metaKey || e.ctrlKey) ? 'queue' : running ? 'now' : 'send');
     }
-    if (e.key === 'Escape') { e.preventDefault(); if (!picker.hidden) closePicker(); else collapse(); }
+  });
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !expanded) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!picker.hidden) closePicker(); else collapse();
   });
   $('form').onsubmit = (e) => { e.preventDefault(); submit(running ? 'now' : 'send'); };
   queueBtn.onclick = () => submit('queue');
@@ -943,7 +1004,9 @@
   // The page selection is context: remember it before focus moves into the chat.
   document.addEventListener('selectionchange', () => {
     const sel = document.getSelection(), text = String(sel || '').trim();
-    if (!text || host.contains(sel.anchorNode)) return;
+    // A selected draft lives in the shadow tree; host.contains alone cannot see it.
+    // Never send the composer's own text again as page-selection context.
+    if (!text || document.activeElement === host || root.activeElement || host.contains(sel.anchorNode)) return;
     lastSelection = text.slice(0, 2000);
     $('.composer-selection').hidden = false;
     $('.composer-selection span').textContent = `Selection: “${lastSelection.slice(0, 120)}”`;
@@ -951,6 +1014,7 @@
   document.addEventListener('mousedown', (e) => { if (!e.composedPath().includes(host)) clearSelection(); }, true);
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (document.getElementById('verticals-command-bar')) return;
       e.preventDefault();
       if (expanded) collapse(); else if (history.length) expand(); else barInput.focus();
     }
@@ -990,6 +1054,7 @@
     });
   }
   new MutationObserver((records) => {
+    syncCommandBar();
     for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1) addGoalButtons(n.parentElement || n);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
@@ -997,6 +1062,8 @@
     document.head.appendChild(goalStyle);
     addGoalButtons();
     document.body.appendChild(host);
+    syncCommandBar();
+    publishAgentState();
     try { agents = (await api('agents')).agents; } catch {}
     openThread(current || uuid());
     setSidebar(store.get('vt-chat:sidebar', false));

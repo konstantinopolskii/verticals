@@ -209,7 +209,7 @@ watch(
    kit CSS — vars.css's own comment says so — so this is its first consumer, on the product side,
    same as `--ease-quart` one token over). No backdrop, no scrim, no trapped focus: the board stays
    visible and clickable everywhere the panel does not physically cover (D248 — this is a docked
-   panel, not a modal). `z-index: 250` sits above the fixed app nav (200) and the dev-only debug
+   panel, not a modal). `z-index: 250` sits below the command bar (300) and above the dev-only debug
    panels (300/301 — those are developer tooling, not product chrome, and are expected to still
    win on top when both are visible) but below the popover/menu layer (5000, `PopoverEngine.vue`)
    so an in-panel control never fights a tag/schedule popover for the top slot. */
@@ -217,7 +217,7 @@ watch(
   position: fixed;
   top: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--app-bar-height, 0px);
   z-index: 250;
   display: flex;
   flex-direction: column;
