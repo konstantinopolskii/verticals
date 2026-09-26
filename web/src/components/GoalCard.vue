@@ -14,7 +14,7 @@ import GoalCardTools from './GoalCardTools.vue'
 import GoalDetail from './GoalDetail.vue'
 import GoalAffordance from '../kit-ext/goal-affordance/GoalAffordance.vue'
 import { store } from '../store'
-import { filterActive, highlightTitle, isContextGoal } from '../lib/commandFilter'
+import { highlightTitle, isContextGoal } from '../lib/commandFilter'
 import type { GoalCardData } from '../types'
 import type { RepeatRule } from '../lib/api'
 import { goalWashInk } from '../lib/goalColor'
@@ -45,6 +45,7 @@ const props = withDefaults(
     foil?: boolean
     ghost?: boolean
     ghostUntil?: string | null
+    plannedPeriod?: string
     /** `BoardResponse.progress[id]` — done/total over descendants. Absent on a leaf. */
     progress?: { done: number; total: number }
     subgoalCount?: number
@@ -64,6 +65,7 @@ const props = withDefaults(
     foil: false,
     ghost: false,
     ghostUntil: null,
+    plannedPeriod: undefined,
     progress: undefined,
     subgoalCount: 0,
     children: () => [],
@@ -132,20 +134,8 @@ const isOpenRelated = computed(() => {
   return ancestorIds(store.state.board, openId).includes(props.id)
     || subtreeIds(store.state.board, openId).has(props.id)
 })
-/* D248 WP-B: self-or-ancestor of the open card ONLY (unlike `isOpenRelated` above, which also
-   includes the open card's own subtree). This is the narrower test the children-block guard
-   below needs: every card sitting on the path from an opened goal up to its board root must keep
-   rendering its children div past the ordinary `depth < 2` cap, or the open card itself would
-   never reach the DOM. */
-const isSelfOrAncestorOfOpen = computed(() => {
-  const openId = store.state.openGoalId
-  if (!openId || !store.state.board) return false
-  if (props.id === openId) return true
-  return ancestorIds(store.state.board, openId).includes(props.id)
-})
-const showChildren = computed(() => (
-  props.children.length > 0 && (filterActive.value || props.depth < 2 || isSelfOrAncestorOfOpen.value)
-))
+// D253: every visible same-vertical descendant renders at every depth.
+const showChildren = computed(() => props.children.length > 0)
 
 function onOpenDetail() {
   // Board cards route through `openBoardGoal`, which expands the card's column first (KK ruling
@@ -295,7 +285,7 @@ const isCombineTarget = computed(
  * nested subtask collapses ... its parent card snaps shut"). `isNestedDragHole` below is the
  * nested counterpart: it leaves this card at its natural (untouched) box instead. */
 const closesSourceGap = computed(
-  () => props.depth === 0 && isDragSource.value && store.state.drag.settling?.cancelled !== true,
+  () => props.depth === 0 && !props.ghost && isDragSource.value && store.state.drag.settling?.cancelled !== true,
 )
 /* D245: a nested source keeps its own CARD footprint — exactly the box `slotWidth`/`slotHeight`
  * captured at pointer-down, since this element IS that measurement's own target and nothing here
@@ -303,7 +293,7 @@ const closesSourceGap = computed(
  * (`pointer-events: none`), matching what `--source-gap-closed` already does for the top-level
  * case — without it `hitTest`'s `elementFromPoint` would resolve back to this card's own id
  * instead of falling through to whatever is actually under the pointer. */
-const isNestedDragHole = computed(() => props.depth > 0 && isDragSource.value)
+const isNestedDragHole = computed(() => (props.depth > 0 || props.ghost) && isDragSource.value)
 
 // --- D249: this card's own nested reorder slot -------------------------------------------------
 //
@@ -338,7 +328,7 @@ const dragSlot = computed(() => store.state.drag.slot)
    case -- every other position still renders the indicator normally. */
 const isNestedReorderHere = computed(() => {
   const slot = dragSlot.value
-  if (!slot || slot.parentId !== props.id) return false
+  if (props.ghost || !slot || slot.parentId !== props.id) return false
   const sourceId = store.state.drag.id
   const ownIndex = props.children.findIndex((child) => child.id === sourceId)
   if (ownIndex === -1) return true
@@ -552,8 +542,7 @@ function onRowKeydown(event: KeyboardEvent) {
         >
           <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat, 'goal-card__title-text--context': filterContext, 'goal-card__title-text--finding': titleParts.some(part => part.match) || filterContext }">
             <RepeatMark v-if="repeat" />
-            <span v-if="ghost" class="goal-card__due">Due. </span>
-            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template>
+            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template><span v-if="ghost && plannedPeriod" class="goal-card__planned-period">{{ ' ' + plannedPeriod }}</span>
           </span>
         </p>
         <textarea
@@ -672,6 +661,7 @@ function onRowKeydown(event: KeyboardEvent) {
           :foil="item.goal.foil"
           :ghost="item.goal.ghost"
           :ghost-until="item.goal.ghostUntil"
+          :planned-period="item.goal.plannedPeriod"
           :progress="item.goal.progress"
           :subgoal-count="item.goal.subgoalCount"
           :children="item.goal.children"

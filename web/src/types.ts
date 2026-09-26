@@ -26,6 +26,9 @@ export interface GoalCardData {
   foil?: boolean
   ghost?: boolean
   ghostUntil?: string | null
+  /** Stored anchor and its display label; never the viewing column's period. */
+  anchorDate?: string | null
+  plannedPeriod?: string
   /** `BoardResponse.progress[id]` — done/total over this card's *descendants*, computed
    *  server-side in the same board query (`core/board.py`). Absent for a leaf, which is exactly
    *  AC-033's "leaves report no progress"; present and rendered as `done/total` otherwise. */

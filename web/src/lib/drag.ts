@@ -479,6 +479,14 @@ export function hitTest(x: number, y: number, sourceId: string | null = null): P
   }
   if (!colEl) return hit
 
+  // Carried goals are a computed pile, never a drop/reorder destination.
+  const nowLine = colEl.querySelector<HTMLElement>(`${LIVE_SLIDE} [data-role="now-line"]`)
+  if (nowLine && y >= nowLine.getBoundingClientRect().top) {
+    hit.columnVertical = null
+    hit.columnPeriodKey = null
+    return hit
+  }
+
   // Nearest of the indicator and every row, so no gap between them is left unowned.
   const distance = (rect: DOMRect) => (y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0)
   let best: { card: HTMLElement | null; rect: DOMRect; distance: number } | null = null
@@ -489,6 +497,7 @@ export function hitTest(x: number, y: number, sourceId: string | null = null): P
   }
   const rows = colEl.querySelectorAll<HTMLElement>(`${LIVE_SLIDE} [data-goal-id] > .goal-card__row`)
   for (const row of rows) {
+    if (row.closest('[data-section="carried"]')) continue
     const card = row.parentElement as HTMLElement
     const rect = (card.dataset.goalId === sourceId ? card : row).getBoundingClientRect()
     if (rect.height <= 0) continue

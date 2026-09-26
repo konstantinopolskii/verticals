@@ -55,6 +55,7 @@ from dataclasses import replace as _replace
 from datetime import date as _date
 from datetime import datetime as _datetime
 from datetime import timezone as _timezone
+from datetime import timedelta as _timedelta
 
 import psycopg
 
@@ -131,6 +132,18 @@ def _build_statement() -> str:
         f"    FROM goals\n"
         f"   WHERE owner = %(owner)s AND {MAYBE_PREDICATE}"
     ]
+    bounded = tuple(h for h in vertical.VERTICALS if h.bounds_fn(_BOUNDS_PROBE) is not None)
+    own_start = "CASE vertical " + " ".join(
+        f"WHEN %(vt_{h.key})s::vertical_scale THEN %(current_start_{h.key})s::date"
+        for h in bounded
+    ) + " END"
+    # Projection only: try each bounded scale from the goal's own vertical upwards. Calendar
+    # thresholds come from descriptors; the final bounded scale catches arbitrarily old work.
+    landing = "CASE " + " ".join(
+        f"WHEN vertical IN ({', '.join(f'%(vt_{source.key})s::vertical_scale' for source in bounded[:index + 1])}) "
+        f"AND anchor_date >= %(previous_start_{candidate.key})s::date THEN '{candidate.key}'"
+        for index, candidate in enumerate(bounded[:-1])
+    ) + f" ELSE '{bounded[-1].key}' END"
     for col_ord, h in enumerate(vertical.VERTICALS, start=1):
         if vertical.loads_legacy_period_keys(h.key):
             # R2 keeps legacy `2020s`/`2030s` rows byte-untouched. Their anchor dates still
@@ -160,16 +173,16 @@ def _build_statement() -> str:
                 f"  SELECT '{h.key}' AS col_key, {col_ord} AS col_ord, {COLUMNS}, content_revision, short_label,\n"
                 f"         true AS is_ghost, %(end_{h.key})s::date AS ghost_until\n"
                 f"    FROM goals\n"
-                # R10 (revised, KK ruling 2026-08-16): a ghost exists only on the CURRENT period
-                # — the column whose period contains wall-clock today. A time-traveled board
-                # (any other requested date) shows the goal solely at its own anchor; overdue
-                # work does not smear across the dates in between. `live_*` is bound per call
-                # in `board()` as "requested period == today's period" for this scale.
+                # Only the landing column's live gate applies. Browsing an old Day must not
+                # hide an aged Day goal whose landing Month is still the current Month.
                 f"   WHERE %(live_{h.key})s\n"
-                f"     AND owner = %(owner)s AND vertical = %(vt_{h.key})s::vertical_scale\n"
-                f"     AND anchor_date < %(start_{h.key})s::date AND done_at IS NULL\n"
+                f"     AND owner = %(owner)s\n"
+                f"     AND vertical IN ({', '.join(f'%(vt_{source.key})s::vertical_scale' for source in bounded[:bounded.index(h) + 1])})\n"
+                f"     AND anchor_date < ({own_start}) AND done_at IS NULL\n"
+                f"     AND ({landing}) = '{h.key}'\n"
                 f"     AND (carryover_ignored_until IS NULL\n"
-                f"          OR carryover_ignored_until < %(start_{h.key})s::date)\n"
+                # An expired short-period ignore must not become active again on promotion.
+                f"          OR carryover_ignored_until < %(today)s::date)\n"
                 # 011: an acknowledged dueness (either verdict) stops ghosting. Keyed to the
                 # goal's own missed period, so a reschedule that misses AGAIN ghosts again.
                 f"     AND NOT EXISTS (SELECT 1 FROM due_acknowledgements da\n"
@@ -433,6 +446,7 @@ def board(
     # exist only where the requested period IS the current period for that scale — comparing
     # period keys is exactly "does this scale's requested period contain today".
     today = _date.today()
+    params["today"] = today
     for h in vertical.VERTICALS:
         params[f"vt_{h.key}"] = h.key
         params[f"pk_{h.key}"] = h.period_key_fn(date)
@@ -440,6 +454,10 @@ def board(
         if bounds is not None:
             params[f"start_{h.key}"], params[f"end_{h.key}"] = bounds
             params[f"live_{h.key}"] = params[f"pk_{h.key}"] == h.period_key_fn(today)
+            current = h.bounds_fn(today)
+            previous = h.bounds_fn(current[0] - _timedelta(days=1))
+            params[f"current_start_{h.key}"] = current[0]
+            params[f"previous_start_{h.key}"] = previous[0]
 
     rows = conn.execute(STATEMENT, params).fetchall()
 

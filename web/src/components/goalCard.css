@@ -88,10 +88,6 @@
   color: var(--color-text);
   transition: color var(--motion-title) ease;
 }
-.goal-card__due {
-  color: #df496d;
-  font-weight: 500;
-}
 .goal-card__title-input {
   display: block;
   width: 100%;
@@ -504,3 +500,6 @@
 .goal-card__title-text strong { font-weight: 600; }
 
 .goal-card .goal-card__title-text.goal-card__title-text--finding { font-weight: 400; }
+
+/* The carried title stays full strength; only its original period is secondary. */
+.goal-card__planned-period { color: #686868; font-size: inherit; font-weight: 400; }

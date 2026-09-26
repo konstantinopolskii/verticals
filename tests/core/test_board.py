@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import psycopg
@@ -71,19 +71,10 @@ GEN_CORPUS = Path(__file__).resolve().parents[1] / "fixtures" / "gen_corpus.py"
 
 ANCHOR = date(2026, 8, 8)
 
-# F2 current-period cards, keyed as `board.COLUMN_ORDER`. R10 revised (KK ruling 2026-08-16):
-# ghosts render only where the requested period IS the wall-clock current one, so at the frozen
-# ANCHOR the day/week ghosts are gone for good (those periods can never be current again). The
-# single remaining candidate is the legacy decade row SYNDEC01, which carries over into the
-# requested triennium exactly while the real clock is still inside 2026–2028 and disappears
-# permanently on 2029-01-01 — computed below with the board's own period arithmetic so this
-# file needs no edit when that day comes.
-_DECADE_GHOSTS = int(
-    vertical.period_key("decade", ANCHOR) == vertical.period_key("decade", date.today())
-)
+# Fixed stored-period membership; runtime carryover projections are asserted separately.
 CENSUS = {
     "maybe": 5, "day": 10, "week": 4, "month": 6,
-    "quarter": 2, "year": 1, "decade": 0 + _DECADE_GHOSTS, "life": 1,
+    "quarter": 2, "year": 1, "decade": 0, "life": 1,
 }
 
 
@@ -219,6 +210,7 @@ def _board_params(owner: str, anchor: date) -> dict[str, object]:
     # R10 revised: `live_*` mirrors board()'s own per-call gate — "requested period == today's
     # period" per scale — so the plans explained here bind exactly what a real call binds.
     today = date.today()
+    params["today"] = today
     for h in vertical.VERTICALS:
         params[f"vt_{h.key}"] = h.key
         params[f"pk_{h.key}"] = h.period_key_fn(anchor)
@@ -226,6 +218,10 @@ def _board_params(owner: str, anchor: date) -> dict[str, object]:
         if bounds is not None:
             params[f"start_{h.key}"], params[f"end_{h.key}"] = bounds
             params[f"live_{h.key}"] = params[f"pk_{h.key}"] == h.period_key_fn(today)
+            current = h.bounds_fn(today)
+            previous = h.bounds_fn(current[0] - timedelta(days=1))
+            params[f"current_start_{h.key}"] = current[0]
+            params[f"previous_start_{h.key}"] = previous[0]
     return params
 
 
@@ -252,12 +248,24 @@ def test_s22_whole_board_in_exactly_one_statement(f2: psycopg.Connection) -> Non
     assert total == 1, log
 
     assert [c.vertical or B.MAYBE_KEY for c in b.columns] == list(B.COLUMN_ORDER)
-    assert {key: len(_column(b, key).goals) for key in CENSUS} == CENSUS
-
-    assert len(_flat_rows(b)) == 32 + _DECADE_GHOSTS
+    # Age-based carryover can add live Quarter/Year/3-year projections even while the frozen
+    # Day/Week are historical. Keep this fixture census about stored membership; runtime
+    # projection membership and both transport decorations are covered by test_ghosts.py.
+    normal = {
+        c.vertical or B.MAYBE_KEY: [g for g in c.goals if (
+            c.vertical is None or (g.vertical == c.vertical and g.period_key == c.period_key)
+        )]
+        for c in b.columns
+    }
+    assert {key: len(cards) for key, cards in normal.items()} == CENSUS
+    normal_ids = {g.id for cards in normal.values() for g in cards}
+    normal_flat_ids = normal_ids | {g.id for gid in normal_ids for g in b.children[gid]}
+    # The legacy decade row remains a direct child of Life even when not itself a card.
+    assert len(normal_flat_ids) == 33
 
     card_ids = {g.id for c in b.columns for g in c.goals}
-    assert len(card_ids) == 29 + _DECADE_GHOSTS
+    assert len(normal_ids) == 29
+    assert card_ids == normal_ids | set(b.ghosts)
     assert set(b.progress) == card_ids, "every card, and only cards, carries progress"
     assert set(b.ancestors) == card_ids, "every card, and only cards, carries ancestors"
     assert set(b.children) == card_ids, "every card, and only cards, carries children"
@@ -284,7 +292,18 @@ def test_s23_children_included_no_n_plus_1(f2: psycopg.Connection) -> None:
     assert "SYNQ2R01" in {g.id for g in b.children["SYNQ1R01"]}  # ... and once as a child
 
     rows = _flat_rows(b)
-    assert len(rows) == len({r.id for r in rows}) == 32 + _DECADE_GHOSTS
+    source_ids = {
+        g.id for c in b.columns for g in c.goals
+        if c.vertical is None or (g.vertical == c.vertical and g.period_key == c.period_key)
+    }
+    source_flat_ids = source_ids | {g.id for gid in source_ids for g in b.children[gid]}
+    assert len(source_ids) == 29
+    assert len(source_flat_ids) == 33
+    expected_ids = source_flat_ids | set(b.ghosts) | {
+        g.id for gid in b.ghosts for g in b.children[gid]
+    }
+    assert len(rows) == len({r.id for r in rows})
+    assert {r.id for r in rows} == expected_ids
 
 
 def test_r7_children_keep_verticals_and_lower_child_has_own_column(
@@ -320,22 +339,48 @@ def test_r7_children_keep_verticals_and_lower_child_has_own_column(
 
 
 def test_s24_exclusive_buckets(f2: psycopg.Connection) -> None:
-    """AC-042: a goal renders in exactly one column. `SYNDAY01` (day, 2026-08-08) does not also
-    appear in `week 2026-W32` even though 2026-08-08 falls inside that week; `SYNQ2R01`
-    (quarter, anchored 2026-09-30) appears in `2026-Q3` and nowhere else."""
+    """Stored membership is exclusive; a historical source may also have one live landing."""
     b = B.board(f2, owner="t1", date=ANCHOR)
+    sources: dict[str, list[Goal]] = {}
+    landings: dict[str, list[tuple[Column, Goal]]] = {}
+    for column in b.columns:
+        key = column.vertical or B.MAYBE_KEY
+        sources[key] = []
+        for goal in column.goals:
+            if column.vertical is None or (
+                goal.vertical == column.vertical and goal.period_key == column.period_key
+            ):
+                sources[key].append(goal)
+            else:
+                landings.setdefault(goal.id, []).append((column, goal))
 
-    all_ids = [g.id for c in b.columns for g in c.goals]
-    assert len(all_ids) == len(set(all_ids)) == 29 + _DECADE_GHOSTS, (
-        "no id may render in two columns"
-    )
+    assert {key: len(cards) for key, cards in sources.items()} == CENSUS
+    source_ids = [g.id for cards in sources.values() for g in cards]
+    assert len(source_ids) == len(set(source_ids)) == 29
+    assert set(landings) == set(b.ghosts)
+    today = date.today()
+    bounded = [h for h in vertical.VERTICALS if h.bounds_fn(today) is not None]
+    keys = [h.key for h in bounded]
+    for gid, copies in landings.items():
+        assert len(copies) == 1, f"{gid} must have exactly one carryover landing"
+        column, goal = copies[0]
+        own = bounded[keys.index(goal.vertical)]
+        assert goal.done_at is None
+        assert goal.anchor_date < own.bounds_fn(today)[0]
+        candidates = bounded[keys.index(goal.vertical):]
+        expected = next((h for h in candidates if goal.anchor_date >= h.bounds_fn(
+            h.bounds_fn(today)[0] - timedelta(days=1)
+        )[0]), bounded[-1])
+        assert column.vertical == expected.key
+        assert column.period_key == expected.period_key_fn(today)
+        assert b.ghosts[gid] == expected.bounds_fn(today)[1]
+        all_copies = [g for c in b.columns for g in c.goals if g.id == gid]
+        assert len(all_copies) == 1 + int(gid in source_ids)
 
-    week_ids = {g.id for g in _column(b, "week").goals}
-    assert "SYNDAY01" not in week_ids
-
-    by_column = {(c.vertical or B.MAYBE_KEY): {g.id for g in c.goals} for c in b.columns}
-    holders = [key for key, ids in by_column.items() if "SYNQ2R01" in ids]
-    assert holders == ["quarter"], holders
+    assert "SYNDAY01" not in {g.id for g in sources["week"]}
+    assert [key for key, cards in sources.items() if any(
+        g.id == "SYNQ2R01" for g in cards
+    )] == ["quarter"]
 
 
 # --- S-25 — the Maybe pile is exactly the partial index -----------------------------------------

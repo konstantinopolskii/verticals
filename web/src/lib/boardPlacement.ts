@@ -118,6 +118,8 @@ export function schedulePlacement(
     goal.vertical = wireVertical
     goal.anchor_date = anchorDate
     goal.period_key = target.periodKey
+    goal.ghost = false
+    goal.ghost_until = null
   }
   bump() // D245: outrun any board fetch already in flight — it describes the pre-move world.
 

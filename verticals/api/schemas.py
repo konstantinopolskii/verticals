@@ -371,8 +371,12 @@ def board_to_json(board: Board) -> dict:
                 "goals": [
                     {
                         **goal_to_card(g),
-                        "ghost": g.id in board.ghosts,
-                        "ghost_until": board.ghosts.get(g.id),
+                        # Time travel can show the historical source and its live, broader
+                        # landing column together. Only the latter is a carried-over card.
+                        "ghost": (is_ghost := g.id in board.ghosts and not (
+                            g.vertical == col.vertical and g.period_key == col.period_key
+                        )),
+                        "ghost_until": board.ghosts.get(g.id) if is_ghost else None,
                     }
                     for g in col.goals
                 ],
