@@ -7,7 +7,6 @@ import { store } from '../store'
 import PopoverEngine from './PopoverEngine.vue'
 import RepeatPopover from './RepeatPopover.vue'
 import type { RepeatRule } from '../lib/api'
-import { CARRYOVER_ACTIONS, resolveCarryover, type CarryoverAction } from '../lib/carryover'
 
 const props = defineProps<{
   id: string
@@ -17,13 +16,15 @@ const props = defineProps<{
   repeat?: RepeatRule | null
   foil?: boolean
   showIgnore?: boolean
-  ghostUntil?: string | null
 }>()
 const emit = defineEmits<{
   details: []
   complete: []
   foil: []
   park: []
+  ignore: []
+  'ack-due': []
+  'ack-done': []
   'open-change': [open: boolean]
 }>()
 
@@ -52,21 +53,20 @@ function closeMenu() {
   if (open.value) trigger.value?.click()
 }
 
-function act(name: 'details' | 'complete' | 'foil' | 'park') {
+function act(name: 'details' | 'complete' | 'foil' | 'park' | 'ignore' | 'ack-due' | 'ack-done') {
   if (name === 'details') emit('details')
   else if (name === 'complete') emit('complete')
   else if (name === 'foil') emit('foil')
   else if (name === 'park') emit('park')
+  else if (name === 'ack-due') emit('ack-due')
+  else if (name === 'ack-done') emit('ack-done')
+  else emit('ignore')
 }
 
 function schedule(scale: VerticalScale, periodKey: string) {
   if (scheduleDisabled(scale)) return
   void store.scheduleGoalQuick(props.id, scale, periodKey)
   closeMenu()
-}
-
-function resolveCarriedOver(action: CarryoverAction) {
-  void resolveCarryover(props, action)
 }
 
 function scheduleDisabled(scale: VerticalScale): boolean {
@@ -125,24 +125,6 @@ defineExpose({ openMenu })
       </button>
     </template>
 
-    <template v-if="props.showIgnore">
-      <div data-menu-section="carryover">
-        <button
-          v-for="option in CARRYOVER_ACTIONS.filter(item => item.action !== 'done')"
-          :key="option.action"
-          type="button"
-          role="menuitem"
-          class="dropdown__item goal-actions__item"
-          :data-menu-item="`carryover-${option.action}`"
-          :data-carryover-action="option.action"
-          :data-cap="option.action === 'missed' ? 'due-ack' : undefined"
-          :title="option.action === 'keep' && vertical ? `Keep in the current ${vertical}` : undefined"
-          @click="resolveCarriedOver(option.action)"
-        >{{ option.label }}</button>
-      </div>
-      <hr>
-    </template>
-
     <div data-menu-section="actions">
       <button
         type="button"
@@ -152,7 +134,7 @@ defineExpose({ openMenu })
         @click="act('details')"
       >Details</button>
       <button
-        v-if="props.isParent && !props.showIgnore"
+        v-if="props.isParent"
         type="button"
         role="menuitem"
         class="dropdown__item goal-actions__item"
@@ -178,6 +160,31 @@ defineExpose({ openMenu })
         data-cap="park"
         @click="act('park')"
       >Remove from vertical</button>
+      <button
+        v-if="props.showIgnore"
+        type="button"
+        role="menuitem"
+        class="dropdown__item goal-actions__item"
+        data-menu-item="ignore"
+        @click="act('ignore')"
+      >Ignore</button>
+      <button
+        v-if="props.showIgnore"
+        type="button"
+        role="menuitem"
+        class="dropdown__item goal-actions__item"
+        data-menu-item="due-ack"
+        data-cap="due-ack"
+        @click="act('ack-due')"
+      >Acknowledge due</button>
+      <button
+        v-if="props.showIgnore"
+        type="button"
+        role="menuitem"
+        class="dropdown__item goal-actions__item"
+        data-menu-item="due-done"
+        @click="act('ack-done')"
+      >Was done on time</button>
     </div>
 
     <hr>
