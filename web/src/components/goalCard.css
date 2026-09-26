@@ -502,4 +502,4 @@
 .goal-card .goal-card__title-text.goal-card__title-text--finding { font-weight: 400; }
 
 /* The carried title stays full strength; only its original period is secondary. */
-.goal-card__planned-period { color: #686868; font-size: inherit; font-weight: 400; }
+.goal-card__planned-period { color: #686868; font-size: inherit; font-weight: 400; white-space: nowrap; }

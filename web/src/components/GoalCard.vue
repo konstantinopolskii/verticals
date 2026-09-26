@@ -542,7 +542,7 @@ function onRowKeydown(event: KeyboardEvent) {
         >
           <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat, 'goal-card__title-text--context': filterContext, 'goal-card__title-text--finding': titleParts.some(part => part.match) || filterContext }">
             <RepeatMark v-if="repeat" />
-            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template><span v-if="ghost && plannedPeriod" class="goal-card__planned-period">{{ ' ' + plannedPeriod }}</span>
+            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template><template v-if="ghost && plannedPeriod">{{ ' ' }}<span class="goal-card__planned-period">{{ plannedPeriod.replace(/ /g, '\u00a0') }}</span></template>
           </span>
         </p>
         <textarea
