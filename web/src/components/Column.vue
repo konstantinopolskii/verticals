@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { KCardStack } from '@konstantinopolskii/vue'
 import AppIcon from './AppIcon.vue'
 import ColumnHeader from './ColumnHeader.vue'
+import CarryoverReview from './CarryoverReview.vue'
 import GoalCard from './GoalCard.vue'
 import InlineAdd from './InlineAdd.vue'
 import { store } from '../store'
@@ -310,6 +311,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
           @click="onHeaderClick"
         />
         <div class="pattern-vertical-board__body">
+          <CarryoverReview :goals="slide.goals" :vertical="vertical" />
           <KCardStack dense>
             <template v-for="item in renderItems(slide)" :key="item.key">
               <div

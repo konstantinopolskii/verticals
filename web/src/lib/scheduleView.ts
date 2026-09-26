@@ -15,6 +15,7 @@ import { buildScheduleGrid, type ScheduleGrid } from './schedule'
  *  current month. Stored as a timestamp rather than a `Date` so the computed below re-runs on
  *  assignment (a mutated Date object is the same reference and would not invalidate anything). */
 const scheduleViewAt = ref(0)
+const resetVersion = ref(0)
 
 /** One grid, shared by every card's `SchedulePopover` instance. `today` stays the real clock (the
  *  `isToday` dot and the Today/Tomorrow/This week footer are about the calendar, not about what
@@ -22,6 +23,8 @@ const scheduleViewAt = ref(0)
  *  run's whole duration (E2E.md §1), which this preserves — a pinned clock still gives a pinned
  *  today, and `scheduleViewAt` starts at 0 = today. */
 export const scheduleGrid: ComputedRef<ScheduleGrid> = computed(() => {
+  // Reset must refresh today even if the calendar was already following today at midnight.
+  void resetVersion.value
   const today = new Date()
   return buildScheduleGrid(today, scheduleViewAt.value ? new Date(scheduleViewAt.value) : today)
 })
@@ -44,5 +47,6 @@ export function navigateSchedule(
 /** Back to the real month. Called when a popover opens so every open starts from today rather
  *  than wherever the previous one was left. */
 export function resetScheduleView(): void {
+  resetVersion.value += 1
   scheduleViewAt.value = 0
 }

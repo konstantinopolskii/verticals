@@ -88,10 +88,6 @@
   color: var(--color-text);
   transition: color var(--motion-title) ease;
 }
-.goal-card__due {
-  color: #df496d;
-  font-weight: 500;
-}
 .goal-card__title-input {
   display: block;
   width: 100%;

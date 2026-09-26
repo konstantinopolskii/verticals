@@ -252,11 +252,6 @@ function park(): void {
   playSound('goal_deleted')
   void store.parkGoal(props.id)
 }
-function ignoreGhost(): void {
-  if (props.ghostUntil) void store.ignoreGhost(props.id, props.ghostUntil)
-}
-function ackDue(): void { void store.dueAckGhost(props.id, 'overdue') }
-function ackDoneOnTime(): void { void store.dueAckGhost(props.id, 'done_on_time') }
 
 /* The compact row keeps its DOM identity while inline detail is open. Drag state may still hide
    that same row temporarily; opening detail never replaces it with a second editor heading. */
@@ -548,7 +543,7 @@ function onRowKeydown(event: KeyboardEvent) {
         >
           <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat }">
             <RepeatMark v-if="repeat" />
-            <span v-if="ghost" class="goal-card__due">Due. </span>{{ title }}
+            {{ title }}
           </span>
         </p>
         <textarea
@@ -588,13 +583,11 @@ function onRowKeydown(event: KeyboardEvent) {
         :repeat="repeat"
         :foil="foil"
         :show-ignore="ghost"
+        :ghost-until="ghostUntil"
         @details="onOpenDetail"
         @complete="completeParent"
         @foil="toggleFoil"
         @park="park"
-        @ignore="ignoreGhost"
-        @ack-due="ackDue"
-        @ack-done="ackDoneOnTime"
         @open-change="onMenuOpenChange"
       />
     </div>
