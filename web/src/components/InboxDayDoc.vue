@@ -74,7 +74,8 @@ function enterEdit(): void {
   void nextTick(() => {
     if (!bodyEl.value) return
     resetBodyHistory(bodyEl.value)
-    bodyEl.value.focus({ preventScroll: true })
+    // A view token keeps editing in the command field even if this async load finishes later.
+    if (!document.activeElement?.closest('#verticals-command-bar')) bodyEl.value.focus({ preventScroll: true })
   })
 }
 

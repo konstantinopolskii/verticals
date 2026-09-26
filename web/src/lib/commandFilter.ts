@@ -14,9 +14,9 @@ export const commandSuggestions = computed<CommandToken[]>(() => [
 export function recognizeCommand(word: string) {
   return commandSuggestions.value.find(item => item.label.toLocaleLowerCase() === word.toLocaleLowerCase())
 }
-// Exact keywords already filter while being typed; the following space only turns them into chips.
+// Bare filter keywords apply immediately. View names stay inert until explicitly tokenized.
 export const effectiveTokens = computed(() => {
-  const typed = commandFilter.text.trim().split(/\s+/).map(recognizeCommand).filter((item): item is CommandToken => !!item)
+  const typed = commandFilter.text.trim().split(/\s+/).map(recognizeCommand).filter((item): item is CommandToken => !!item && item.kind !== 'view')
   return commandFilter.chatOpen ? [] : [...commandFilter.tokens, ...typed]
 })
 export const queryTerms = computed(() => commandFilter.chatOpen ? [] : commandFilter.text.trim().split(/\s+/).filter(word => word && !recognizeCommand(word)).map(word => word.toLocaleLowerCase()))

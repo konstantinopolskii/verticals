@@ -53,7 +53,7 @@ function allRemoteCandidates() {
 const suggestions = computed(() => commandSuggestions.value.filter(item => !commandFilter.tokens.some(token => token.key === item.key)))
 const showSuggestions = computed(() => focused.value && !commandFilter.text && !commandFilter.chatOpen)
 const label = computed(() => [...commandFilter.tokens.map(token => token.label), commandFilter.text.trim()].filter(Boolean).join(' '))
-const noMatches = computed(() => filterActive.value && !remotePending.value && !boardMatches.value.length && !remoteResults.value.length)
+const noMatches = computed(() => queryTerms.value.length > 0 && filterActive.value && !remotePending.value && !boardMatches.value.length && !remoteResults.value.length)
 const hint = computed(() => commandFilter.chatOpen ? '⌘↵ send' : label.value ? '⌘↵ ask agent' : '⌘K')
 
 function addToken(token: CommandToken) {
@@ -66,7 +66,7 @@ function removeToken(index: number) { commandFilter.tokens.splice(index, 1); voi
 function onInput(event: Event) {
   const value = (event.target as HTMLInputElement).value
   if (commandFilter.chatOpen) { commandFilter.text = value; return }
-  // Tokenize complete words only. Bare keywords apply the same filter without moving the caret.
+  // Space accepts a command. Bare area/vertical/state keywords filter; bare view names stay inert.
   commandFilter.text = value.replace(/(^|\s)(\S+)(?=\s)/g, (whole, leading: string, word: string) => {
     const token = recognizeCommand(word)
     if (!token) return whole
@@ -78,12 +78,14 @@ function onInput(event: Event) {
 function clear() { commandFilter.text = ''; commandFilter.tokens = []; remoteResults.value = [] }
 function dismiss() { clear(); input.value?.blur() }
 defineExpose({ dismiss })
-async function focusInput() { await nextTick(); input.value?.focus() }
+async function focusInput() { await nextTick(); input.value?.focus({ preventScroll: true }) }
 
-watch(() => effectiveTokens.value.find(token => token.kind === 'view')?.value, (view, previous) => {
+watch(() => commandFilter.tokens.find(token => token.kind === 'view')?.value, async (view, previous) => {
   if (commandFilter.chatOpen) return
   if (view === 'inbox' || view === 'docs') { store.closeGoal(); store.setView(view) }
   else if (previous) { store.closeGoal(); store.setView('verticals') }
+  // Navigation is part of editing the field. Keep the caret after its tokens.
+  await focusInput()
 })
 
 watch([queryTerms, effectiveTokens, () => store.state.board], async () => {
@@ -165,12 +167,12 @@ function onKeyDown(event: KeyboardEvent) {
     event.preventDefault(); event.stopPropagation()
     if (commandFilter.chatOpen) { window.dispatchEvent(new CustomEvent('verticals:agent-close')); commandFilter.chatOpen = false; clear() }
     else if (commandFilter.text) commandFilter.text = ''
-    else if (commandFilter.tokens.length) commandFilter.tokens.pop()
+    else if (commandFilter.tokens.length) removeToken(commandFilter.tokens.length - 1)
     else input.value?.blur()
     return
   }
   if (event.key === 'Backspace' && input.value?.selectionStart === 0 && input.value.selectionEnd === 0 && commandFilter.tokens.length) {
-    event.preventDefault(); commandFilter.tokens.pop(); return
+    event.preventDefault(); removeToken(commandFilter.tokens.length - 1); return
   }
   if (showSuggestions.value && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
     event.preventDefault()
@@ -181,7 +183,9 @@ function onKeyDown(event: KeyboardEvent) {
   }
   if (event.key === 'Enter') {
     event.preventDefault()
-    if (showSuggestions.value && activeIndex.value >= 0) addToken(suggestions.value[activeIndex.value]!)
+    const viewCommand = !commandFilter.chatOpen ? recognizeCommand(commandFilter.text.trim()) : undefined
+    if (viewCommand?.kind === 'view') { commandFilter.text = ''; addToken(viewCommand) }
+    else if (showSuggestions.value && activeIndex.value >= 0) addToken(suggestions.value[activeIndex.value]!)
     else if (!commandFilter.chatOpen && filterActive.value) void openOnlyMatch()
   }
 }
@@ -218,7 +222,7 @@ onBeforeUnmount(() => {
         <button :id="`command-suggestion-${index}`" type="button" :class="{ 'is-active': index === activeIndex }" :data-token="item.key" @mousedown.prevent @click="addToken(item)">{{ item.label }}</button>
       </template>
     </div>
-    <div v-else-if="!commandFilter.chatOpen && remoteResults.length" class="command-field__line command-field__remote" data-role="offboard-matches">
+    <div v-else-if="!commandFilter.chatOpen && queryTerms.length && remoteResults.length" class="command-field__line command-field__remote" data-role="offboard-matches">
       <span class="command-field__muted">Maybe this?</span>
       <button v-for="goal in remoteResults.slice(0, 3)" :key="goal.id" type="button" :data-goal-id="goal.id" @click="openRemote(goal)"><span>{{ goal.title }}</span> <small>{{ where(goal) }}</small></button>
       <span v-if="remoteResults.length > 3 || remoteTruncated" class="command-field__muted">+{{ Math.max(0, remoteResults.length - 3) }}{{ remoteTruncated ? '+' : '' }}</span>

@@ -115,6 +115,7 @@ onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentSta
 
 <template>
   <div class="app-shell">
+    <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search'" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
     <SearchBar id="verticals-command-bar" :agent-available="agentState.available" />
     <div class="app-content">
       <!-- Mutually exclusive (`v-if`/`v-else`), not `v-show`: before ruling 1 (owner, 2026-08-09),
@@ -164,6 +165,7 @@ onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentSta
 <style>
 :root { --app-bar-height: 0px; --shadow-float: 0 8px 24px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08); --radius: 12px; }
 .app-shell { display: block; height: 100%; overflow: hidden; background: #fff; }
+.board-bottom-fade { position: fixed; inset: auto 0 0; height: 80px; z-index: 299; pointer-events: none; background: linear-gradient(to bottom, rgba(255,255,255,0) 0, #fff 16px, #fff 100%); }
 .app-content { box-sizing: border-box; height: 100%; min-width: 0; overflow: hidden; position: relative; }
 .search-goal-surface { box-sizing: border-box; max-width: 720px; height: 100%; margin: 0 auto; padding: 32px 16px 80px; overflow-y: auto; }
 </style>
