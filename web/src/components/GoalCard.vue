@@ -134,8 +134,8 @@ const isOpenRelated = computed(() => {
   return ancestorIds(store.state.board, openId).includes(props.id)
     || subtreeIds(store.state.board, openId).has(props.id)
 })
-// D253: every visible same-vertical descendant renders at every depth.
-const showChildren = computed(() => props.children.length > 0)
+// KK, 27 Sep 2026 overrides D253: two board levels; opened goals keep their full subtree.
+const showChildren = computed(() => props.children.length > 0 && (props.depth < 1 || isOpenRelated.value))
 
 function onOpenDetail() {
   // Board cards route through `openBoardGoal`, which expands the card's column first (KK ruling
