@@ -505,11 +505,14 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   --goal-notes-edge: calc(6px + var(--space-2) + var(--kkov-expanded-goal-checkbox-size)
     + var(--kkov-expanded-goal-checkbox-text-gap) - var(--kkov-expanded-subtask-group-margin-left));
 }
-/* "Add…" ends the steps, drawn as one more step: an empty checkbox and a muted word at the steps' size. */
+/* "Add…" ends the steps, drawn as one more step: an empty checkbox and a muted word at the steps' size. The wide
+   column's lists stand their group margin in on the left and run that far past the column on the right, where the open
+   card's colour has ended: "Add…" stops at the colour, so its band doesn't stick out as a grey tab. */
 .goal-card__children--open > .subgoal-add-row.goal-card__add-step,
 .goal-card__children--open > .subgoal-add-editor-shell.goal-card__add-step {
+  width: auto;
   height: auto;
-  margin: 0;
+  margin: 0 calc(var(--kkov-expanded-subtask-group-margin-left, 0px) - var(--kkov-expanded-subtask-group-margin-right, 0px)) 0 0;
   padding: var(--kkov-expanded-subtask-padding-block) 25px var(--kkov-expanded-subtask-padding-block)
     calc(6px + var(--space-2));
   border-radius: 8px;
