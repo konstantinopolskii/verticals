@@ -719,8 +719,11 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 }
 /* The column's name sits over the top of its body, and stays out from under the veil. */
 .period-slide > .pattern-vertical-board__header { z-index: 2; }
+/* A lifted open card keeps its list on the lift's layer: brought down to the family's, the list sat under its own card,
+   whose colour runs down to the end of its piece and hid the steps, "Add…" and notes for as long as the pointer stayed
+   on it (KK, 29 Sep 2026: "When the task is opened I have this empty bug"). */
 .pattern-vertical-board--family .goal-card:is([data-light], [data-holding]) > .goal-card__row,
-.pattern-vertical-board--family .goal-card[data-light] + .goal-card__children--open {
+.pattern-vertical-board--family .goal-card[data-light] + .goal-card__children--open:not(.goal-card__children--lifted) {
   position: relative;
   z-index: 2;
 }
