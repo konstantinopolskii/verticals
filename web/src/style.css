@@ -75,6 +75,8 @@ body {
 :root {
   user-select: none;
   --motion-hover: 300ms;
+  --motion-lift-in: 160ms;
+  --motion-lift-out: 220ms;
   --motion-checkbox: 200ms;
   --motion-title: 150ms;
   --motion-progress: 100ms;
@@ -88,6 +90,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion-hover: 0.01ms;
+    --motion-lift-in: 0.01ms;
+    --motion-lift-out: 0.01ms;
     --motion-checkbox: 0.01ms;
     --motion-title: 0.01ms;
     --motion-progress: 0.01ms;

@@ -290,6 +290,8 @@ function closeMenu(restoreFocus = !props.nested) {
   else document.body.classList.remove('popover-engine-open')
   decorateTarget()
   emit('close')
+  // The board holds still while a menu is open; cards the pointer reached meanwhile react now (`lib/cardLift.ts`).
+  if (!props.nested) window.dispatchEvent(new CustomEvent('verticals:root-popover-close', { detail: id }))
   if (restoreFocus) void nextTick(() => targetEl.value?.focus())
 }
 
@@ -564,11 +566,14 @@ onBeforeUnmount(() => {
   overflow: auto;
   z-index: 5000;
   visibility: hidden;
-  background: #1b1b1b;
-  border: 1px solid #333333;
-  border-radius: 4px;
-  box-shadow: 0 2px 9px rgb(0 0 0 / 35%);
-  color: #f2f2f2;
+  /* Light, like the board it opens over (KK, 27 Sep 2026, the cleaned-up card's menu: "light, one text edge, nothing
+     the card already shows"). It was black with light ink, a copy of the reference's look. */
+  background: #fff;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 8%), 0 10px 28px rgb(0 0 0 / 12%);
+  color: #000;
+  outline: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -576,8 +581,7 @@ onBeforeUnmount(() => {
 }
 
 .Menu-floating.popover-engine__surface.dropdown__popover[data-dark-body='true'] {
-  border-color: #666666;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .Menu-floating.popover-engine__surface .dropdown__item {
@@ -590,8 +594,8 @@ onBeforeUnmount(() => {
 }
 
 /* Form controls do NOT inherit `color` from an ancestor — the UA sheet gives every `input` and
-   `textarea` its own black text — so a field dropped into this deliberately dark surface renders
-   black-on-#1b1b1b and reads as an empty box. That is exactly what the tags panel looked like
+   `textarea` its own black text — so a field dropped into the surface when it was dark rendered
+   black-on-#1b1b1b and read as an empty box. That is exactly what the tags panel looked like
    (owner, 2026-08-10: "кнопка тега кривая и у неё нихуя внутри нету"): the input, its value and
    its placeholder were all there, all invisible. Fixed once here rather than per consumer —
    every popover that ever holds a field inherits the surface's own colour from now on. */
@@ -603,7 +607,7 @@ onBeforeUnmount(() => {
 }
 .Menu-floating.popover-engine__surface input::placeholder,
 .Menu-floating.popover-engine__surface textarea::placeholder {
-  color: #a4a4a4;
+  color: rgb(0 0 0 / 40%);
 }
 
 /* Same trap one component up: the kit's `.chip` pins its ink, hairline and hover wash to page
@@ -614,10 +618,10 @@ onBeforeUnmount(() => {
    `.dropdown__item`'s wash. */
 .Menu-floating.popover-engine__surface .chip {
   color: inherit;
-  border-color: rgb(242 242 242 / 20%);
+  border-color: rgb(0 0 0 / 16%);
 }
 .Menu-floating.popover-engine__surface .chip:hover {
-  background: #a4a4a41a;
+  background: rgb(0 0 0 / 5%);
 }
 .Menu-floating.popover-engine__surface .chip:focus-visible {
   outline-color: currentColor;
@@ -626,7 +630,7 @@ onBeforeUnmount(() => {
 .Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):hover,
 .Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):focus,
 .Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):focus-visible {
-  background: #a4a4a41a;
+  background: rgb(0 0 0 / 5%);
 }
 
 /* A refused action must LOOK refused. The hover rule above had no `:disabled` guard and nothing
@@ -636,7 +640,7 @@ onBeforeUnmount(() => {
    own ink, the treatment `.period-nav__today:disabled` already set as this app's convention;
    `currentColor` carries it to the item's icon too. */
 .Menu-floating.popover-engine__surface .dropdown__item:disabled {
-  color: rgb(242 242 242 / 25%);
+  color: rgb(0 0 0 / 35%);
   background: transparent;
   cursor: default;
 }

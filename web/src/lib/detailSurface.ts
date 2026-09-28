@@ -168,12 +168,16 @@ export function createDetailSurface(
     }
   }
 
+  /** The new step lives where its parent does, so it shows on the board at once. Without a vertical the server kept it
+   *  as an unscheduled idea, which the board doesn't draw: an added step vanished (found 27 Sep 2026). */
   async function addDetailChild(title: string): Promise<void> {
     const openId = state.openGoalId
     const trimmed = title.trim()
     if (!openId || !trimmed) return
+    const parent = state.goalDetail?.id === openId ? state.goalDetail : null
+    const place = parent?.vertical && parent.anchor_date ? { vertical: parent.vertical, anchor_date: parent.anchor_date } : {}
     try {
-      await createGoal({ title: trimmed, parent_id: openId })
+      await createGoal({ title: trimmed, parent_id: openId, ...place })
       state.goalDetail = await fetchGoalDetail(openId)
       await deps.reloadBoard()
     } catch (err) {

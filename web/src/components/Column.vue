@@ -498,6 +498,30 @@ onBeforeUnmount(() => swapAnimation?.cancel())
 .period-slide[data-state='outgoing'] {
   pointer-events: none;
 }
+/* Room for a lifted card (KK, 27 Sep 2026: "u still cut the scaled tasks on the left and right of each vertical column,
+   because they have this overflow hidden param"). The slide scrolls up and down, so it must clip sideways too: at rest
+   it reaches 8 px past its column on each side with its content where it was, and the column shows those 8 px. It
+   takes no pointer itself, so its margin never covers the neighbour's cards. While two periods swap, the tight clip
+   stays, so the next period never shows beside the column. The column of a lifted card sits above its neighbours. */
+.pattern-vertical-board.pattern-vertical-board.pattern-vertical-board--flat > .pattern-vertical-board__column {
+  overflow: visible;
+  clip-path: inset(0 -8px);
+}
+.pattern-vertical-board.pattern-vertical-board.pattern-vertical-board--flat > .pattern-vertical-board__column:has(> .period-track--swapping) {
+  clip-path: inset(0);
+}
+.pattern-vertical-board--flat > .pattern-vertical-board__column:has(.goal-card--lifted) { z-index: 1; }
+.pattern-vertical-board--flat .period-track:not(.period-track--swapping) > .period-slide {
+  width: calc(100% + 16px);
+  margin-inline: -8px;
+  padding-inline: 8px;
+  pointer-events: none;
+}
+.pattern-vertical-board--flat .period-track:not(.period-track--swapping) > .period-slide > * { pointer-events: auto; }
+.pattern-vertical-board--flat .period-track:not(.period-track--swapping) > .period-slide > .pattern-vertical-board__header {
+  left: 8px;
+  right: 8px;
+}
 .pattern-vertical-board__drop-indicator {
   position: relative;
   box-sizing: border-box;

@@ -126,7 +126,7 @@ function commit() {
 }
 .shot-size-fields__label,
 .shot-size-fields__actual > span {
-  color: #a4a4a4;
+  color: rgba(0, 0, 0, .45);
   font-size: 12px;
   line-height: 16px;
 }
@@ -135,7 +135,7 @@ function commit() {
   width: 100%;
   height: 28px;
   padding: 4px 8px;
-  border: 1px solid #555555;
+  border: 1px solid rgba(0, 0, 0, .2);
   border-radius: 4px;
   color: inherit;
   font: inherit;

@@ -27,13 +27,18 @@ export function useInlineTitleEdit(options: {
     el.style.height = `${el.scrollHeight}px`
   }
 
-  function start(): void {
+  /** `caret`: the character a click landed on, so the caret goes there (D67); none, from the keyboard, selects all. */
+  function start(caret: number | null = null): void {
     committed = false
     draft.value = options.title()
     editing.value = true
     void nextTick(() => {
       autosize()
-      input.value?.select()
+      const el = input.value
+      if (!el) return
+      el.focus()
+      if (caret === null) el.select()
+      else el.setSelectionRange(Math.min(caret, el.value.length), Math.min(caret, el.value.length))
     })
   }
 

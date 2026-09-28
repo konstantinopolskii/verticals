@@ -3,15 +3,19 @@
    inline detail (`goal-detail-inline`) — GoalCard.vue mounts/unmounts it per card
    (`v-if="isInlineDetailHost"`), so there is no cross-goal lifecycle to manage here beyond the
    inline open/close animation and body edit/save flow below. P-28 keeps one safe rendered DOM in
-   read/edit states, with optimistic local state and debounced Markdown PATCHes. */
+   read/edit states, with optimistic local state and debounced Markdown PATCHes.
+
+   The cleaned-up card (KK, 27 Sep 2026: "I love it. Let's implement"): this is the open goal's notes, at the end of
+   its piece, after its steps. The title, its facts line and the steps are the card's (GoalCard.vue, GoalFacts.vue),
+   so nothing here repeats them: no icon row, no pills. The documents the agent linked on lines of their own leave the
+   notes for one line after them; long notes show ten lines and say what is left; the card never scrolls inside. */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { KChip } from '@konstantinopolskii/vue'
 import GoalDetailEditor from './GoalDetailEditor.vue'
-import SubgoalAddRow from './SubgoalAddRow.vue'
-import ShotSizeFields from '../kit-ext/shot-size-fields/ShotSizeFields.vue'
 import { store } from '../store'
 import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
+import { MONTH_NAMES } from '../lib/periods'
+import { leaveRoom, roomFor } from '../lib/columnRoom'
 import {
   handleBodyBeforeInput,
   handleBodyKeydown,
@@ -22,25 +26,18 @@ import {
 
 const goal = computed(() => store.state.goalDetail)
 const loading = computed(() => store.state.goalDetailLoading)
-const closing = ref(false)
-const surfaceVisible = computed(() => store.state.openGoalId !== null || closing.value)
-const surfaceState = computed(() => closing.value ? 'closed' : 'open')
-let closeTimer: number | null = null
+const OPEN_MS = 360 // `goalDetail.css`'s opening: the column scrolls in step with it
 
-const INLINE_CLOSE_MS = 360
-
+/* Closing is at once: the card's facts line, "Add…" and these notes fold away together in GoalCard.vue's leave
+   transitions. It used to wait out a 360 ms fold that never ran (the opening animation's fill held the notes open),
+   then snap shut (the motion trace, 27 Sep 2026). */
 function requestClose() {
-  if (closing.value || store.state.openGoalId === null) return
-  closing.value = true
-  closeTimer = window.setTimeout(() => {
-    closeTimer = null
-    store.closeGoal()
-    closing.value = false
-  }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : INLINE_CLOSE_MS)
+  if (store.state.openGoalId === null) return
+  store.closeGoal()
 }
 
 function onDetailKeydown(event: KeyboardEvent) {
-  if (store.state.openGoalId === null || closing.value) return
+  if (store.state.openGoalId === null) return
   const hosted = document.querySelector<HTMLElement>(
     '#dropdownPortal [data-popover-surface][data-state="open"]',
   )
@@ -52,38 +49,50 @@ function onDetailKeydown(event: KeyboardEvent) {
 }
 
 function onInlinePointerDown(event: PointerEvent) {
-  if (closing.value || store.state.openGoalId === null) return
+  if (store.state.openGoalId === null) return
   const target = event.target as HTMLElement | null
   if (!target) return
   // WP-B2: the comments panel now docks to the viewport edge, mounted at `App.vue`'s own level
   // (`CommentsPanel.vue`'s header comment) — no longer a descendant of `[data-goal-id]`. Without
   // this, writing a reply or clicking Resolve inside the panel would register as a pointerdown
-  // OUTSIDE the card and collapse it mid-write.
-  if (target.closest('#goal-detail, #dropdownPortal, [data-goal-id], [data-role="comments-panel"]')) return
+  // OUTSIDE the card and collapse it mid-write. The open goal's steps list (`data-open-region`)
+  // is part of the card: a press between its steps is not a press outside.
+  if (target.closest('#goal-detail, #dropdownPortal, [data-goal-id], [data-open-region], [data-role="comments-panel"]')) return
   requestClose()
 }
 
 onMounted(() => {
   document.addEventListener('keydown', onDetailKeydown)
   document.addEventListener('pointerdown', onInlinePointerDown)
+  void nextTick(fitIntoView) // at the click, not once the notes have loaded
 })
 onBeforeUnmount(() => {
-  if (closeTimer !== null) window.clearTimeout(closeTimer)
   document.removeEventListener('keydown', onDetailKeydown)
   document.removeEventListener('pointerdown', onInlinePointerDown)
+  stopScroll()
+  leaveRoom(rootEl.value?.closest<HTMLElement>('.pattern-vertical-board__body') ?? null)
 })
 
+const rootEl = ref<HTMLElement | null>(null)
 const editingBody = ref(false)
 const bodyDraft = ref('')
 const bodyInputEl = ref<HTMLElement | null>(null)
-const bodyIsLong = ref(false)
 const bodyExpanded = ref(false)
-const INLINE_BODY_PREVIEW_HEIGHT = 220
 const BODY_SAVE_DEBOUNCE_MS = 1_000
 const bodySaveTimers = new Map<string, { timer: number; body: string }>()
 let bodySessionStart = ''
 let bodySessionId: string | null = null
 let bodySessionPersisted = ''
+
+/* Ten lines, then the rest behind "N more lines" (D210's preview, kept in round one: at 30 lines a goal's notes pushed
+   its siblings off the screen). Notes up to five lines longer show in full: a fold that hides two lines saves nothing. */
+const LINE_PX = 22
+const PREVIEW_LINES = 10
+const FOLD_AT_LEAST = 5
+const PREVIEW_PX = LINE_PX * PREVIEW_LINES
+const moreLines = ref(0)
+const folded = computed(() => moreLines.value > 0 && !bodyExpanded.value && !editingBody.value)
+const moreLabel = computed(() => `${moreLines.value} more ${moreLines.value === 1 ? 'line' : 'lines'}`)
 
 // docs/COMMENTS_SPEC.md WP-B: selection-to-comment affordance, highlight repaint, and highlight
 // click-through — shared with DocDetail.vue via this one composable (see its own header comment).
@@ -94,19 +103,44 @@ const anchoring = useCommentAnchoring({
   targetId: () => goal.value?.id ?? null,
 })
 
+/** A paragraph that is one link to a document and nothing else is a document the agent linked. Such lines leave the
+ *  notes for one line after them, "3 documents · latest 24 Sep", that opens the list (KK, 27 Sep 2026: "I wanted it
+ *  to be a simple item like for mentioned docs, same here, different wording"); editing the notes shows them where they
+ *  stand. A link inside a sentence stays a link. */
+const linkedDocs = ref<Array<{ path: string; title: string }>>([])
+function markDocumentLines(root: HTMLElement): void {
+  const found: Array<{ path: string; title: string }> = []
+  for (const block of root.children) {
+    const link = block.tagName === 'P' && block.children.length === 1 ? block.firstElementChild : null
+    const target = link instanceof HTMLAnchorElement ? internalLinkOf(link) : null
+    const isDoc = target?.kind === 'doc' && block.textContent?.trim() === link?.textContent?.trim()
+    block.classList.toggle('goal-detail__doc-line', isDoc)
+    if (isDoc && target && !found.some((d) => d.path === target.target)) {
+      found.push({ path: target.target, title: link?.textContent?.trim() || target.target })
+    }
+  }
+  linkedDocs.value = found
+}
+
+function renderBody(root: HTMLElement, body: string): void {
+  renderBodyElement(root, body)
+  markDocumentLines(root)
+}
+
 function measureBodyLength(): void {
   void nextTick(() => {
-    bodyIsLong.value = Boolean(
-      bodyInputEl.value
-      && bodyInputEl.value.scrollHeight > INLINE_BODY_PREVIEW_HEIGHT,
-    )
+    const el = bodyInputEl.value
+    if (!el) return
+    const extra = Math.round(el.scrollHeight / LINE_PX) - PREVIEW_LINES
+    moreLines.value = extra >= FOLD_AT_LEAST ? extra : 0
+    void nextTick(fitIntoView)
   })
 }
 
 function paintBody(body: string): void {
   void nextTick(() => {
     if (bodyInputEl.value && !editingBody.value) {
-      renderBodyElement(bodyInputEl.value, body)
+      renderBody(bodyInputEl.value, body)
       measureBodyLength()
       anchoring.paintHighlights()
     }
@@ -152,10 +186,12 @@ watch(
   (id, previousId) => {
     if (previousId && id !== previousId) flushBodySave(previousId)
     editingBody.value = false
-    bodyIsLong.value = false
+    moreLines.value = 0
     bodyExpanded.value = false
+    openList.value = null
+    fitted = false
     bodySessionId = null
-    // docs/COMMENTS_SPEC.md WP-B: the icon's own "open-thread count" badge needs real data
+    // docs/COMMENTS_SPEC.md WP-B: the facts line's open-comment count needs real data
     // regardless of whether the panel has ever been opened (`lib/comments.ts`'s own header
     // comment on this same call) — fetched the moment this goal's own detail loads, not gated
     // behind the panel. Closing on `id === undefined` covers both a real close and a host swap.
@@ -234,7 +270,7 @@ function finishBodyEdit() {
   // Navigation fires blur before pagehide. Keep this flush alive so pagehide cannot find an
   // already-consumed timer whose ordinary request is then aborted by the navigation.
   if (bodySessionId) flushBodySave(bodySessionId, true)
-  if (bodyInputEl.value) renderBodyElement(bodyInputEl.value, bodyDraft.value)
+  if (bodyInputEl.value) renderBody(bodyInputEl.value, bodyDraft.value)
   editingBody.value = false
   bodySessionId = null
   measureBodyLength()
@@ -252,7 +288,7 @@ function cancelBodyEdit() {
     goal.value.body = bodySessionStart
   }
   bodyDraft.value = bodySessionStart
-  if (bodyInputEl.value) renderBodyElement(bodyInputEl.value, bodySessionStart)
+  if (bodyInputEl.value) renderBody(bodyInputEl.value, bodySessionStart)
   editingBody.value = false
   bodySessionId = null
   measureBodyLength()
@@ -280,25 +316,125 @@ function onBodySurfaceKeydown(event: KeyboardEvent) {
   handleBodyKeydown(event)
 }
 
-// Existing detail children support render/toggle/add. Enter commits add; blur abandons it.
-
-const detailAdd = ref<{ openEditor: () => void } | null>(null)
-
-function onSubgoalAdd(title: string) {
-  void store.addDetailChild(title)
+/* Two lines of documents after the notes, one look, each opening its list, newest first:
+   - the goal's own, which the agent linked on lines of their own: "3 documents · latest 24 Sep";
+   - the ones that mention the goal (their text links to it) and aren't in its notes: "Mentioned in 13 documents · latest
+     24 Sep". They used to be pills, 21 on one goal. A document linked from an ancestor is its ancestor's (D251) and
+     isn't repeated here, and two documents with one title show once, the newer: the 25 Sep migration left copies of some
+     under `migration/`. */
+type DocItem = { key: string; title: string; updated: string | null; open: () => void }
+const openList = ref<'documents' | 'mentions' | null>(null)
+const newestFirst = (a: DocItem, b: DocItem) => (b.updated ?? '').localeCompare(a.updated ?? '')
+const documents = computed<DocItem[]>(() => {
+  // a document's own title: the link's words are the sentence's ("the review document")
+  const known = new Map(store.state.docs.list.map((d) => [d.path, d]))
+  return linkedDocs.value.map((d) => ({
+    key: d.path,
+    title: known.get(d.path)?.title || d.title,
+    updated: known.get(d.path)?.updated_at ?? null,
+    open: () => void store.followBodyLink({ kind: 'doc', target: d.path }),
+  })).sort(newestFirst)
+})
+const mentions = computed<DocItem[]>(() => {
+  const g = goal.value
+  if (!g) return []
+  const inNotes = new Set(g.docs.filter((d) => d.source === 'goal' && !d.inherited_from).map((d) => d.id))
+  const seen = new Set<string>()
+  const dated = new Map(store.state.docs.list.map((d) => [d.id, d.updated_at]))
+  const all: DocItem[] = []
+  for (const d of g.docs) {
+    if (d.source !== 'doc' || d.inherited_from || inNotes.has(d.id)) continue
+    all.push({ key: d.id, title: d.title || d.path, updated: dated.get(d.id) ?? null, open: () => store.openDocFromGoal(d.id) })
+  }
+  return all.sort(newestFirst).filter((d) => !seen.has(d.title) && seen.add(d.title))
+})
+const docLines = computed(() => [
+  { role: 'goal-documents', list: 'documents' as const, docs: documents.value, label: (n: number) => `${n} ${n === 1 ? 'document' : 'documents'}` },
+  { role: 'goal-mentions', list: 'mentions' as const, docs: mentions.value, label: (n: number) => `Mentioned in ${n} ${n === 1 ? 'document' : 'documents'}` },
+].filter((line) => line.docs.length))
+watch(() => documents.value.length + mentions.value.length, (n) => {
+  if (n && !store.state.docs.list.length && !store.state.docs.listLoading) void store.loadDocs()
+}, { immediate: true })
+function shortDate(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0, 3)}`
 }
 
-function openSubgoalAdd() {
-  detailAdd.value?.openEditor()
+/* Opening where you expect it (KK, 27 Sep 2026: "I want the goal to be opened in a way I will see it, so it should
+   appear at the top, not to scroll a bit at a bottom"). Wherever it was clicked, the opened goal's card goes to the top
+   of its column, 16 px under the window's edge, in the same movement as the opening; the column's first goal stays under
+   the column's name, where it already is. A goal too near the column's end gets room after the last card
+   (`lib/columnRoom.ts`). The card and the cards above it still grow while it opens, so the target is read again every
+   frame until nothing moves. The glide takes longer the farther it goes (360-600 ms), so its first frame never jumps.
+   Once per opening; closing scrolls nothing; any wheel, key or press takes over. */
+const TOP_GAP = 16
+let fitted = false
+let tween = 0
+function stopScroll(): void {
+  if (tween) cancelAnimationFrame(tween)
+  tween = 0
+  for (const type of ['wheel', 'pointerdown', 'keydown', 'touchstart']) window.removeEventListener(type, stopScroll, true)
+}
+/** Where `el` starts inside `scroller`'s content, as laid out: the lift's scale and rise don't count. */
+function contentTop(el: HTMLElement, scroller: HTMLElement): number {
+  let y = 0
+  for (let e: HTMLElement | null = el; e && e !== scroller; e = e.offsetParent as HTMLElement | null) y += e.offsetTop
+  return y
+}
+function fitIntoView(): void {
+  if (fitted || tween) return
+  const detail = rootEl.value
+  const list = detail?.parentElement ?? null
+  const card = list?.previousElementSibling as HTMLElement | null
+  let scroller = list?.parentElement ?? null
+  while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
+  if (!detail || !list || !card || !scroller) return
+  fitted = true
+  const el = scroller
+  const first = el.querySelector<HTMLElement>('.goal-card')
+  const body = el.querySelector<HTMLElement>(':scope > .pattern-vertical-board__body')
+  const target = (): number => {
+    const top = contentTop(card, el)
+    const to = first && top <= contentTop(first, el) + 1 ? 0 : Math.max(0, top - TOP_GAP)
+    if (body) roomFor(el, body, to)
+    return to
+  }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.scrollTop = target(); return }
+  // The glide starts from wherever the first frame finds the column: GoalCard.vue holds the clicked card in place first.
+  let from = Number.NaN
+  let ms = OPEN_MS
+  let start = 0
+  let last = Number.NaN
+  let still = 0
+  const step = () => {
+    // performance.now(), not the frame's time stamp: the opening's own work delays the first frame, and a stale stamp
+    // made the glide think 80 ms had passed and jump 278 px
+    const now = performance.now()
+    if (Number.isNaN(from)) {
+      from = el.scrollTop
+      ms = Math.min(600, Math.max(OPEN_MS, 250 + 0.3 * Math.abs(target() - from)))
+      start = now
+    }
+    const t = Math.min(1, (now - start) / ms)
+    const to = target()
+    el.scrollTop = from + (to - from) * (1 - (1 - t) ** 3)
+    still = Math.abs(to - last) < 0.5 ? still + 1 : 0
+    last = to
+    tween = t < 1 || (still < 3 && now - start < ms + 600) ? requestAnimationFrame(step) : 0
+    if (!tween) stopScroll()
+  }
+  tween = requestAnimationFrame(step)
+  for (const type of ['wheel', 'pointerdown', 'keydown', 'touchstart']) window.addEventListener(type, stopScroll, { capture: true, passive: true })
 }
 </script>
 
 <template>
   <div
-    v-if="surfaceVisible"
     id="goal-detail"
+    ref="rootEl"
     class="goal-detail-root goal-detail-inline"
-    :data-state="surfaceState"
+    data-state="open"
     data-role="inline-detail"
     aria-hidden="false"
   >
@@ -324,24 +460,7 @@ function openSubgoalAdd() {
                 :repeat="goal.repeat"
                 :has-children="goal.children.length > 0"
                 :inline="true"
-                @add-subgoal="openSubgoalAdd"
               >
-                <template #before-body>
-                  <SubgoalAddRow
-                    ref="detailAdd"
-                    :show-trigger="false"
-                    commit-on-enter
-                    @commit="onSubgoalAdd"
-                  />
-                </template>
-                <template #meta-start>
-                  <ShotSizeFields
-                    v-if="goal.vertical === 'week' || goal.vertical === 'day'"
-                    :expected="goal.size_expected"
-                    :actual="goal.size_actual"
-                    @change-expected="(value) => goal && store.updateGoal(goal.id, { size_expected: value })"
-                  />
-                </template>
                 <!-- `is-selectable`: the app's global `user-select: none` (style.css, owner
                      ruling 2026-08-09 — "restrict text selection except where you edit") would
                      otherwise block a read-mode drag-select entirely, and docs/COMMENTS_SPEC.md
@@ -351,10 +470,8 @@ function openSubgoalAdd() {
                 <div
                   ref="bodyInputEl"
                   class="goal-detail__body is-selectable"
-                  :class="{
-                    'goal-detail__body--collapsed': bodyIsLong && !bodyExpanded && !editingBody,
-                  }"
-                  :style="{ '--goal-body-preview-height': `${INLINE_BODY_PREVIEW_HEIGHT}px` }"
+                  :class="{ 'goal-detail__body--collapsed': folded }"
+                  :style="{ '--goal-body-preview-height': `${PREVIEW_PX}px` }"
                   data-cap="edit-body"
                   data-placeholder="Notes"
                   tabindex="0"
@@ -374,11 +491,12 @@ function openSubgoalAdd() {
                   @mouseup="anchoring.onBodyMouseUp"
                 ></div>
                 <button
-                  v-if="bodyIsLong && !bodyExpanded && !editingBody"
+                  v-if="folded"
                   type="button"
-                  class="goal-detail__body-see-all"
+                  class="goal-detail__body-more"
+                  data-role="body-more"
                   @click="bodyExpanded = true"
-                >See all</button>
+                >{{ moreLabel }}</button>
                 <!-- docs/COMMENTS_SPEC.md WP-B: selecting body text offers this, positioned at the
                      selection's own bounding box (`commentAnchoring.ts::onBodyMouseUp`). -->
                 <button
@@ -389,28 +507,22 @@ function openSubgoalAdd() {
                   :style="{ left: `${anchoring.selectionButtonPos.value.x}px`, top: `${anchoring.selectionButtonPos.value.y}px` }"
                   @mousedown.prevent="anchoring.commitSelectionToComment"
                 >Comment</button>
-                <!-- D250 WP-3 / D251: linked docs (`schemas.py::goal_to_detail`'s `docs` field) —
-                     click navigates to the Docs view and opens the target, the goal-side mirror
-                     of `DocDetail.vue`'s own linked-goal chips. D251: `goal.docs` already sorts
-                     own entries before inherited ones (own wins the dedupe on the server side),
-                     so this loop draws them in server order with no re-sort — inherited docs
-                     (`doc.inherited_from` set) render "ghosted": one muted-colour cue
-                     (`goal-doc-chip--inherited` in ./goalDetail.css, the same reduced-emphasis
-                     move `kit-ext/carryover-ghost` uses elsewhere), attribution on the native
-                     `title` tooltip rather than a second visible cue, click behaves identically
-                     to an own chip. -->
-                <div v-if="goal.docs.length" class="chip-wrap goal-detail__docs" data-role="goal-doc-chips">
-                  <KChip
-                    v-for="doc in goal.docs"
-                    :key="doc.id"
-                    data-role="goal-doc-chip"
-                    :data-doc-id="doc.id"
-                    :data-inherited="doc.inherited_from ? 'true' : undefined"
-                    :class="{ 'goal-doc-chip--inherited': doc.inherited_from }"
-                    :title="doc.inherited_from ? `via ${doc.inherited_from.title}` : undefined"
-                    @click="store.openDocFromGoal(doc.id)"
-                  >{{ doc.title || doc.path }}</KChip>
-                </div>
+                <template v-for="line in docLines" :key="line.list">
+                  <button
+                    type="button"
+                    class="goal-detail__mentions"
+                    :data-role="line.role"
+                    :aria-expanded="openList === line.list"
+                    @click="openList = openList === line.list ? null : line.list"
+                  ><b>{{ line.label(line.docs.length) }}</b><template v-if="line.docs[0].updated"><span class="goal-detail__mentions-sep" aria-hidden="true">·</span>latest {{ shortDate(line.docs[0].updated) }}</template></button>
+                  <ul v-if="openList === line.list" class="goal-detail__mention-list" :data-role="`${line.role}-list`">
+                    <li v-for="doc in line.docs" :key="doc.key">
+                      <button type="button" :data-doc="doc.key" @click="doc.open()">
+                        <span>{{ doc.title }}</span><span class="goal-detail__mention-date">{{ shortDate(doc.updated) }}</span>
+                      </button>
+                    </li>
+                  </ul>
+                </template>
               </GoalDetailEditor>
             </template>
             <p v-else class="goal-detail__loading t-caption t-muted">Could not load this goal.</p>

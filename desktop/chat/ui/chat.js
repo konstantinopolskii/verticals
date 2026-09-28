@@ -1040,45 +1040,18 @@
 
   // ---------------------------------------------------------------- start
 
-  // Goal cards are Verticals' own DOM (.goal-card[data-goal-id] > .goal-card__row). The button sits
-  // next to the card's "…" menu, appears on hover like it, and never starts the row's drag.
-  const goalStyle = document.createElement('style');
-  goalStyle.textContent = `
-    .goal-card > .goal-card__row > .vt-goal-chat { position:absolute; z-index:2; top:-1px; right:26px; width:24px; height:24px; padding:0;
-      display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:currentColor; cursor:pointer; opacity:0;
-      transition:opacity .15s cubic-bezier(.165,.84,.44,1); }
-    .goal-card:hover > .goal-card__row > .vt-goal-chat, .vt-goal-chat:focus-visible { opacity:.55; }
-    .goal-card > .goal-card__row > .vt-goal-chat:hover { opacity:1; background:rgba(0,0,0,.06); }
-    .vt-goal-chat svg { width:14px; height:14px; }`;
-  function addGoalButtons(scope = document) {
-    scope.querySelectorAll?.('.goal-card[data-goal-id] > .goal-card__row').forEach((row) => {
-      if (row.querySelector(':scope > .vt-goal-chat')) return;
-      const card = row.parentElement;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'vt-goal-chat';
-      btn.title = 'Discuss with your agent';
-      btn.setAttribute('aria-label', 'Discuss this goal with your agent');
-      btn.innerHTML = icon(I.message, 14);
-      for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick', 'contextmenu', 'keydown'])
-        btn.addEventListener(type, (e) => e.stopPropagation());
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const title = (card.querySelector('.goal-card__title-text')?.innerText || '').replace(/^Due\.\s*/, '').trim();
-        openGoalChat({ id: card.dataset.goalId, title: title || 'Goal' });
-      });
-      row.appendChild(btn);
-    });
-  }
-  new MutationObserver((records) => {
-    syncCommandBar();
-    for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1) addGoalButtons(n.parentElement || n);
-  }).observe(document.documentElement, { childList: true, subtree: true });
+  // Discussing a goal is one of the card's actions: Verticals' "…" menu asks for it (GoalCardTools.vue). The button this
+  // script used to add to every card's row sat over the title (KK, 27 Sep 2026).
+  window.addEventListener('verticals:discuss-goal', (e) => {
+    const id = e.detail && e.detail.id;
+    if (!id) return;
+    const text = document.querySelector(`.goal-card[data-goal-id="${CSS.escape(id)}"] .goal-card__title-text`);
+    const title = ((text && text.innerText) || '').replace(/^Due\.\s*/, '').trim();
+    openGoalChat({ id, title: title || 'Goal' });
+  });
+  new MutationObserver(syncCommandBar).observe(document.documentElement, { childList: true, subtree: true });
 
   async function mount() {
-    document.head.appendChild(goalStyle);
-    addGoalButtons();
     document.body.appendChild(host);
     syncCommandBar();
     publishAgentState();

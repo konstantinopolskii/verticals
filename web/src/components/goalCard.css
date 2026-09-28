@@ -5,24 +5,27 @@
   border: 0;
   box-shadow: none;
   background-color: var(--color-bg);
-  transition: background-color var(--motion-hover) cubic-bezier(.165, .84, .44, 1);
+  transition: background-color var(--motion-hover) cubic-bezier(.165, .84, .44, 1),
+    transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1);
+}
+/* A goal shows its subgoals a little closer under it (KK, 27 Sep 2026: "Bottom padding for the parent tasks should be
+   just a little bit smaller to optically make subgoals closer"): 4 px under its words instead of the card's 6. */
+.goal-card.goal-card.goal-card--with-subgoals {
+  padding-bottom: 4px;
 }
 .goal-card.goal-card--detail-open,
 .goal-card.goal-card--detail-open:hover {
-  border-radius: 14px;
-  background: var(--goal-hover-background) !important;
+  border-radius: 8px; /* one highlight shape (KK, 27 Sep 2026): the colour is the row's layer, see below */
   transition: background-color var(--goal-focus-motion-duration, 360ms)
     var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)) !important;
 }
-.goal-card.goal-card--detail-open {
-  max-height: min(70vh, 640px);
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-.goal-card--detail-open > #goal-detail.goal-detail-inline {
+/* An open goal never scrolls inside itself (KK, 27 Sep 2026: "We shouldn't have the scroll inside cards"): it is one
+   piece in the column, title, facts, steps and notes, and the column scrolls. Its notes are the last thing in its
+   steps list (GoalCard.vue), so they rise, colour and move with it. */
+.goal-card__children > #goal-detail.goal-detail-inline {
   flex: 0 0 auto;
-  width: 100%;
-  margin-left: 0;
+  width: auto;
+  margin: 0;
 }
 .card-stack > .goal-card.goal-card:first-child:not([data-state="active"]) {
   background-color: var(--color-bg);
@@ -51,6 +54,9 @@
 }
 /* Normal hanging alignment: the checkbox occupies the first column and every wrapped line keeps
    the same text edge beside it. */
+/* The slot never makes a row taller than its first line (KK, 27 Sep 2026: the vertical gaps were "questionable and
+   inconsistent"): with its 4 px top margin a checkbox slot stood 2-5 px below a single line, so a one-line goal had
+   more room under its words than a longer one. Each size below gives it a negative bottom margin for that overhang. */
 .goal-card__affordance-slot {
   display: inline-flex;
   flex: 0 0 var(--space-5);
@@ -61,14 +67,77 @@
 .goal-card__affordance-slot > .goal-affordance {
   position: static;
 }
+/* One highlight shape per goal, the same across the board (KK, 27 Sep 2026): whatever colours a goal (hover, the
+   family chain D235, an opened goal's relatives, its menu), the colour is one layer behind the goal's row, never the
+   goal's own box. Every goal, parent or subgoal, has its own shape, as wide as its card's lane and --subgoal-gap from
+   its neighbours; nothing reaches past the lane. Titles and checkboxes never move: the layer sits behind them and
+   pushes nothing. The shape per goal comes from `lib/goalWash.ts`; a goal with no subgoals needs none (its box is the
+   lane). */
 .goal-card:hover,
 .goal-card.goal-card--menu-open,
 .goal-card.goal-card--landed-hover,
 .goal-card.goal-card--ancestor-hover,
 .goal-card.goal-card--open-related {
-  background-color: var(--goal-hover-background) !important;
-  transition: none !important;
+  background-color: transparent !important;
+  transition: background-color 0s, transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1) !important;
 }
+.goal-card > .goal-card__row { isolation: isolate; }
+.goal-card > .goal-card__row::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: calc(-1 * var(--wash-t, 6px));
+  bottom: calc(-1 * var(--wash-b, 6px));
+  left: calc(-1 * var(--wash-l, 6px));
+  right: calc(-1 * var(--wash-r, 6px));
+  border-radius: 8px;
+  background: var(--goal-hover-background);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-hover) cubic-bezier(.165, .84, .44, 1);
+}
+.goal-card:is(:hover, .goal-card--menu-open, .goal-card--landed-hover, .goal-card--ancestor-hover, .goal-card--open-related, .goal-card--detail-open) > .goal-card__row::before {
+  opacity: var(--goal-light-tint);
+  transition: none;
+}
+/* While a menu is open the board holds still (`lib/cardLift.ts`): a card the pointer crosses on the way to a submenu or
+   out of the menu doesn't light up. What was lit when the menu opened stays lit. */
+body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card--landed-hover, .goal-card--ancestor-hover,
+  .goal-card--open-related, .goal-card--detail-open) > .goal-card__row::before {
+  opacity: 0;
+}
+/* Two strengths (KK, 27 Sep 2026: "use lighter tint ... for the cards highlights on hover. But the opened card should
+   be with the current tint both active and while hovered"): pointing at a goal, its family and the open goal's
+   relatives take the lighter tint; the open goal keeps the whole colour, and pointing at it changes nothing. Its own
+   steps sit on its colour and take the lighter tint over it only when pointed at. At .47 the lighter one read as
+   "too dimmed compared to the active one" (KK, same day): .7 now, tunable in the dev Layout panel (Highlight). */
+.goal-card { --goal-light-tint: var(--kkov-light-tint, .7); }
+.goal-card.goal-card--detail-open > .goal-card__row::before { opacity: 1; }
+/* Subgoal boxes overlap their neighbours by 2 px; a plain one painted white would bite the corner off a coloured shape
+   next to it. On the board's own background, clear is the same as white. */
+.goal-card__children > .goal-card.goal-card { background-color: transparent; }
+
+/* Hover lift (KK, 27 Sep 2026, `lib/cardLift.ts`): the goal and its subtask list rise 2 px and grow around their shared
+   centre (set inline with the scale), colour and all; the column gives it room (Column.vue). No shadow. */
+.goal-card.goal-card--lifted,
+.goal-card__children--lifted {
+  position: relative;
+  z-index: 6;
+  transform: translateY(-2px) scale(var(--goal-lift-scale, 1));
+}
+/* A lifted piece may reach a few px over its neighbours: its colour is solid there (the wash laid on the board's own
+   background), so over a coloured neighbour it reads as one colour, not a darker band. */
+.goal-card.goal-card--lifted > .goal-card__row::before,
+.goal-card__children--lifted .goal-card > .goal-card__row::before {
+  background: linear-gradient(var(--goal-hover-background), var(--goal-hover-background)), var(--color-bg);
+}
+.goal-card.goal-card.goal-card--lifted {
+  transition: background-color 0s, transform var(--motion-lift-in) cubic-bezier(.2, 0, 0, 1) !important;
+}
+.goal-card__children {
+  transition: transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1);
+}
+.goal-card__children.goal-card__children--lifted { transition-duration: var(--motion-lift-in); }
 .goal-card__text {
   flex: 1 1 auto;
   min-width: 0;
@@ -182,27 +251,13 @@
   position: relative;
   padding-top: 2px;
 }
-/* One hairline above EVERY nested child (KK, 2026-08-14) — the divider belongs to each row of
-   the group, not to the block: parent|child and child|child gaps read the same. Drawn on the
-   child so the flex row-gap stays untouched. */
-.goal-card__children > .goal-card::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  inset-inline-start: calc(var(--space-2) + var(--space-5) + 9px);
-  inset-inline-end: 16px;
-  border-top: 0.5px solid rgba(110, 110, 110, .42);
-  pointer-events: none;
-}
 /* Nested tasks share the same column alignment as regular cards; hierarchy stays in the data and
    hover chain, not in an extra horizontal offset. */
 .goal-card__children > .goal-card {
   width: 100%;
   margin-left: 0;
-  /* Positioning context for each child's own divider ::before above. */
   position: relative;
 }
-.theme_dark .goal-card__children > .goal-card::before { border-top-color: rgba(150, 150, 150, .48); }
 .goal-card__completion {
   position: absolute;
   z-index: 3;
@@ -261,6 +316,7 @@
   height: calc(var(--kkov-collapsed-goal-checkbox-size) + 4px);
   flex: 0 0 var(--kkov-collapsed-goal-checkbox-size);
   margin-right: var(--kkov-collapsed-goal-checkbox-text-gap);
+  margin-bottom: min(0px, calc(var(--kkov-collapsed-goal-line-height) - var(--kkov-collapsed-goal-checkbox-size) - 8px));
 }
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .goal-card .checkbox__box {
   border-radius: var(--kkov-collapsed-goal-checkbox-radius);
@@ -301,6 +357,7 @@
   height: calc(var(--kkov-expanded-goal-checkbox-size) + 4px);
   flex: 0 0 var(--kkov-expanded-goal-checkbox-size);
   margin-right: var(--kkov-expanded-goal-checkbox-text-gap);
+  margin-bottom: min(0px, calc(var(--kkov-expanded-goal-line-height) - var(--kkov-expanded-goal-checkbox-size) - 8px));
 }
 .pattern-vertical-board__column--active .goal-card .checkbox__box {
   border-radius: var(--kkov-expanded-goal-checkbox-radius);
@@ -309,13 +366,23 @@
   margin-top: var(--kkov-expanded-goal-spacing);
 }
 
+/* A goal's box and its first subgoal's box are --subgoal-gap apart, and so are the highlight shapes of any two
+   neighbours in a card (KK, 27 Sep 2026: "Margins betwen parent and subgoals should become like 1px for small columns
+   and 2 px for the expanded"; lib/goalWash.ts reads it). */
+.pattern-vertical-board__column { --subgoal-gap: 1px; }
+/* Every highlight starts 4 px in from its card's left edge (KK, 27 Sep 2026: "left padding in each parent goal and
+   subgoal on the left side could be reduced by 2-4 pixels... and this way we can have more space between the columns.
+   So when we hover they don't overlap on each other"): 10 px to the checkbox instead of 14, 8 px between columns
+   instead of 4, 1 px more than a hovered card grows. lib/goalWash.ts reads it. */
+.pattern-vertical-board__column { --goal-shape-inset: 4px; }
+.pattern-vertical-board__column.pattern-vertical-board__column--active { --subgoal-gap: 2px; }
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
   .goal-card__children.subgoal-recursive-list {
-  margin: var(--kkov-collapsed-subtask-group-margin-top)
+  margin: calc(var(--subgoal-gap) - 2px) /* the stack's own 2 px gap sits above */
     var(--kkov-collapsed-subtask-group-margin-right)
     var(--kkov-collapsed-subtask-group-margin-bottom)
     var(--kkov-collapsed-subtask-group-margin-left);
-  padding-top: calc(2px + (6px - var(--kkov-collapsed-subtask-padding-block)));
+  padding-top: 0;
   padding-bottom: calc(6px - var(--kkov-collapsed-subtask-padding-block));
 }
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
@@ -346,6 +413,7 @@
   height: calc(var(--kkov-collapsed-subtask-checkbox-size) + 4px);
   flex: 0 0 var(--kkov-collapsed-subtask-checkbox-size);
   margin-right: var(--kkov-collapsed-subtask-checkbox-text-gap);
+  margin-bottom: min(0px, calc(var(--kkov-collapsed-subtask-line-height) - var(--kkov-collapsed-subtask-checkbox-size) - 8px));
 }
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
   .goal-card__children.subgoal-recursive-list > .goal-card {
@@ -359,28 +427,13 @@
     + (6px - var(--kkov-collapsed-subtask-padding-block))
     + (6px - var(--kkov-collapsed-subtask-padding-block)));
 }
-.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
-  .goal-card__children.subgoal-recursive-list + .goal-card {
-  margin-top: var(--kkov-collapsed-subtask-group-spacing);
-}
-.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
-  .goal-card__children.subgoal-recursive-list > .goal-card::before {
-  top: var(--kkov-collapsed-subtask-line-top);
-  left: var(--kkov-collapsed-subtask-line-left);
-  right: var(--kkov-collapsed-subtask-line-right);
-  opacity: clamp(0, calc(var(--kkov-collapsed-subtask-line-mode) - 1), 1);
-}
-.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
-  .goal-card__children.subgoal-recursive-list > .goal-card:first-child::before {
-  opacity: clamp(0, var(--kkov-collapsed-subtask-line-mode), 1);
-}
 
 .pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list {
-  margin: var(--kkov-expanded-subtask-group-margin-top)
+  margin: calc(var(--subgoal-gap) - 2px) /* the stack's own 2 px gap sits above */
     var(--kkov-expanded-subtask-group-margin-right)
     var(--kkov-expanded-subtask-group-margin-bottom)
     var(--kkov-expanded-subtask-group-margin-left);
-  padding-top: calc(2px + (6px - var(--kkov-expanded-subtask-padding-block)));
+  padding-top: 0;
   padding-bottom: calc(6px - var(--kkov-expanded-subtask-padding-block));
 }
 .pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-card__title,
@@ -405,6 +458,7 @@
   height: calc(var(--kkov-expanded-subtask-checkbox-size) + 4px);
   flex: 0 0 var(--kkov-expanded-subtask-checkbox-size);
   margin-right: var(--kkov-expanded-subtask-checkbox-text-gap);
+  margin-bottom: min(0px, calc(var(--kkov-expanded-subtask-line-height) - var(--kkov-expanded-subtask-checkbox-size) - 8px));
 }
 .pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list > .goal-card {
   padding-top: var(--kkov-expanded-subtask-padding-block);
@@ -416,17 +470,93 @@
     + (6px - var(--kkov-expanded-subtask-padding-block))
     + (6px - var(--kkov-expanded-subtask-padding-block)));
 }
-.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list + .goal-card {
-  margin-top: var(--kkov-expanded-subtask-group-spacing);
+/* After a goal's subgoals the next goal is as far as after a goal without them (KK, 27 Sep 2026). */
+.pattern-vertical-board__column--active .card-stack.card-stack--dense > .goal-card__children + .goal-card {
+  margin-top: var(--kkov-expanded-goal-spacing);
 }
-.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list > .goal-card::before {
-  top: var(--kkov-expanded-subtask-line-top);
-  left: var(--kkov-expanded-subtask-line-left);
-  right: var(--kkov-expanded-subtask-line-right);
-  opacity: clamp(0, calc(var(--kkov-expanded-subtask-line-mode) - 1), 1);
+
+/* Opening goes down in place in the wide column (KK, 27 Sep 2026, the cleaned-up card; GoalCard.vue's showChildren).
+   An opened subgoal takes the top-level size where it stands, its checkbox on the top-level edge, and its siblings
+   stay. Its own steps are its list, lined up with its siblings: the open goal's colour, not an indent, tells them
+   apart. A card on the way down to a deeper open goal keeps its list in view one checkbox in, under its words (round
+   two, option A). Sizes swap through the layout variables, which a card's own list (its sibling) keeps. */
+.pattern-vertical-board__column--active .goal-card.goal-card--focus {
+  --kkov-expanded-subtask-font-size: var(--kkov-expanded-goal-font-size);
+  --kkov-expanded-subtask-line-height: var(--kkov-expanded-goal-line-height);
+  --kkov-expanded-subtask-font-weight: var(--kkov-expanded-goal-font-weight);
+  --kkov-expanded-subtask-checkbox-size: var(--kkov-expanded-goal-checkbox-size);
+  --kkov-expanded-subtask-checkbox-radius: var(--kkov-expanded-goal-checkbox-radius);
+  --kkov-expanded-subtask-checkbox-top: var(--kkov-expanded-goal-checkbox-top);
+  --kkov-expanded-subtask-checkbox-text-gap: var(--kkov-expanded-goal-checkbox-text-gap);
+  --kkov-expanded-subtask-padding-block: var(--card-pad, 6px);
+  margin-left: calc(-1 * var(--kkov-expanded-subtask-group-margin-left));
+  width: calc(100% + var(--kkov-expanded-subtask-group-margin-left));
 }
-.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list > .goal-card:first-child::before {
-  opacity: clamp(0, var(--kkov-expanded-subtask-line-mode), 1);
+.pattern-vertical-board__column--active .goal-card__children .goal-card__children.goal-card__children--open {
+  margin-left: 0;
+}
+.pattern-vertical-board__column--active .goal-card__children.goal-card__children--path {
+  width: auto; /* its column's width, less the step in */
+  margin-left: calc(var(--kkov-expanded-subtask-checkbox-size) + var(--kkov-expanded-subtask-checkbox-text-gap));
+}
+/* The open goal's notes start on its title's edge: the card's 6 px padding (a dense card's; this list isn't a card, so
+   it can't read the card's own variable), the checkbox and its gap, less the list's own inset. */
+.goal-card__children--open {
+  --goal-notes-edge: calc(6px + var(--space-2) + var(--kkov-expanded-goal-checkbox-size)
+    + var(--kkov-expanded-goal-checkbox-text-gap) - var(--kkov-expanded-subtask-group-margin-left));
+}
+/* "Add…" ends the steps, drawn as one more step: an empty checkbox and a muted word at the steps' size. */
+.goal-card__children--open > .subgoal-add-row.goal-card__add-step,
+.goal-card__children--open > .subgoal-add-editor-shell.goal-card__add-step {
+  height: auto;
+  margin: 0;
+  padding: var(--kkov-expanded-subtask-padding-block) 25px var(--kkov-expanded-subtask-padding-block)
+    calc(6px + var(--space-2));
+  border-radius: 8px;
+  background: transparent;
+  opacity: 1;
+  color: rgba(45, 48, 54, .52);
+  font-size: var(--kkov-expanded-subtask-font-size);
+  line-height: var(--kkov-expanded-subtask-line-height);
+  font-weight: 400;
+  gap: var(--kkov-expanded-subtask-checkbox-text-gap);
+}
+.goal-card__children--open > .subgoal-add-row.goal-card__add-step:hover,
+.goal-card__children--open > .subgoal-add-row.goal-card__add-step:focus-visible {
+  background: rgba(0, 0, 0, .04);
+  color: rgba(45, 48, 54, .8);
+}
+/* Its checkbox sits where a step's does against its words: a step's slot has a 4 px top margin (KK, 27 Sep 2026: "Add
+   misplaced label and checkbox not aligned"; it stood 4 px higher than a step's). */
+.goal-card__children--open > .goal-card__add-step .subgoal-add-row__checkbox {
+  flex: 0 0 var(--kkov-expanded-subtask-checkbox-size);
+  top: var(--kkov-expanded-subtask-checkbox-top, 1px);
+  left: 0;
+  margin-top: 4px;
+}
+.goal-card__children--open > .goal-card__add-step .subgoal-add-row__checkbox .checkbox__box {
+  width: var(--kkov-expanded-subtask-checkbox-size);
+  height: var(--kkov-expanded-subtask-checkbox-size);
+  border: 0;
+  border-radius: var(--kkov-expanded-subtask-checkbox-radius, 3px);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(45, 48, 54, .22);
+}
+.goal-card__children--open > .goal-card__add-step .subgoal-add-row__text { padding: 0; }
+.goal-card__children--open > .subgoal-add-editor-shell.goal-card__add-step {
+  padding-left: calc(6px + var(--space-2) + var(--kkov-expanded-subtask-checkbox-size)
+    + var(--kkov-expanded-subtask-checkbox-text-gap));
+}
+.goal-card__children--open > .goal-card__add-step .subgoal-add-editor-shell__plus { display: none; }
+.goal-card__children--open > .goal-card__add-step .subgoal-add-editor {
+  height: auto;
+  font-size: inherit;
+  line-height: inherit;
+}
+/* A selection in the title is a tint of the goal's colour, the text staying black (the kit draws a black block). */
+.goal-card__title-input::selection {
+  background: color-mix(in srgb, var(--goal-hover-background, rgb(215 215 215)) 100%, transparent);
+  color: inherit;
 }
 
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__text,
@@ -503,3 +633,35 @@
 
 /* The carried title stays full strength; only its original period is secondary. */
 .goal-card__planned-period { color: #686868; font-size: inherit; font-weight: 400; white-space: nowrap; }
+
+/* The open goal's facts line and "Add…" grow in and fold away with its notes (GoalCard.vue's transitions), in the
+   opening's time and curve: the steps under the facts line slide down, and back up on closing, instead of jumping. */
+.goal-part-enter-active,
+.goal-part-leave-active {
+  overflow: hidden;
+  transition:
+    max-height var(--goal-focus-motion-duration, 360ms) var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)),
+    margin var(--goal-focus-motion-duration, 360ms) var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)),
+    padding var(--goal-focus-motion-duration, 360ms) var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)),
+    opacity 160ms ease;
+}
+.goal-part-enter-from,
+.goal-part-leave-to {
+  max-height: 0;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  opacity: 0;
+}
+.goal-part-enter-to,
+.goal-part-leave-from { max-height: 64px; }
+@media (prefers-reduced-motion: reduce) {
+  .goal-part-enter-active,
+  .goal-part-leave-active { transition: none; }
+}
+/* A step pointed at inside the open goal lays the lighter tint over the goal's colour, so it reads darker. A lifted
+   piece's shapes are solid (colour laid on white, above); inside the open goal that would pale the step instead. */
+.goal-card__children.goal-card__children--open > .goal-card > .goal-card__row::before {
+  background: var(--goal-hover-background);
+}

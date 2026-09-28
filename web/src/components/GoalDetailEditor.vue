@@ -331,7 +331,10 @@ function cancelTitleEdit() {
       <!-- Metadata: quiet schedule and tags row; the legacy modal keeps its divider, while the
            inline card pins this compact pair to the bottom-right without one. -->
       <hr v-if="!props.inline" class="goal-detail__rule" />
-      <div class="goal-detail__meta">
+      <!-- The inline card has no icon row (KK, 27 Sep 2026, the cleaned-up card): its date, size, comments and the
+           agent are its facts line (GoalFacts.vue), a step is added at the end of its steps, tags and repeat are in
+           its "…" menu. -->
+      <div v-if="!props.inline" class="goal-detail__meta">
       <slot name="meta-start" />
       <div class="goal-detail__meta-controls">
       <SchedulePopover

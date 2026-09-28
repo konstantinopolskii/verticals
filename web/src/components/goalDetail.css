@@ -11,7 +11,9 @@
   margin-top: var(--space-3);
   width: 100%;
   box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
+  /* The board's own typeface (KK, 27 Sep 2026, the cleaned-up card): the notes read as part of the card, not a page
+     pasted into it. It was Inter. */
+  font-family: var(--kkov-expanded-goal-font-family, 'Commissioner'), sans-serif;
   font-size: 16px;
   font-weight: 400;
   /* 24px, not the reference's measured 49px (P-25's surface table). Owner ruling 2026-08-11,
@@ -45,9 +47,8 @@
 .goal-detail__body--collapsed {
   max-height: var(--goal-body-preview-height);
   overflow: hidden;
-}
-.goal-detail__body-see-all {
-  display: none;
+  -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent);
 }
 .goal-detail__body > p {
   margin: 8px 0;
@@ -130,8 +131,22 @@
     opacity 160ms ease,
     transform var(--goal-focus-motion-duration, 360ms)
       var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1));
+  /* `backwards`, not `both`: a fill that outlives the opening holds the notes at full height, and nothing can fold them
+     afterwards (the close used to wait 360 ms, then snap). */
   animation: goal-detail-inline-open var(--goal-focus-motion-duration, 360ms)
-    var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)) both;
+    var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)) backwards;
+}
+/* Closing folds the notes the way they opened: GoalCard.vue's leave transition. */
+#goal-detail.goal-detail-inline.goal-notes-leave-active {
+  animation: none;
+  transition:
+    grid-template-rows var(--goal-focus-motion-duration, 360ms)
+      var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)),
+    opacity 160ms ease;
+}
+#goal-detail.goal-detail-inline.goal-notes-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
 }
 #goal-detail.goal-detail-inline[data-state='closed'] {
   grid-template-rows: 0fr;
@@ -181,7 +196,9 @@
   overflow: visible;
   /* Match the regular task-row inset (6px) so editor fields, body and group labels share the
      same visual edge as the checkbox/text rows below. */
-  padding: 0 6px 16px;
+  /* Every word of the open goal on one edge (KK, 27 Sep 2026): the notes start where its title starts. GoalCard's list
+     sets the edge; 12 px to the right, as at the card's other end. */
+  padding: 8px 12px 12px var(--goal-notes-edge, 42px);
   overflow-wrap: anywhere;
   --goal-detail-inline-font-size: 15px;
   --goal-detail-inline-line-height: 22px;
@@ -190,31 +207,67 @@
   order: 2;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
-  margin-top: 5px;
+  min-height: 22px;
+  margin-top: 0;
   font-size: var(--goal-detail-inline-font-size);
   line-height: var(--goal-detail-inline-line-height);
   overflow-wrap: anywhere;
   word-break: normal;
 }
-.goal-detail-inline .goal-detail__body-see-all {
+/* "N more lines": what the fold hides, and the documents' lines after the notes, said in the facts line's voice. */
+.goal-detail-inline .goal-detail__body-more,
+.goal-detail-inline .goal-detail__mentions {
   display: block;
   order: 3;
   align-self: flex-start;
-  margin: 2px 0 0;
+  margin: 6px 0 0;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-text-muted);
+  color: rgba(0, 0, 0, .5);
   font: inherit;
   font-size: 13px;
   line-height: 20px;
+  text-align: left;
   cursor: pointer;
 }
-.goal-detail-inline .goal-detail__body-see-all:hover,
-.goal-detail-inline .goal-detail__body-see-all:focus-visible {
-  color: var(--color-text);
+.goal-detail-inline .goal-detail__body-more:hover,
+.goal-detail-inline .goal-detail__body-more:focus-visible,
+.goal-detail-inline .goal-detail__mentions:hover,
+.goal-detail-inline .goal-detail__mentions:focus-visible { color: #000; outline: none; }
+.goal-detail-inline .goal-detail__mentions { order: 4; margin-top: 12px; }
+/* The goal's own documents and the ones that mention it are one group: the second line sits under the first, and a
+   little further under an open list, so it doesn't read as one more document. */
+.goal-detail-inline .goal-detail__mentions ~ .goal-detail__mentions { margin-top: 2px; }
+.goal-detail-inline .goal-detail__mention-list + .goal-detail__mentions { margin-top: 8px; }
+.goal-detail-inline .goal-detail__mentions b { color: #000; font-weight: 500; }
+.goal-detail__mentions-sep { padding: 0 4px; color: rgba(0, 0, 0, .28); }
+.goal-detail__mention-list {
+  order: 4;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
 }
+/* A listed document reads as a line of the notes: their size and weight, its date in the lines' grey. */
+.goal-detail__mention-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--goal-detail-inline-font-size);
+  line-height: var(--goal-detail-inline-line-height);
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+.goal-detail__mention-list button:hover > span:first-child { text-decoration: underline; text-decoration-color: rgba(0, 0, 0, .2); text-underline-offset: 2.25px; }
+.goal-detail__mention-date { flex: none; color: rgba(0, 0, 0, .5); font-size: 13px; }
 .goal-detail-inline .goal-detail__rule {
   order: 5;
   margin: 14px 0 8px;
@@ -288,4 +341,51 @@
   font-weight: var(--fw-bold);
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* A document the agent linked on a line of its own is listed after the notes, not in them (KK, 27 Sep 2026: "I wanted
+   it to be a simple item like for mentioned docs, same here, different wording"). Editing the notes shows the line
+   where it stands, with the Docs view's file mark hung in the checkbox column and its title on the words' edge. */
+#goal-detail .goal-detail__body[contenteditable="false"] > p.goal-detail__doc-line { display: none; }
+#goal-detail .goal-detail__body > p.goal-detail__doc-line {
+  position: relative;
+  margin: 4px 0;
+}
+#goal-detail .goal-detail__body > p.goal-detail__doc-line::before {
+  content: '';
+  position: absolute;
+  left: -28px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  background: rgba(0, 0, 0, .45);
+  -webkit-mask: var(--goal-doc-mark) center / 16px 16px no-repeat;
+  mask: var(--goal-doc-mark) center / 16px 16px no-repeat;
+  pointer-events: none;
+}
+#goal-detail .goal-detail__body > p.goal-detail__doc-line > a { text-decoration: none; }
+#goal-detail .goal-detail__body > p.goal-detail__doc-line > a:hover { text-decoration: underline; text-decoration-color: rgba(0, 0, 0, .2); }
+#goal-detail {
+  --goal-doc-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z'/%3E%3C/svg%3E");
+}
+
+/* Headings and lists at the notes' own size: a card is not a page. */
+#goal-detail.goal-detail-inline .goal-detail__body > .goal-detail__body-heading {
+  margin: 16px 0 4px;
+  font-size: inherit;
+  line-height: inherit;
+}
+#goal-detail.goal-detail-inline .goal-detail__body > :is(ul, ol) {
+  margin: 8px 0;
+  padding-left: 18px;
+  font-size: inherit;
+  line-height: inherit;
+}
+#goal-detail.goal-detail-inline .goal-detail__body > :is(ul, ol) > li { margin-bottom: 4px; }
+
+/* A selection is a tint of the goal's colour, the text staying black (the kit draws it as a black block). */
+.goal-detail__body ::selection,
+.goal-detail__body::selection {
+  background: color-mix(in srgb, var(--goal-hover-background, rgb(215 215 215)) 100%, transparent);
+  color: inherit;
 }

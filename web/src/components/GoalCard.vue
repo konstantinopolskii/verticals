@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import { KCard } from '@konstantinopolskii/vue'
 import { COMPLETION_LOTTIE, useCompletionCelebration } from '../lib/completionCelebration'
 import { useInlineTitleEdit } from '../lib/inlineTitleEdit'
+import { anyMenuOpen, menuGoalId, pointerOver, useCardLift, whenMenuCloses } from '../lib/cardLift'
+import { useGroupWash } from '../lib/goalWash'
 import { playSound } from '../lib/sound'
-import {
-  registerIridescentCard,
-  unregisterIridescentCard,
-} from '../kit-ext/iridescent'
 import RepeatMark from './RepeatMark.vue'
 import GoalCardTools from './GoalCardTools.vue'
 import GoalDetail from './GoalDetail.vue'
+import GoalFacts from './GoalFacts.vue'
+import SubgoalAddRow from './SubgoalAddRow.vue'
 import GoalAffordance from '../kit-ext/goal-affordance/GoalAffordance.vue'
 import { store } from '../store'
 import { highlightTitle, isContextGoal } from '../lib/commandFilter'
@@ -90,24 +90,12 @@ function rootElement(): HTMLElement | null {
   return cardRoot.value?.$el instanceof HTMLElement ? cardRoot.value.$el : null
 }
 
-function syncIridescentRegistration(): void {
-  const element = rootElement()
-  if (!element) return
-  if (props.foil) registerIridescentCard(element)
-  else unregisterIridescentCard(element)
-}
-
-onMounted(syncIridescentRegistration)
-watch(() => props.foil, syncIridescentRegistration, { flush: 'post' })
-// Any re-render can rewrite the class attribute and wipe the imperative foil tier class
-// (a D237 live refetch flipping data-colored is the everyday case) — re-assert after updates.
-onUpdated(syncIridescentRegistration)
+/* Foil is gone from the card (KK, 27 Sep 2026: "let's kill the foil option. It's a mess for now"): no menu item, no
+   shimmer. The stored flag and `kit-ext/iridescent` stay for when it comes back; no goal ever had it on. */
 onBeforeUnmount(() => {
   // Scheduling, parking, or moving an expanded card may remove this rendered host before its
   // inline close animation can run. Never leave the board pinned to an owner that no longer exists.
   if (isInlineDetailHost.value) store.closeGoal()
-  const element = rootElement()
-  if (element) unregisterIridescentCard(element)
 })
 
 const isParent = computed(
@@ -134,34 +122,109 @@ const isOpenRelated = computed(() => {
   return ancestorIds(store.state.board, openId).includes(props.id)
     || subtreeIds(store.state.board, openId).has(props.id)
 })
-// KK, 27 Sep 2026 overrides D253: two board levels; opened goals keep their full subtree.
-const showChildren = computed(() => props.children.length > 0 && (props.depth < 1 || isOpenRelated.value))
+/* The wide column shows two levels, and opening goes down in place (KK, 27 Sep 2026, the cleaned-up card: "I love
+   it. Let's implement"; he had called hiding the siblings mind-blowing). An opened subgoal takes the top-level size
+   where it stands, its siblings stay, and its own subgoals show inside its card. One level deeper works the same:
+   every card on the way down to the open goal keeps its subgoals in view, and a list below the first level steps in
+   by one checkbox (round two's pick, option A). Narrow columns keep KK's earlier rule (overriding D253): two levels,
+   and an opened goal's relatives in full. */
+const inWideColumn = computed(() => (
+  store.state.activeView === 'verticals' && !!props.columnVertical && store.state.expandedVertical === props.columnVertical
+))
+const openInColumn = computed(() => (
+  inWideColumn.value && store.state.openGoalVertical === props.columnVertical ? store.state.openGoalId : null
+))
+const isFocus = computed(() => openInColumn.value === props.id && isInlineDetailHost.value)
+/** An ancestor, drawn in this column, of the goal open in it: its subgoals stay in view around the open goal. */
+const isOnPath = computed(() => {
+  const openId = openInColumn.value
+  return openId !== null && openId !== props.id && !!store.state.board
+    && ancestorIds(store.state.board, openId).includes(props.id)
+})
+/** The open goal's own subgoals here in its column: they sit inside its card, on its colour, so they take no colour
+ *  of their own as its relatives. */
+const isInsideOpen = computed(() => {
+  const openId = store.state.openGoalId
+  return !!openId && openId !== props.id && !!store.state.board
+    && store.state.openGoalVertical === props.columnVertical
+    && subtreeIds(store.state.board, openId).has(props.id)
+})
+/* An open goal always has a list: its steps end with "Add…", and its notes follow them inside the same piece. */
+const showChildren = computed(() => isInlineDetailHost.value || (props.children.length > 0 && (
+  inWideColumn.value
+    ? props.depth < 1 || isFocus.value || isOnPath.value
+    : props.depth < 1 || isOpenRelated.value
+)))
 
 function onOpenDetail() {
   // Board cards route through `openBoardGoal`, which expands the card's column first (KK ruling
   // 2026-08-17: card click = expand + open in one gesture). Non-board contexts (search results,
   // inbox) keep the direct open unchanged.
   if (props.columnVertical && props.columnVertical !== 'maybe' && store.state.activeView === 'verticals') {
+    const hold = holdPlace()
     void store.openBoardGoal(props.id)
+    if (hold) void nextTick(hold)
     return
   }
   void store.openGoal(props.id, props.columnVertical, detailHostKey.value)
 }
 
-function onTitleClick() {
-  if (isInlineDetailHost.value) startInlineTitleEdit()
+/** Opening a goal starts from where it was clicked: a goal open above it closes, or its column widens and the cards
+ *  above it grow, and either would throw it away from under the pointer in one frame (404 px down, low in Week). Returns
+ *  the step to run once it has opened; from there `GoalDetail.vue` glides it to the top of the column. */
+function holdPlace(): (() => void) | null {
+  const card = rootElement()
+  let scroller = card?.parentElement ?? null
+  while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
+  if (!card || !scroller) return null
+  const before = card.getBoundingClientRect().top
+  return () => {
+    const now = rootElement()
+    if (now && scroller) scroller.scrollTop += now.getBoundingClientRect().top - before
+  }
+}
+
+function onTitleClick(event: MouseEvent) {
+  if (isInlineDetailHost.value) startInlineTitleEdit(caretAt(event))
   else onOpenDetail()
+}
+
+/** Where in the title a click landed, as a character offset, so editing starts with the caret there (D67, KK
+ *  2026-08-10: "он весь выделяется вместо того чтобы поставить курсор ровно туда куда ты нажал"; it had come back
+ *  as select-all). `null` for a keyboard click, which has no point: then the whole title is selected. */
+function caretAt(event: MouseEvent): number | null {
+  if (event.detail === 0) return null
+  const root = (event.currentTarget as HTMLElement).querySelector('.goal-card__title-text')
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+  const position = doc.caretPositionFromPoint?.(event.clientX, event.clientY)
+  const range = position ? null : doc.caretRangeFromPoint?.(event.clientX, event.clientY)
+  const node = position?.offsetNode ?? range?.startContainer ?? null
+  const offset = position?.offset ?? range?.startOffset ?? 0
+  if (!root || !node || !root.contains(node)) return null
+  const before = document.createRange()
+  before.selectNodeContents(root)
+  before.setEnd(node, offset)
+  return before.toString().length
 }
 
 /* Hover family chain — D235: both directions, ancestors up and descendants down. The wash class
    is a REACTIVE bind off `store.hoverChain` rather than `ancestorHover.ts`'s old imperative DOM
    toggling, since Vue's class patching drops imperatively-added classes on every patch (the
-   iridescent registration fights the same battle with `onUpdated`). One reactive source survives
-   any re-render. */
+   foil shimmer's registration fought the same battle with `onUpdated`). One reactive source
+   survives any re-render. */
 function highlightFamily(): void {
+  // While a menu is open the board holds still; this card lights its family once it closes, if still pointed at.
+  if (anyMenuOpen()) {
+    whenMenuCloses(() => { if (rootElement()?.matches(':hover')) highlightFamily() })
+    return
+  }
   store.setHoverChain(props.id)
 }
 function clearFamily(): void {
+  if (menuOpen.value) return // its menu is open: the family stays lit until it closes
   if (store.state.hoverChainId === props.id) store.setHoverChain(null)
 }
 const isChainHovered = computed(() => {
@@ -209,6 +272,11 @@ const {
 
 function onMenuOpenChange(value: boolean) {
   menuOpen.value = value
+  if (value) menuGoalId.value = props.id
+  else {
+    if (menuGoalId.value === props.id) menuGoalId.value = null
+    if (!pointerOver(rootElement(), childrenListEl.value)) clearFamily()
+  }
 }
 
 function openContextMenu(): void {
@@ -240,7 +308,6 @@ function onCardContextMenu(event: MouseEvent): void {
 function completeParent(): void {
   playSound('checked'); void store.completeGoal(props.id, true)
 }
-function toggleFoil(): void { void store.updateGoal(props.id, { foil: !props.foil }) }
 function park(): void {
   playSound('goal_deleted')
   void store.parkGoal(props.id)
@@ -389,6 +456,72 @@ function renderChildren(): ChildRenderItem[] {
 }
 
 const childrenListEl = ref<HTMLElement | null>(null)
+/* Hover lift (KK, 27 Sep 2026): a top-level goal and its subtasks rise as one piece, `lib/cardLift.ts`. */
+const {
+  lifted,
+  cardStyle: liftCardStyle,
+  listStyle: liftListStyle,
+  enter: liftEnter,
+  leave: liftLeave,
+  drop: dropLift,
+  atRest: liftAtRest,
+  hold: holdLift,
+} = useCardLift({
+  card: rootElement,
+  list: childrenListEl,
+  enabled: () => props.depth === 0 && store.state.drag.id === null,
+  // its own menu or a subgoal's hangs from it
+  pinned: () => {
+    const id = menuGoalId.value
+    return id !== null && (id === props.id || (!!store.state.board && subtreeIds(store.state.board, props.id).has(id)))
+  },
+})
+watch(() => store.state.drag.id, (id) => { if (id !== null) dropLift() })
+/* One highlight shape per goal (KK, 27 Sep 2026): a top-level goal sizes its own and its subgoals' shapes,
+   `lib/goalWash.ts`. */
+useGroupWash({
+  card: () => (props.depth === 0 ? rootElement() : null),
+  list: childrenListEl,
+  layoutSources: [() => props.children, showChildren, () => store.state.openGoalId],
+})
+
+/* A list that comes or goes with an opening (an opened subgoal's steps, the way down to a deeper open goal, the steps of
+   a goal that had none) grows from nothing and folds away in the opening's time and curve, so the goals below slide
+   rather than leap: closing an opened subgoal used to drop its steps and notes in one frame, 460 px (the motion
+   trace, 27 Sep 2026). Growing, it aims at its height once its notes have opened too. */
+const OPENING = { duration: 360, easing: 'cubic-bezier(.22, 1, .36, 1)' }
+const stillMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+function growList(el: Element, done: () => void): void {
+  const list = el as HTMLElement
+  if (stillMotion()) { done(); return }
+  // Shut for one frame, until the notes are written into it: then its full height is known.
+  list.style.height = '0px'
+  list.style.overflow = 'hidden'
+  requestAnimationFrame(() => {
+    const clip = list.querySelector<HTMLElement>('.goal-detail-inline__clip')
+    const notes = clip ? Math.max(0, clip.scrollHeight - clip.getBoundingClientRect().height) : 0
+    const to = list.scrollHeight + notes
+    list.style.height = ''
+    list.animate([{ height: '0px', opacity: 0 }, { height: `${to}px`, opacity: 1 }], OPENING).onfinish = () => {
+      list.style.overflow = ''
+      done()
+    }
+  })
+}
+function foldList(el: Element, done: () => void): void {
+  const list = el as HTMLElement
+  if (stillMotion()) { done(); return }
+  list.style.overflow = 'hidden'
+  list.animate([{ height: `${list.getBoundingClientRect().height}px`, opacity: 1 }, { height: '0px', opacity: 0 }], OPENING).onfinish = done
+}
+
+/** "Add…" at the end of an open goal's steps: the new step lives where its parent does, so it shows at once (it used
+ *  to get no vertical, and the board doesn't draw a goal without one). */
+function onAddStep(title: string): void {
+  void store.addDetailChild(title)
+}
+function onCardEnter(): void { highlightFamily(); liftEnter() }
+function onCardLeave(): void { clearFamily(); liftLeave() }
 const nestedInsertionSlot = computed(() => (
   isNestedReorderHere.value
     ? (dragSlot.value?.insertBeforeId ?? null)
@@ -435,7 +568,7 @@ function onRowPointerDown(event: PointerEvent) {
   if (fromControl(event)) return
   const row = event.currentTarget as HTMLElement
   row.focus({ preventScroll: true })
-  const rect = row.getBoundingClientRect()
+  const rect = liftAtRest(() => row.getBoundingClientRect()) // drag starts from the card at rest, lifted or not
   store.pointerDownCard(props.id, event.clientX, event.clientY, rect, event.pointerType, event.altKey)
 }
 
@@ -482,20 +615,22 @@ function onRowKeydown(event: KeyboardEvent) {
       'goal-card--colored': color,
       'goal-card--done': checked,
       'goal-card--detail-open': isInlineDetailHost,
-      'goal-card--open-related': isOpenRelated,
-      'goal-card--ancestor-hover': isChainHovered,
-      foil,
+      'goal-card--open-related': isOpenRelated && !isInsideOpen,
+      'goal-card--with-subgoals': depth === 0 && showChildren && !isInlineDetailHost,
+      'goal-card--focus': isFocus && depth > 0,
+      'goal-card--ancestor-hover': isChainHovered && !isInsideOpen,
+      'goal-card--lifted': lifted,
       'carryover-ghost': ghost,
     }"
     :data-goal-id="id"
     :data-filter-context="filterContext ? true : undefined"
-    :style="cardStyle"
+    :style="[cardStyle, liftCardStyle]"
     :data-parent-id="parentId ?? undefined"
     :data-colored="color ? 'true' : 'false'"
-    :data-foil="foil ? 'true' : undefined"
     :data-ghost="ghost ? 'true' : undefined"
-    @mouseenter="highlightFamily"
-    @mouseleave="clearFamily"
+    @mouseenter="onCardEnter"
+    @mouseleave="onCardLeave"
+    @click.capture="holdLift"
   >
     <div
       class="goal-card__row"
@@ -572,6 +707,7 @@ function onRowKeydown(event: KeyboardEvent) {
           @click.stop="onOpenDetail"
         >Open</button>
         <p v-if="contextLabel" class="goal-card__meta">{{ contextLabel }}</p>
+        <Transition name="goal-part"><GoalFacts v-if="isInlineDetailHost" :id="id" /></Transition>
       </div>
       <GoalCardTools
         ref="tools"
@@ -580,11 +716,10 @@ function onRowKeydown(event: KeyboardEvent) {
         :is-parent="isParent"
         :vertical="vertical"
         :repeat="repeat"
-        :foil="foil"
+        :open="isInlineDetailHost"
         :show-ignore="ghost"
         @details="onOpenDetail"
         @complete="completeParent"
-        @foil="toggleFoil"
         @park="park"
         @ignore="ignoreGhost"
         @ack-due="ackDue"
@@ -592,13 +727,23 @@ function onRowKeydown(event: KeyboardEvent) {
         @open-change="onMenuOpenChange"
       />
     </div>
-    <GoalDetail v-if="isInlineDetailHost" />
   </KCard>
+  <!-- An open goal is one piece top to bottom: its title and facts (the card above), its steps, "Add…", then its notes
+       (KK, 27 Sep 2026, the cleaned-up card). The notes live in this list, so they rise and colour with the rest. -->
+  <Transition :css="false" @enter="growList" @leave="foldList">
   <div
     v-if="showChildren"
     ref="childrenListEl"
     class="goal-card__children subgoal-recursive-list"
-    :style="{ '--subgoal-depth': String(depth) }"
+    :class="{
+      'goal-card__children--lifted': lifted,
+      'goal-card__children--open': isInlineDetailHost,
+      'goal-card__children--path': isOnPath && depth > 0,
+    }"
+    :data-open-region="isInlineDetailHost ? '' : undefined"
+    :style="[cardStyle, { '--subgoal-depth': String(depth) }, liftListStyle]"
+    @mouseenter="liftEnter"
+    @mouseleave="liftLeave"
   >
       <div
         v-if="completionActive"
@@ -668,7 +813,12 @@ function onRowKeydown(event: KeyboardEvent) {
           :depth="depth + 1"
         />
       </template>
+      <!-- The open goal's own parts grow in and fold away together, in the opening's time and curve, so what is below
+           slides instead of jumping (the motion trace, 27 Sep 2026). -->
+      <Transition name="goal-part"><SubgoalAddRow v-if="isInlineDetailHost" class="goal-card__add-step" commit-on-enter @commit="onAddStep" /></Transition>
+      <Transition name="goal-notes"><GoalDetail v-if="isInlineDetailHost" /></Transition>
   </div>
+  </Transition>
 </template>
 
 <!-- Unscoped on purpose (matches every other component here); rules live in `goalCard.css`

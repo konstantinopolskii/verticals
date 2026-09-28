@@ -110,7 +110,7 @@ function setEnd(event: Event) {
     <button
       type="button"
       :role="props.compact ? undefined : 'menuitem'"
-      :class="props.compact ? 'goal-detail__meta-trigger' : 'dropdown__item goal-actions__item'"
+      :class="props.compact ? 'goal-detail__meta-trigger' : 'dropdown__item goal-actions__item goal-actions__item--why'"
       data-action="repeat"
       :aria-label="props.compact ? 'Repeat' : undefined"
       disabled
@@ -118,6 +118,8 @@ function setEnd(event: Event) {
     >
       <AppIcon name="repeat" :size="props.compact ? 18 : 24" />
       <span v-if="!props.compact">Repeat</span>
+      <!-- A greyed item says why (the review, 27 Sep 2026): the tooltip alone never showed. -->
+      <small v-if="!props.compact" class="goal-actions__why">Only for goals without subgoals</small>
     </button>
   </template>
   <PopoverEngine
@@ -240,11 +242,11 @@ function setEnd(event: Event) {
 
 <style>
 .repeat-menu { padding-block: 8px; }
-.repeat-menu > hr { height: 1px; margin: 8px 0; border: 0; background: rgba(255, 255, 255, .14); }
+.repeat-menu > hr { height: 1px; margin: 8px 0; border: 0; background: rgba(0, 0, 0, .08); }
 .repeat-menu__heading,
-.repeat-menu__copy { margin: 0; padding: 4px 14px; color: rgba(255, 255, 255, .55); font-size: 12px; line-height: 18px; }
+.repeat-menu__copy { margin: 0; padding: 4px 14px; color: rgba(0, 0, 0, .5); font-size: 12px; line-height: 18px; }
 .repeat-menu__item.repeat-menu__item { display: flex; justify-content: space-between; width: 100%; padding: 4px 14px; }
-.repeat-menu ._active { background: rgba(255, 255, 255, .12); }
+.repeat-menu ._active { background: rgba(0, 0, 0, .06); }
 .repeat-custom__segments { display: grid !important; grid-template-columns: 1fr 1fr; padding: 0 8px 8px; }
 .repeat-custom__segments button { justify-content: center; padding: 4px; border-bottom: 1px solid transparent; }
 .repeat-custom__segments button._active { border-bottom-color: currentColor; }
@@ -252,5 +254,5 @@ function setEnd(event: Event) {
 .repeat-custom__days { display: grid !important; grid-template-columns: repeat(7, 1fr); padding: 0 8px; }
 .repeat-custom__days .dropdown__item { justify-content: center; padding: 4px; }
 .repeat-end__field { display: grid; gap: 8px; padding: 12px 14px; font-size: 13px; }
-.repeat-end__field input { box-sizing: border-box; width: 100%; padding: 6px; border: 1px solid rgba(255, 255, 255, .2); border-radius: 4px; background: transparent; color: inherit; }
+.repeat-end__field input { box-sizing: border-box; width: 100%; padding: 6px; border: 1px solid rgba(0, 0, 0, .2); border-radius: 4px; background: transparent; color: inherit; }
 </style>

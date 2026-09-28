@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppIcon from './AppIcon.vue'
 import { computed, ref } from 'vue'
+import { KChip, KInlineAdd } from '@konstantinopolskii/vue'
 import { verticalRank, periodLabel, type VerticalScale } from '../lib/periods'
 import { playSound } from '../lib/sound'
 import { store } from '../store'
@@ -14,13 +15,14 @@ const props = defineProps<{
   isParent: boolean
   vertical?: string | null
   repeat?: RepeatRule | null
-  foil?: boolean
+  /** The card is the open goal: its facts line already shows the date, the checkbox completes it and it is open, so
+   *  the menu keeps only what the card doesn't show (KK, 27 Sep 2026, the cleaned-up card). */
+  open?: boolean
   showIgnore?: boolean
 }>()
 const emit = defineEmits<{
   details: []
   complete: []
-  foil: []
   park: []
   ignore: []
   'ack-due': []
@@ -30,12 +32,20 @@ const emit = defineEmits<{
 
 const trigger = ref<HTMLButtonElement | null>(null)
 const open = ref(false)
-const collapsed = computed(() => store.isCollapsed(props.id))
+/* The desktop chat (desktop/chat/ui/chat.js) loads after the board, so ask at open whether it is there. It used to put
+   its own button on every card's row, over the title (KK, 27 Sep 2026: "shitty"); discussing a goal is one of the
+   card's actions, so it lives here. */
+const agentChat = ref(false)
+function discuss() {
+  window.dispatchEvent(new CustomEvent('verticals:discuss-goal', { detail: { id: props.id } }))
+  closeMenu()
+}
 const targets = computed(() => store.reparentTargets(props.id))
 const fixedSameVerticalParent = computed(() => store.sameVerticalParentId(props.id))
 const grid = computed(() => store.scheduleGrid.value.props)
 const scheduledParentVertical = computed(() => store.parentVertical(props.id))
 function onOpen() {
+  agentChat.value = (window as { __vtChat?: boolean }).__vtChat === true
   open.value = true
   emit('open-change', true)
 }
@@ -53,10 +63,9 @@ function closeMenu() {
   if (open.value) trigger.value?.click()
 }
 
-function act(name: 'details' | 'complete' | 'foil' | 'park' | 'ignore' | 'ack-due' | 'ack-done') {
+function act(name: 'details' | 'complete' | 'park' | 'ignore' | 'ack-due' | 'ack-done') {
   if (name === 'details') emit('details')
   else if (name === 'complete') emit('complete')
-  else if (name === 'foil') emit('foil')
   else if (name === 'park') emit('park')
   else if (name === 'ack-due') emit('ack-due')
   else if (name === 'ack-done') emit('ack-done')
@@ -84,9 +93,14 @@ function moveToInbox() {
   void store.moveGoalToInbox(props.id)
 }
 
-function toggleChildren() {
-  playSound(collapsed.value ? 'vertical_expanded' : 'vertical_collapsed')
-  store.toggleCollapsed(props.id)
+/* Tags moved here from the open card's icon row. They are the open goal's, read off its loaded detail. */
+const tags = computed(() => (store.state.goalDetail?.id === props.id ? store.state.goalDetail.tags : []))
+function addTag(tag: string) {
+  if (tags.value.includes(tag)) return
+  void store.updateGoal(props.id, { tags: [...tags.value, tag] })
+}
+function removeTag(tag: string) {
+  void store.updateGoal(props.id, { tags: tags.value.filter((t) => t !== tag) })
 }
 
 function reparent(parentId: string | null) {
@@ -103,8 +117,13 @@ defineExpose({ openMenu })
 </script>
 
 <template>
+  <!-- One place for the menu (KK, 27 Sep 2026: "it jumps here and there if i click on menu icon"): it hangs below the
+       dots, starting at them, as a pull-down menu does on the Mac; it goes above only when there's no room below, and
+       ends at the dots only in the last column. "Auto" picked whichever side had the most room, a different one per
+       card, and picked again as the card under it moved. -->
   <PopoverEngine
     class="goal-card__tools"
+    placement="bottom-start"
     surface-class="goal-actions__menu"
     :surface-attrs="{ 'data-role': 'goal-context-menu' }"
     @open="onOpen"
@@ -125,8 +144,11 @@ defineExpose({ openMenu })
       </button>
     </template>
 
-    <div data-menu-section="actions">
+    <!-- An open card shows its details, completes by its checkbox and offers the agent in its facts line, so those three
+         and Reschedule (its date) leave its menu. -->
+    <div v-if="!props.open || props.showIgnore" data-menu-section="actions">
       <button
+        v-if="!props.open"
         type="button"
         role="menuitem"
         class="dropdown__item goal-actions__item"
@@ -134,7 +156,15 @@ defineExpose({ openMenu })
         @click="act('details')"
       >Details</button>
       <button
-        v-if="props.isParent"
+        v-if="agentChat && !props.open"
+        type="button"
+        role="menuitem"
+        class="dropdown__item goal-actions__item"
+        data-menu-item="discuss"
+        @click="discuss"
+      >Discuss with agent</button>
+      <button
+        v-if="props.isParent && !props.open"
         type="button"
         role="menuitem"
         class="dropdown__item goal-actions__item"
@@ -142,24 +172,6 @@ defineExpose({ openMenu })
         data-cap="complete"
         @click="act('complete')"
       >Complete</button>
-      <button
-        type="button"
-        role="menuitem"
-        class="dropdown__item goal-actions__item"
-        data-menu-item="foil"
-        data-cap="foil"
-        :aria-pressed="props.foil"
-        @click="act('foil')"
-      >Foil</button>
-      <button
-        v-if="vertical"
-        type="button"
-        role="menuitem"
-        class="dropdown__item goal-actions__item"
-        data-menu-item="park"
-        data-cap="park"
-        @click="act('park')"
-      >Remove from vertical</button>
       <button
         v-if="props.showIgnore"
         type="button"
@@ -187,7 +199,7 @@ defineExpose({ openMenu })
       >Was done on time</button>
     </div>
 
-    <hr>
+    <hr v-if="!props.open || props.showIgnore">
 
     <div
       class="goal-actions__legacy-content"
@@ -198,7 +210,7 @@ defineExpose({ openMenu })
          root everywhere the product renders it, so a per-card picker was a control whose effect
          nothing could see. Value colours are set over HTTP/MCP on the value root itself. -->
     <PopoverEngine
-      v-if="!fixedSameVerticalParent"
+      v-if="!fixedSameVerticalParent && !props.open"
       nested
       data-action="schedule"
       surface-class="goal-actions__submenu goal-actions__schedule"
@@ -255,31 +267,6 @@ defineExpose({ openMenu })
       </div>
     </PopoverEngine>
 
-    <button
-      v-if="vertical && !fixedSameVerticalParent"
-      type="button"
-      role="menuitem"
-      class="dropdown__item goal-actions__item"
-      data-action="inbox"
-      @click="moveToInbox"
-    >
-      <span data-role="icon-spacer" aria-hidden="true" />
-      <span>Move to Inbox</span>
-    </button>
-
-    <button
-      v-if="hasChildren"
-      type="button"
-      role="menuitem"
-      class="dropdown__item goal-actions__item"
-      data-action="expand"
-      :data-sound-event="collapsed ? 'vertical_expanded' : 'vertical_collapsed'"
-      @click="toggleChildren"
-    >
-      <AppIcon :name="collapsed ? 'chevron-right' : 'chevron-down'" data-icon="chevron" />
-      <span>{{ collapsed ? 'Expand' : 'Collapse' }}</span>
-    </button>
-
     <PopoverEngine
       v-if="!fixedSameVerticalParent"
       nested
@@ -302,6 +289,59 @@ defineExpose({ openMenu })
       <button v-if="!fixedSameVerticalParent" class="dropdown__item" role="menuitem" type="button" data-parent-id="" @click="reparent(null)">No parent</button>
       <button v-for="target in targets" :key="target.id" class="dropdown__item" role="menuitem" type="button" :data-parent-id="target.id" @click="reparent(target.id)">{{ target.title }}</button>
     </PopoverEngine>
+
+    <button
+      v-if="vertical && !fixedSameVerticalParent"
+      type="button"
+      role="menuitem"
+      class="dropdown__item goal-actions__item"
+      data-action="inbox"
+      @click="moveToInbox"
+    >
+      <span data-role="icon-spacer" aria-hidden="true" />
+      <span>Move to Inbox</span>
+    </button>
+
+    <!-- The three ways to move a goal sit together. "Collapse" left: it changed nothing on screen. -->
+    <button
+      v-if="vertical"
+      type="button"
+      role="menuitem"
+      class="dropdown__item goal-actions__item"
+      data-menu-item="park"
+      data-cap="park"
+      @click="act('park')"
+    >Remove from vertical</button>
+
+    <hr>
+
+    <PopoverEngine
+      v-if="props.open"
+      nested
+      data-action="tags"
+      surface-class="goal-actions__submenu goal-actions__tags"
+      :surface-attrs="{ 'data-role': 'tag-chips' }"
+    >
+      <template #trigger>
+        <button type="button" role="menuitem" class="dropdown__item goal-actions__item">
+          <span>Tags…</span>
+          <span data-role="submenu-arrow" aria-hidden="true"><AppIcon name="chevron-right" :size="14" /></span>
+        </button>
+      </template>
+      <div class="goal-actions__tags-panel">
+        <div v-if="tags.length" class="chip-wrap">
+          <KChip
+            v-for="tag in tags"
+            :key="tag"
+            data-cap="set-tags"
+            :aria-label="`Remove ${tag}`"
+            @click="removeTag(tag)"
+          >{{ tag }} <AppIcon name="x" :size="12" /></KChip>
+        </div>
+        <KInlineAdd data-cap="set-tags" placeholder="Add tag…" @add="addTag" />
+      </div>
+    </PopoverEngine>
+
 
     <RepeatPopover
       v-if="vertical && vertical !== 'life'"
@@ -332,7 +372,9 @@ defineExpose({ openMenu })
 .goal-card > .goal-card__row .goal-card__tools {
   position: absolute;
   top: 0;
-  right: 0;
+  /* The dots end 14 px from the colour's right edge, as the checkbox starts 14 px from its left (KK, 27 Sep 2026: the
+     right padding was too small). The row ends 6 px inside the card and the dots 3 px inside this button. */
+  right: 5px;
   display: block;
   width: 24px;
   height: 24px;
@@ -378,7 +420,7 @@ defineExpose({ openMenu })
   height: 1px;
   margin: 8px 0;
   border: 0;
-  background: rgba(255, 255, 255, .14);
+  background: rgba(0, 0, 0, .08);
 }
 .goal-actions__legacy-content {
   display: flex;
@@ -406,7 +448,7 @@ defineExpose({ openMenu })
 .goal-actions__submenu button:hover,
 .goal-actions__submenu button:focus {
   outline: none;
-  background-color: rgba(255, 255, 255, .12);
+  background-color: rgba(0, 0, 0, .05);
 }
 .goal-actions__item[aria-disabled="true"],
 .goal-actions__schedule button[aria-disabled="true"] { cursor: default; opacity: .5; }
@@ -418,7 +460,16 @@ defineExpose({ openMenu })
 }
 .goal-actions__item > svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
 .goal-actions__item > [data-role="submenu-arrow"] { margin-left: auto; }
-.goal-actions__item--danger { color: rgb(255, 130, 130); }
+/* One text edge (KK, 27 Sep 2026, the cleaned-up card's menu): words only, so every item starts on one line; the arrow
+   that opens a submenu stays at the right. */
+.goal-actions__menu .goal-actions__item > svg,
+.goal-actions__menu .goal-actions__item > [data-role="icon-spacer"] { display: none; }
+.goal-actions__item.goal-actions__item--why { flex-direction: column; align-items: flex-start; gap: 0; }
+.goal-actions__why { font-size: 12px; line-height: 16px; }
+.goal-actions__tags-panel { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2); min-width: 180px; }
+/* An open card shows its dots all the time: they are the way to its rarer actions. */
+.goal-card--detail-open > .goal-card__row .goal-actions__trigger { opacity: 1; }
+.goal-actions__item--danger { color: #c93a5b; }
 .goal-actions__submenu > div { display: flex; }
 .goal-actions__submenu > div > button { white-space: nowrap; }
 .goal-actions__days { display: grid !important; grid-template-columns: repeat(7, 1fr); }
@@ -441,6 +492,15 @@ defineExpose({ openMenu })
   line-height: 1;
   cursor: pointer;
 }
+/* The submenu's full-width item rule caught the arrows too: each "‹" took the whole row and pushed the year or month
+   and its "›" out of sight (KK's Reschedule screenshot, 27 Sep 2026). The arrows keep their own size; the label between
+   them is centred. */
+.goal-actions__submenu.goal-actions__submenu .goal-actions__nav {
+  width: auto;
+  padding: 4px 10px;
+  justify-content: center;
+}
+.goal-actions__submenu.goal-actions__submenu .goal-actions__stepper > .dropdown__item { justify-content: center; }
 .goal-actions__schedule-footer {
   display: flex;
   gap: var(--space-1);

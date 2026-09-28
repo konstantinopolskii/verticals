@@ -249,7 +249,12 @@ function cloneRenderedRow(id: string): HTMLElement | null {
   box.style.left = `-${pad.left}`
   box.style.padding = `${pad.top} ${pad.right} ${pad.bottom} ${pad.left}`
   box.style.boxSizing = 'border-box'
-  box.style.backgroundColor = cardStyle.backgroundColor
+  /* A coloured goal paints its wash on a layer behind the row (goalCard.css, one highlight shape) and leaves its own box
+     clear; the flying card takes that colour, as it did when the box carried it. */
+  const layer = getComputedStyle(source, '::before')
+  const fromLayer = cardStyle.backgroundColor === 'rgba(0, 0, 0, 0)' && layer.opacity === '1'
+  box.style.backgroundColor = fromLayer ? layer.backgroundColor : cardStyle.backgroundColor
+  if (fromLayer) box.style.backgroundImage = layer.backgroundImage // a lifted card's wash is laid over its base
   box.style.borderRadius = cardStyle.borderRadius
   box.style.overflow = 'hidden'
   box.style.pointerEvents = 'none'
