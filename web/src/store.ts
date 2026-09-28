@@ -27,6 +27,7 @@ import {
 } from './lib/boardIndex'
 import * as viewState from './lib/boardViewState'
 import { createDetailSurface } from './lib/detailSurface'
+import { createFamilyView } from './lib/familyView'
 import { createDocsView, createInitialDocsState, type DocsState } from './lib/docsView'
 import { createCommentsPanel, createInitialCommentsState, type CommentsState } from './lib/comments'
 import { isoDate, localDate } from './lib/schedule'
@@ -75,6 +76,9 @@ interface State {
   openGoalVertical: string | null
   /** Stable rendered-card host. Internal breadcrumb/subgoal navigation reuses this host. */
   openGoalHostKey: string | null
+  /** Flow 4: the levels stepped through, the open goal last; its light moves fast while it swaps under the pointer. */
+  openPath: string[]
+  lightFast: boolean
   goalDetail: GoalDetail | null
   goalDetailLoading: boolean
   activeView: 'verticals' | 'inbox' | 'docs'
@@ -113,6 +117,8 @@ const state = reactive<State>({
   openGoalId: null,
   openGoalVertical: null,
   openGoalHostKey: null,
+  openPath: [],
+  lightFast: false,
   goalDetail: null,
   goalDetailLoading: false,
   hasOpenedGoal: false,
@@ -232,7 +238,7 @@ function sameVerticalParentId(id: string): string | null {
 // deliberately different shapes (field names, nesting) — this section is the one place that
 // reconciles them, so every component downstream renders from the same projection.
 
-const columns: ComputedRef<BoardColumnData[]> = computed(() => {
+const projectedColumns: ComputedRef<BoardColumnData[]> = computed(() => {
   if (!state.board) return []
   const today = new Date()
   const board = state.board
@@ -241,8 +247,15 @@ const columns: ComputedRef<BoardColumnData[]> = computed(() => {
   // board is currently ON (owner report 2026-08-10). `anchor_date` is always present on a loaded
   // board; the fallback only covers the type, never a real payload.
   const anchor = localDate(board.anchor_date ?? isoDate(today))
-  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags, state.expandedVertical))
+  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags))
 })
+/** Which column is wide is laid over the projection, not built into it: widening a column keeps every card's data as it
+ *  was, so the cards don't all draw themselves again (flow 4: the first opening's redrawing went from 20.7 to 13.2 ms in a
+ *  profile, 29 Sep 2026). */
+const columns: ComputedRef<BoardColumnData[]> = computed(() => projectedColumns.value.map((c) => {
+  const active = c.vertical !== 'maybe' && c.vertical === state.expandedVertical
+  return active === c.active ? c : { ...c, active }
+}))
 
 // --- compact board view state (COMPACT_BOARD_HANDOFF.md §3, §5 — KK rulings 2026-08-17) --------
 // Behaviour lives in `lib/boardViewState.ts` (lifted for S-90a); the store binds it to `state`.
@@ -560,6 +573,7 @@ const {
   quietReload,
   expandedVertical: () => state.expandedVertical,
   expandColumn,
+  openFamily: (path, vertical) => family.openFamily(path, vertical), // bound late: the family view is made below
 })
 
 // --- delete --------------------------------------------------------------------------------------
@@ -615,6 +629,7 @@ const detail = createDetailSurface(state, {
 })
 const {
   fetchGoalDetail,
+  ensureDetail,
   schedulePrefetchBoardDetails,
   openGoal,
   openBoardGoal,
@@ -623,6 +638,7 @@ const {
   addDetailChild,
   closeGoal,
 } = detail
+const family = createFamilyView(state, { openGoal, closeGoal, ensureDetail })
 
 /** Opening a board card expands its column (KK ruling 2026-08-17: card click = expand + open in
  *  one gesture). Central here so direct-URL opens and swapped-face clicks get the same behavior:
@@ -728,6 +744,7 @@ export const store = {
   toggleDetailChild,
   addDetailChild,
   openGoal,
+  ensureDetail,
   openBoardGoal: openBoardGoalExpanded,
   navigateToGoal,
   closeGoal,
@@ -735,6 +752,7 @@ export const store = {
   expandColumn,
   setHoverChain,
   hoverChain,
+  ...family,
   runSearch,
   loadRecentSearch,
   filterByTag,

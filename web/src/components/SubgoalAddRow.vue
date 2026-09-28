@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
 import { nextTick, ref } from 'vue'
 
 const props = withDefaults(defineProps<{
@@ -44,8 +43,13 @@ defineExpose({ openEditor })
 </script>
 
 <template>
+  <!-- The checkbox stays while the step is typed, as in a column's own add row (KK, 29 Sep 2026: "the checkbox doesn't
+       disappear"). -->
   <div v-if="editing" class="subgoal-add-editor-shell">
-    <span class="subgoal-add-editor-shell__plus" aria-hidden="true"><AppIcon name="plus" :size="14" /></span>
+    <label class="checkbox checkbox--size-s subgoal-add-row__checkbox" aria-hidden="true">
+      <input class="checkbox__input" type="checkbox" disabled />
+      <span class="checkbox__box" />
+    </label>
     <textarea
       ref="editor"
       v-model="draft"
@@ -148,13 +152,6 @@ defineExpose({ openEditor })
   gap: 6px;
   padding: 6px var(--space-4);
   color: var(--color-text-muted);
-}
-.subgoal-add-editor-shell__plus {
-  flex: 0 0 14px;
-  margin-top: 1px;
-  font-size: 18px;
-  line-height: 20px;
-  text-align: center;
 }
 .subgoal-add-editor-shell .subgoal-add-editor {
   flex: 1 1 auto;

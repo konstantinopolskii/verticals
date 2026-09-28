@@ -97,6 +97,11 @@ export const GOAL_LAYOUT_SECTIONS: GoalLayoutSection[] = [
   {
     title: 'Highlight', open: false, controls: [
       slider('--kkov-light-tint', 'Lighter tint (hover, family)', 0.7, 0, 1, '', 0.01),
+      // flow 4: how far from white an open goal's farthest relatives stay (faint falls halfway), and the rest of the
+      // board, turned off
+      slider('--kkov-far-tint', 'Farthest tint (distance from white)', 3, 0, 8, '', 0.1),
+      slider('--kkov-off-opacity', 'Turned off (not related)', 0.32, 0, 1, '', 0.01),
+      slider('--kkov-off-grey', 'Turned off: grey', 0.5, 0, 1, '', 0.05),
     ],
   },
   {

@@ -11,7 +11,7 @@
 // nav's own `closeGoal + setView` pair cannot disagree about what the address bar should say.
 
 import { createGoal, getGoal, patchGoal, type BoardResponse, type GoalDetail } from './api'
-import { boardGoalHost, findGoal } from './boardIndex'
+import { ancestorIds, boardGoalHost, findGoal } from './boardIndex'
 import { asOneHistoryStep } from './urlState'
 import type { DragState } from './drag'
 
@@ -26,6 +26,8 @@ interface DetailState {
   openGoalId: string | null
   openGoalVertical: string | null
   openGoalHostKey: string | null
+  /** Flow 4: the levels stepped through, the first goal opened first and the open goal last (`lib/familyView.ts`). */
+  openPath: string[]
   goalDetail: GoalDetail | null
   goalDetailLoading: boolean
   hasOpenedGoal: boolean
@@ -122,7 +124,9 @@ export function createDetailSurface(
     id: string,
     sourceVertical: string | null = state.openGoalVertical,
     hostKey: string | null = state.openGoalHostKey,
+    path: string[] = [id],
   ): Promise<void> {
+    state.openPath = path
     state.openGoalId = id
     state.openGoalVertical = sourceVertical
     state.openGoalHostKey = hostKey
@@ -146,7 +150,10 @@ export function createDetailSurface(
    * host key: doing so leaves the parent's compact title above the child's fetched body. */
   function openBoardGoal(id: string): Promise<void> {
     const host = boardGoalHost(state.board, id)
-    return openGoal(id, host?.columnVertical ?? state.openGoalVertical, host?.hostKey ?? null)
+    // Flow 4: a goal drawn under its parent in its column is opened one level in from that parent, so the parent is the
+    // line above it, the same as when it is clicked there.
+    const chain = host ? ancestorIds(state.board, id).slice(0, host.depth).reverse() : []
+    return openGoal(id, host?.columnVertical ?? state.openGoalVertical, host?.hostKey ?? null, [...chain, id])
   }
 
   // --- subgoal list in the detail surface (owner ruling 2026-08-09) ---------------------------
@@ -262,13 +269,22 @@ export function createDetailSurface(
   function closeGoal(): void {
     if (state.openGoalId === null) return
     state.openGoalId = null
+    state.openPath = []
     state.openGoalVertical = null
     state.openGoalHostKey = null
     state.goalDetail = null
   }
 
+  /** Flow 4: a family move reads the card's final size before it moves, so the card's detail is there first (a hover
+   *  fetches it ahead; the board's idle sweep usually has). */
+  function ensureDetail(id: string): Promise<void> {
+    if (detailCache.has(id)) return Promise.resolve()
+    return fetchGoalDetail(id, true).then(() => undefined, () => undefined)
+  }
+
   return {
     fetchGoalDetail,
+    ensureDetail,
     schedulePrefetchBoardDetails,
     openGoal,
     openBoardGoal,

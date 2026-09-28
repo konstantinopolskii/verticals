@@ -28,6 +28,7 @@ import {
   type DragState,
 } from './drag'
 import { createDragHover, type DragHoverController } from './dragHover'
+import { pinRow } from './familyMotion'
 import { reorderPlacement, reparentPlacement } from './boardPlacement'
 import { messageForError } from './scheduleFeedback'
 import { playSound } from './sound'
@@ -60,6 +61,8 @@ export interface DragActionDeps {
    *  under an armed drag. */
   expandedVertical: () => string | null
   expandColumn: (vertical: string) => void
+  /** Flow 4: open the chain a held-over goal is drawn under plus itself, in its column (`lib/familyView.ts`). */
+  openFamily: (path: string[], vertical: string) => Promise<void>
 }
 
 /** D246: wait for the DOM to catch up with a hover-driven layout change before trusting row
@@ -106,10 +109,19 @@ export function createDragActions(deps: DragActionDeps) {
   const { state } = deps
 
   const dragHover: DragHoverController = createDragHover({
-    onExpandColumn: (vertical) => {
+    onExpandColumn: (vertical, held) => {
       if (vertical === deps.expandedVertical()) return
+      // flow 4: the goal the hand holds over stays under it while its column widens, so the hold opens what is there
+      const keep = held?.isConnected ? pinRow(held) : null
       deps.expandColumn(vertical)
+      if (keep) void nextTick(keep)
       scheduleRecapture()
+    },
+    onHoldGoal: (row) => {
+      const vertical = row.closest<HTMLElement>('[data-vertical]')?.dataset.vertical
+      const path = (row.dataset.rowKey ?? '').replace(/~$/, '').split('/').filter(Boolean)
+      if (!vertical || vertical === 'maybe' || !path.length || path.includes(state.drag.id ?? '')) return
+      void deps.openFamily(path, vertical).then(scheduleRecapture)
     },
   })
 
@@ -131,7 +143,7 @@ export function createDragActions(deps: DragActionDeps) {
     const hit = trackPointerMove(state.drag, state.board, clientX, clientY, altKey)
     // D246: only while actually armed (`hit` is null before the threshold arms the drag) — the
     // dwell timer is meaningless during the pre-arm hold.
-    if (hit) dragHover.onMove(hit.columnVertical)
+    if (hit) dragHover.onMove(hit.columnVertical, clientX, clientY)
   }
   function setDragPreviewSize(width: number, height: number): void {
     if (!state.drag.id || width <= 0 || height <= 0) return

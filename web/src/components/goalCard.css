@@ -534,20 +534,17 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   left: 0;
   margin-top: 4px;
 }
+/* No border (KK, 29 Sep 2026: "simple background a little bit darker, like dimmed gray or 5% black ... And no border"):
+   the columns' own "Add…" box, 5% black, which on the goal's colour reads a shade darker than it. */
 .goal-card__children--open > .goal-card__add-step .subgoal-add-row__checkbox .checkbox__box {
   width: var(--kkov-expanded-subtask-checkbox-size);
   height: var(--kkov-expanded-subtask-checkbox-size);
   border: 0;
   border-radius: var(--kkov-expanded-subtask-checkbox-radius, 3px);
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px rgba(45, 48, 54, .22);
+  background: rgb(0 0 0 / 5%);
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 12%);
 }
 .goal-card__children--open > .goal-card__add-step .subgoal-add-row__text { padding: 0; }
-.goal-card__children--open > .subgoal-add-editor-shell.goal-card__add-step {
-  padding-left: calc(6px + var(--space-2) + var(--kkov-expanded-subtask-checkbox-size)
-    + var(--kkov-expanded-subtask-checkbox-text-gap));
-}
-.goal-card__children--open > .goal-card__add-step .subgoal-add-editor-shell__plus { display: none; }
 .goal-card__children--open > .goal-card__add-step .subgoal-add-editor {
   height: auto;
   font-size: inherit;
@@ -664,4 +661,129 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
    piece's shapes are solid (colour laid on white, above); inside the open goal that would pale the step instead. */
 .goal-card__children.goal-card__children--open > .goal-card > .goal-card__row::before {
   background: var(--goal-hover-background);
+}
+
+/* Flow 4 · going deeper (KK, 28 Sep 2026: the bold marker sketches, light A, "Accepted."; lib/familyView.ts). While a
+   goal is open, its family keeps its light wherever it sits: the open goal and its parent full, one level away light,
+   two levels faint, further on the farthest tint, the last two found from each area's colour (29 Sep 2026); the rest
+   of the board turns off, half grey and faded. The light moves in the opening's time and curve, and in 150 ms while it
+   swaps under the pointer. Nothing here applies while nothing is open. */
+.pattern-vertical-board {
+  --vt-light-ms: 360ms;
+  --vt-light-ease: cubic-bezier(.22, 1, .36, 1);
+  --goal-off-opacity: var(--kkov-off-opacity, .32);
+  --goal-off-grey: var(--kkov-off-grey, .5);
+}
+.pattern-vertical-board.pattern-vertical-board--light-fast { --vt-light-ms: 150ms; }
+@media (prefers-reduced-motion: reduce) {
+  .pattern-vertical-board { --vt-light-ms: 150ms; }
+}
+.goal-card[data-light] > .goal-card__row::before {
+  transition: opacity var(--vt-light-ms, 360ms) var(--vt-light-ease);
+}
+.goal-card.goal-card--lit-full > .goal-card__row::before { opacity: 1; }
+.goal-card.goal-card--lit-light > .goal-card__row::before { opacity: var(--goal-light-tint); }
+.goal-card.goal-card--lit-faint > .goal-card__row::before { opacity: var(--goal-faint-tint); }
+.goal-card.goal-card--lit-far > .goal-card__row::before { opacity: var(--goal-far-tint); }
+/* The open goal's own steps sit on its colour and take no light of their own there: their light shows where they live.
+   Pointing at one lays the lighter tint over the card's colour, as before. */
+.goal-card__children--open > .goal-card.goal-card[data-light] > .goal-card__row::before { opacity: 0; }
+/* Pointing at a goal of the family answers as hover does, and never takes its light down. */
+.goal-card.goal-card:is(.goal-card--lit-faint, .goal-card--lit-far):hover > .goal-card__row::before,
+.goal-card__children--open > .goal-card.goal-card[data-light]:hover > .goal-card__row::before {
+  opacity: var(--goal-light-tint);
+  transition: none;
+}
+/* The rest of the board turns off under one veil per column: the board's white at 1 − the off opacity, over half its
+   colour gone. The family stands above it. Fading every turned-off row one by one stalled WebKit, the engine of
+   Verticals' own window, for about 100 ms on the first opening (29 Sep 2026: "first opening of the goal lags pretty
+   hard"); one layer per column fades for free. A goal turned off shows no colour of its own, hover's included. */
+.pattern-vertical-board__body { position: relative; }
+.pattern-vertical-board__body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--color-bg) calc((1 - var(--goal-off-opacity)) * 100%), transparent);
+  -webkit-backdrop-filter: grayscale(var(--goal-off-grey));
+  backdrop-filter: grayscale(var(--goal-off-grey));
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--vt-light-ms) var(--vt-light-ease), visibility 0s linear var(--vt-light-ms);
+}
+.pattern-vertical-board--family .pattern-vertical-board__body::after {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--vt-light-ms) var(--vt-light-ease), visibility 0s;
+}
+/* The column's name sits over the top of its body, and stays out from under the veil. */
+.period-slide > .pattern-vertical-board__header { z-index: 2; }
+.pattern-vertical-board--family .goal-card:is([data-light], [data-holding]) > .goal-card__row,
+.pattern-vertical-board--family .goal-card[data-light] + .goal-card__children--open {
+  position: relative;
+  z-index: 2;
+}
+.pattern-vertical-board--family .goal-card:not([data-light], [data-holding]) > .goal-card__row::before { opacity: 0; }
+/* The open card turns off as one piece while the pointer swaps the light (flow 4's frame 6): its colour stays under the
+   veil, with its steps, "Add…" and notes. */
+.pattern-vertical-board--family .goal-card.goal-card--detail-open:not([data-light]) > .goal-card__row::before { opacity: 1; }
+
+/* One edge in the wide column: a level stepped through is a step-size line on top (KK, 27 Sep 2026: "the parent of this
+   subgoal should be size of a subgoal (so it will work as breadcrumb)"), every level stands on the column's one edge,
+   and the siblings of the level above stand after a small gap under the open goal's siblings. */
+.pattern-vertical-board__column--active .goal-card.goal-card--path-line {
+  --kkov-expanded-goal-font-size: var(--kkov-expanded-subtask-font-size);
+  --kkov-expanded-goal-line-height: var(--kkov-expanded-subtask-line-height);
+  --kkov-expanded-goal-font-weight: var(--kkov-expanded-subtask-font-weight);
+  --kkov-expanded-goal-checkbox-size: var(--kkov-expanded-subtask-checkbox-size);
+  --kkov-expanded-goal-checkbox-radius: var(--kkov-expanded-subtask-checkbox-radius);
+  --kkov-expanded-goal-checkbox-top: var(--kkov-expanded-subtask-checkbox-top);
+  --kkov-expanded-goal-checkbox-text-gap: var(--kkov-expanded-subtask-checkbox-text-gap);
+}
+.pattern-vertical-board__column--active .card-stack > .goal-card.goal-card.goal-card--path-line {
+  padding-top: var(--kkov-expanded-subtask-padding-block);
+  padding-bottom: var(--kkov-expanded-subtask-padding-block);
+  /* the first line stands where the steps do: their list is inset by its group margin */
+  padding-left: calc(var(--card-pad, 6px) + var(--kkov-expanded-subtask-group-margin-left, 0px));
+}
+.pattern-vertical-board__column--active .goal-card__children.goal-card__children--path {
+  margin-left: 0;
+  margin-bottom: 12px;
+}
+.goal-card.goal-card--deepest-step .goal-card__title { cursor: default; }
+
+/* While the wide column moves (lib/familyMotion.ts): colours are solid and rows are drawn darken, so two shapes of one
+   colour that cross make one shape and never a darker patch, and dark words show through a light shape passing over
+   them. The open card's parts don't run their own transitions: the move draws their arrival. */
+body[data-family-moving] .pattern-vertical-board__column--active .goal-card > .goal-card__row { mix-blend-mode: darken; }
+body[data-family-moving] .pattern-vertical-board__column--active .goal-card > .goal-card__row::before {
+  background: linear-gradient(var(--goal-hover-background), var(--goal-hover-background)), var(--color-bg);
+}
+body[data-family-moving] .pattern-vertical-board__column--active .goal-card.goal-card {
+  background-color: transparent !important;
+  transition: none !important;
+}
+body[data-family-moving] .pattern-vertical-board__column--active :is(.goal-part-enter-active, .goal-part-leave-active,
+  .goal-notes-enter-active, .goal-notes-leave-active) {
+  transition: none !important;
+}
+.family-ghosts {
+  position: absolute;
+  inset: 0;
+  z-index: 10; /* above a lifted card (z-index 6) */
+  pointer-events: none;
+}
+/* The hover lift stays out of a move: the move reads where everything is without it. */
+body[data-family-moving] .pattern-vertical-board__column--active :is(.goal-card--lifted, .goal-card__children--lifted) {
+  transform: none !important;
+  transition: none !important;
+}
+
+/* A goal held under a drag fills with light until it opens (lib/dragHover.ts, GOAL_HOLD_MS): the same shape, rising to
+   the full colour in the hold's time, linear because it is progress. Its words stay put. */
+.goal-card.goal-card[data-holding] > .goal-card__row::before {
+  opacity: 1;
+  filter: none;
+  transition: opacity 500ms linear;
 }

@@ -19,7 +19,10 @@ import type { GoalCardData } from '../types'
 import type { RepeatRule } from '../lib/api'
 import { goalWashInk } from '../lib/goalColor'
 import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
-import { ancestorIds, subtreeIds } from '../lib/boardIndex'
+import { subtreeIds } from '../lib/boardIndex'
+import { DEEPEST, levelTints } from '../lib/familyView'
+import { familyMoving, familyMovingNow } from '../lib/familyMotion'
+import { devGoalLayout } from '../lib/devGoalLayout'
 import '../kit-ext/carryover-ghost/carryover-ghost.css'
 
 const props = withDefaults(
@@ -51,6 +54,8 @@ const props = withDefaults(
     subgoalCount?: number
     children?: GoalCardData[]
     depth?: number
+    /** Flow 4: the goals this one is drawn under in its column, outermost first. A click opens them and it. */
+    chain?: string[]
   }>(),
   {
     done: false,
@@ -70,6 +75,7 @@ const props = withDefaults(
     subgoalCount: 0,
     children: () => [],
     depth: 0,
+    chain: () => [],
   },
 )
 
@@ -78,11 +84,20 @@ const titleParts = computed(() => highlightTitle(props.title))
 const filterContext = computed(() => isContextGoal(props.id, props.columnVertical))
 const cardStyle = computed(() => {
   const palette = devPaletteFor(props.color)
-  return { '--goal-hover-background': palette?.card
-    ? rgbaFromHex(palette.card.color, palette.card.opacity)
-    : (props.color
-    ? `rgb(${goalWashInk(props.color).washRgb})`
-    : '#d7d7d7') }
+  // flow 4: the family's faint and farthest tints, found from this colour (lib/familyView.ts)
+  const [rgb, alpha] = palette?.card
+    ? [[1, 3, 5].map((i) => Number.parseInt(palette.card.color.slice(i, i + 2), 16)), palette.card.opacity]
+    : [props.color ? goalWashInk(props.color).washRgb.split(',').map(Number) : [215, 215, 215], 1]
+  const tints = levelTints(rgb, alpha, Number(devGoalLayout['--kkov-light-tint']), Number(devGoalLayout['--kkov-far-tint']))
+  return {
+    '--goal-hover-background': palette?.card
+      ? rgbaFromHex(palette.card.color, palette.card.opacity)
+      : (props.color
+      ? `rgb(${goalWashInk(props.color).washRgb})`
+      : '#d7d7d7'),
+    '--goal-faint-tint': String(tints.faint),
+    '--goal-far-tint': String(tints.far),
+  }
 })
 const cardRoot = ref<ComponentPublicInstance | null>(null)
 
@@ -116,11 +131,8 @@ const isInlineDetailHost = computed(() => (
   && store.state.openGoalVertical === props.columnVertical
 ))
 const isOpenRelated = computed(() => {
-  const openId = store.state.openGoalId
-  if (!openId || !store.state.board) return false
-  if (props.id === openId) return true
-  return ancestorIds(store.state.board, openId).includes(props.id)
-    || subtreeIds(store.state.board, openId).has(props.id)
+  const related = store.openRelatives.value
+  return !!related && (related.ancestors.has(props.id) || related.subtree.has(props.id))
 })
 /* The wide column shows two levels, and opening goes down in place (KK, 27 Sep 2026, the cleaned-up card: "I love
    it. Let's implement"; he had called hiding the siblings mind-blowing). An opened subgoal takes the top-level size
@@ -135,24 +147,46 @@ const openInColumn = computed(() => (
   inWideColumn.value && store.state.openGoalVertical === props.columnVertical ? store.state.openGoalId : null
 ))
 const isFocus = computed(() => openInColumn.value === props.id && isInlineDetailHost.value)
-/** An ancestor, drawn in this column, of the goal open in it: its subgoals stay in view around the open goal. */
-const isOnPath = computed(() => {
-  const openId = openInColumn.value
-  return openId !== null && openId !== props.id && !!store.state.board
-    && ancestorIds(store.state.board, openId).includes(props.id)
-})
 /** The open goal's own subgoals here in its column: they sit inside its card, on its colour, so they take no colour
  *  of their own as its relatives. */
 const isInsideOpen = computed(() => {
-  const openId = store.state.openGoalId
-  return !!openId && openId !== props.id && !!store.state.board
-    && store.state.openGoalVertical === props.columnVertical
-    && subtreeIds(store.state.board, openId).has(props.id)
+  const related = store.openRelatives.value
+  return !!related && related.id !== props.id && store.state.openGoalVertical === props.columnVertical
+    && related.subtree.has(props.id)
 })
+/* Flow 4, one edge in the wide column: the levels stepped through are step-size lines on top, the open goal is the one
+   big card, its siblings stand under it and the siblings of the level above under them (`lib/familyView.ts`). A goal
+   drawn there knows its level by the chain it is drawn under: the open path's first levels. */
+const familyDepth = computed(() => {
+  const path = store.state.openPath
+  if (!inWideColumn.value || !path.length || store.state.openGoalVertical !== props.columnVertical) return -1
+  const d = props.chain.length
+  if (d > path.length || props.chain.some((id, i) => id !== path[i])) return -1
+  return d === 0 && path[0] !== props.id ? -1 : d
+})
+/** A level stepped through: a line on top, its steps under it with the next level first. */
+const isPathLine = computed(() => (
+  familyDepth.value >= 0 && familyDepth.value < store.state.openPath.length - 1
+  && store.state.openPath[familyDepth.value] === props.id
+))
+/** A step of the deepest card: two levels in is the deepest, so it doesn't open (KK, 28 Sep 2026). */
+const isDeepestStep = computed(() => familyDepth.value >= DEEPEST)
+/** The steps a line on top or the open card lists are the ones in this column, as the column lists them (KK, 29 Sep
+ *  2026: "We show inside only those who are on the same vertical column"); the others light up where they are. A line
+ *  on top lists the next level first. */
+const familyKids = computed<GoalCardData[] | null>(() => {
+  if (!isPathLine.value) return null
+  const next = store.state.openPath[familyDepth.value + 1]
+  return [...props.children.filter((k) => k.id === next), ...props.children.filter((k) => k.id !== next)]
+})
+const listKids = computed(() => familyKids.value ?? props.children)
+/** The open family's light on this goal (`lib/familyView.ts`); null while nothing is open, and for a goal turned off,
+ *  which the board's veil covers: opening a goal re-renders its family, not the whole board. */
+const familyLit = computed(() => store.familyLight.value?.get(props.id) ?? null)
 /* An open goal always has a list: its steps end with "Add…", and its notes follow them inside the same piece. */
-const showChildren = computed(() => isInlineDetailHost.value || (props.children.length > 0 && (
+const showChildren = computed(() => isInlineDetailHost.value || isPathLine.value || (listKids.value.length > 0 && (
   inWideColumn.value
-    ? props.depth < 1 || isFocus.value || isOnPath.value
+    ? (props.depth < 1 && familyDepth.value < 0) || isFocus.value
     : props.depth < 1 || isOpenRelated.value
 )))
 
@@ -161,8 +195,12 @@ function onOpenDetail() {
   // 2026-08-17: card click = expand + open in one gesture). Non-board contexts (search results,
   // inbox) keep the direct open unchanged.
   if (props.columnVertical && props.columnVertical !== 'maybe' && store.state.activeView === 'verticals') {
-    const hold = holdPlace()
-    void store.openBoardGoal(props.id)
+    // Flow 4: a click opens the chain the goal is drawn under plus itself: a step in the card goes one level in, a
+    // sibling sideways, a line on top back to its level. Inside the family the lines stay where they are, so only a
+    // goal opened afresh holds its place while its column widens.
+    if (isDeepestStep.value) return
+    const hold = inWideColumn.value ? null : holdPlace()
+    void store.openFamily([...props.chain, props.id], props.columnVertical)
     if (hold) void nextTick(hold)
     return
   }
@@ -397,9 +435,9 @@ const isNestedReorderHere = computed(() => {
   const slot = dragSlot.value
   if (props.ghost || !slot || slot.parentId !== props.id) return false
   const sourceId = store.state.drag.id
-  const ownIndex = props.children.findIndex((child) => child.id === sourceId)
+  const ownIndex = listKids.value.findIndex((child) => child.id === sourceId)
   if (ownIndex === -1) return true
-  const currentNextId = props.children[ownIndex + 1]?.id ?? null
+  const currentNextId = listKids.value[ownIndex + 1]?.id ?? null
   return slot.insertBeforeId !== currentNextId
 })
 /* Mirrors Column.vue's own `isSourceSlot`: true when this nested slot sits in the SAME COLUMN the
@@ -441,7 +479,7 @@ type ChildRenderItem =
  *  of a column's top-level list — see that function's own doc comment for the splice shape
  *  (`insertBeforeId: null` appends after every existing child). */
 function renderChildren(): ChildRenderItem[] {
-  const items: ChildRenderItem[] = props.children.map((goal) => ({ kind: 'goal', key: goal.id, goal }))
+  const items: ChildRenderItem[] = listKids.value.map((goal) => ({ kind: 'goal', key: goal.id, goal }))
   if (!isNestedReorderHere.value) return items
   const beforeId = dragSlot.value?.insertBeforeId ?? null
   const found = beforeId === null
@@ -469,7 +507,7 @@ const {
 } = useCardLift({
   card: rootElement,
   list: childrenListEl,
-  enabled: () => props.depth === 0 && store.state.drag.id === null,
+  enabled: () => props.depth === 0 && store.state.drag.id === null && !isPathLine.value,
   // its own menu or a subgoal's hangs from it
   pinned: () => {
     const id = menuGoalId.value
@@ -477,12 +515,13 @@ const {
   },
 })
 watch(() => store.state.drag.id, (id) => { if (id !== null) dropLift() })
+watch(isPathLine, (line) => { if (line) dropLift() }) // a line on top doesn't lift: the family under it would rise with it
 /* One highlight shape per goal (KK, 27 Sep 2026): a top-level goal sizes its own and its subgoals' shapes,
    `lib/goalWash.ts`. */
 useGroupWash({
   card: () => (props.depth === 0 ? rootElement() : null),
   list: childrenListEl,
-  layoutSources: [() => props.children, showChildren, () => store.state.openGoalId],
+  layoutSources: [() => props.children, showChildren, () => store.state.openGoalId, () => store.state.openPath, familyKids],
 })
 
 /* A list that comes or goes with an opening (an opened subgoal's steps, the way down to a deeper open goal, the steps of
@@ -490,7 +529,7 @@ useGroupWash({
    rather than leap: closing an opened subgoal used to drop its steps and notes in one frame, 460 px (the motion
    trace, 27 Sep 2026). Growing, it aims at its height once its notes have opened too. */
 const OPENING = { duration: 360, easing: 'cubic-bezier(.22, 1, .36, 1)' }
-const stillMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const stillMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches || familyMoving()
 function growList(el: Element, done: () => void): void {
   const list = el as HTMLElement
   if (stillMotion()) { done(); return }
@@ -520,7 +559,11 @@ function foldList(el: Element, done: () => void): void {
 function onAddStep(title: string): void {
   void store.addDetailChild(title)
 }
-function onCardEnter(): void { highlightFamily(); liftEnter() }
+function onCardEnter(): void {
+  highlightFamily()
+  liftEnter()
+  if (inWideColumn.value) void store.ensureDetail(props.id) // flow 4: a click here moves the column from its detail
+}
 function onCardLeave(): void { clearFamily(); liftLeave() }
 const nestedInsertionSlot = computed(() => (
   isNestedReorderHere.value
@@ -615,14 +658,19 @@ function onRowKeydown(event: KeyboardEvent) {
       'goal-card--colored': color,
       'goal-card--done': checked,
       'goal-card--detail-open': isInlineDetailHost,
-      'goal-card--open-related': isOpenRelated && !isInsideOpen,
+      'goal-card--open-related': !familyLit && isOpenRelated && !isInsideOpen,
       'goal-card--with-subgoals': depth === 0 && showChildren && !isInlineDetailHost,
       'goal-card--focus': isFocus && depth > 0,
-      'goal-card--ancestor-hover': isChainHovered && !isInsideOpen,
+      'goal-card--path-line': isPathLine,
+      'goal-card--deepest-step': isDeepestStep,
+      [`goal-card--lit-${familyLit}`]: !!familyLit,
+      'goal-card--ancestor-hover': !familyLit && isChainHovered && !isInsideOpen,
       'goal-card--lifted': lifted,
       'carryover-ghost': ghost,
     }"
     :data-goal-id="id"
+    :data-row-key="[...chain, id].join('/') + (ghost ? '~' : '')"
+    :data-light="familyLit ?? undefined"
     :data-filter-context="filterContext ? true : undefined"
     :style="[cardStyle, liftCardStyle]"
     :data-parent-id="parentId ?? undefined"
@@ -677,7 +725,7 @@ function onRowKeydown(event: KeyboardEvent) {
         >
           <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat, 'goal-card__title-text--context': filterContext, 'goal-card__title-text--finding': titleParts.some(part => part.match) || filterContext }">
             <RepeatMark v-if="repeat" />
-            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template><template v-if="ghost && plannedPeriod">{{ ' ' }}<span class="goal-card__planned-period">{{ plannedPeriod.replace(/ /g, '\u00a0') }}</span></template>
+            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template><template v-if="plannedPeriod && !isInlineDetailHost">{{ ' ' }}<span class="goal-card__planned-period">{{ plannedPeriod.replace(/ /g, '\u00a0') }}</span></template>
           </span>
         </p>
         <textarea
@@ -707,7 +755,7 @@ function onRowKeydown(event: KeyboardEvent) {
           @click.stop="onOpenDetail"
         >Open</button>
         <p v-if="contextLabel" class="goal-card__meta">{{ contextLabel }}</p>
-        <Transition name="goal-part"><GoalFacts v-if="isInlineDetailHost" :id="id" /></Transition>
+        <Transition name="goal-part" :css="!familyMovingNow"><GoalFacts v-if="isInlineDetailHost" :id="id" /></Transition>
       </div>
       <GoalCardTools
         ref="tools"
@@ -738,7 +786,8 @@ function onRowKeydown(event: KeyboardEvent) {
     :class="{
       'goal-card__children--lifted': lifted,
       'goal-card__children--open': isInlineDetailHost,
-      'goal-card__children--path': isOnPath && depth > 0,
+      'goal-card__children--path': isPathLine && depth > 0,
+      'goal-card__children--family': isPathLine || (isInlineDetailHost && familyDepth >= 0),
     }"
     :data-open-region="isInlineDetailHost ? '' : undefined"
     :style="[cardStyle, { '--subgoal-depth': String(depth) }, liftListStyle]"
@@ -811,12 +860,13 @@ function onRowKeydown(event: KeyboardEvent) {
           :subgoal-count="item.goal.subgoalCount"
           :children="item.goal.children"
           :depth="depth + 1"
+          :chain="[...chain, id]"
         />
       </template>
       <!-- The open goal's own parts grow in and fold away together, in the opening's time and curve, so what is below
            slides instead of jumping (the motion trace, 27 Sep 2026). -->
-      <Transition name="goal-part"><SubgoalAddRow v-if="isInlineDetailHost" class="goal-card__add-step" commit-on-enter @commit="onAddStep" /></Transition>
-      <Transition name="goal-notes"><GoalDetail v-if="isInlineDetailHost" /></Transition>
+      <Transition name="goal-part" :css="!familyMovingNow"><SubgoalAddRow v-if="isInlineDetailHost" class="goal-card__add-step" commit-on-enter @commit="onAddStep" /></Transition>
+      <Transition name="goal-notes" :css="!familyMovingNow"><GoalDetail v-if="isInlineDetailHost" /></Transition>
   </div>
   </Transition>
 </template>

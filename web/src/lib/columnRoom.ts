@@ -12,7 +12,9 @@ function stopTrim(room: Room): void {
 }
 
 function apply(room: Room, px: number): void {
-  room.px = Math.max(0, Math.ceil(px))
+  const next = Math.max(0, Math.ceil(px))
+  if (next && next === room.px) return // the same room: writing it again lays the column out again, every frame of the glide
+  room.px = next
   if (room.px) { room.body.style.paddingBottom = `${room.base + room.px}px`; return }
   room.body.style.removeProperty('padding-bottom')
   stopTrim(room)

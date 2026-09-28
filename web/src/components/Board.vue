@@ -416,7 +416,12 @@ const overlayStyle = computed(() => {
     v-if="dated.length"
     ref="boardRoot"
     class="pattern-vertical-board"
-    :class="{ _loading: store.state.loading, 'pattern-vertical-board--flat': !devDeck.use3D }"
+    :class="{
+      _loading: store.state.loading,
+      'pattern-vertical-board--flat': !devDeck.use3D,
+      'pattern-vertical-board--family': store.familyLight.value !== null,
+      'pattern-vertical-board--light-fast': store.state.lightFast,
+    }"
     :style="deckStyle"
     data-role="column-strip"
   >

@@ -33,7 +33,7 @@ const OPEN_MS = 360 // `goalDetail.css`'s opening: the column scrolls in step wi
    then snap shut (the motion trace, 27 Sep 2026). */
 function requestClose() {
   if (store.state.openGoalId === null) return
-  store.closeGoal()
+  store.closeFamily()
 }
 
 function onDetailKeydown(event: KeyboardEvent) {
@@ -42,9 +42,9 @@ function onDetailKeydown(event: KeyboardEvent) {
     '#dropdownPortal [data-popover-surface][data-state="open"]',
   )
   if (event.key === 'Escape') {
-    if (hosted) return
+    if (hosted || store.state.drag.id !== null || store.state.drag.settling) return // Esc in a drag cancels only the drag
     event.preventDefault()
-    requestClose()
+    store.goUp() // flow 4: up one level; at the first level, close
   }
 }
 
@@ -384,8 +384,11 @@ function contentTop(el: HTMLElement, scroller: HTMLElement): number {
 }
 function fitIntoView(): void {
   if (fitted || tween) return
+  if (store.state.drag.id !== null) { fitted = true; return } // flow 4: opened by a held drag, it stays under the hand
   const detail = rootEl.value
-  const list = detail?.parentElement ?? null
+  // Flow 4: the family goes to the top from its first line, so the levels stepped through stay in view above the card.
+  let list = detail?.parentElement ?? null
+  while (list?.parentElement?.closest('.goal-card__children')) list = list.parentElement.closest<HTMLElement>('.goal-card__children')
   const card = list?.previousElementSibling as HTMLElement | null
   let scroller = list?.parentElement ?? null
   while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement

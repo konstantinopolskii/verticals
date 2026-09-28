@@ -24,6 +24,47 @@
 
 import { onBeforeUnmount, onMounted, watch, type Ref, type WatchSource } from 'vue'
 
+/** A mounted group: it measures its shapes, then writes them. */
+type Group = { measure: () => Measured | null; write: (measured: Measured) => void }
+type Measured = { boxes: Box[]; end: number; gap: number; lane: { left: number; right: number } }
+
+/* Groups are placed together: every one is measured, then every one is written, so the board is laid out once for all
+   of them. Placed one by one, each read after the last one's writes laid the board out again: 18 ms of the first
+   opening, most of it forced layout (profiled 29 Sep 2026). A shape that didn't move isn't written again, so it
+   doesn't restyle its card either. */
+const groups = new Set<Group>()
+const due = new Set<Group>()
+let queued = false
+function flush(): void {
+  queued = false
+  const measured = [...due].map((group) => [group, group.measure()] as const)
+  due.clear()
+  for (const [group, m] of measured) if (m) group.write(m)
+}
+function schedule(group: Group): void {
+  due.add(group)
+  if (!queued) {
+    queued = true
+    queueMicrotask(flush)
+  }
+}
+/** Every group now, so a family move (lib/familyMotion.ts) can place the shapes for the layout it is about to read,
+ *  before the resize observer would on the next frame. */
+export function placeAllWashes(): void {
+  for (const group of groups) due.add(group)
+  flush()
+}
+/** One observer for every card and list: the browser reports all the sizes that changed at once. */
+const owners = new WeakMap<Element, Group>()
+const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const group = owners.get(entry.target)
+    if (group) due.add(group)
+  }
+  flush()
+})
+const written = new WeakMap<HTMLElement, string>()
+
 /** `end`: where an open goal's piece ends (its list's bottom); -Infinity for any other goal. `bound`: a row that has no
  *  shape and only bounds its neighbours' ("Add…", the notes). `shift`: how far its list steps in from the first one. */
 type Box = {
@@ -51,12 +92,10 @@ export function useGroupWash(options: {
   /** Measure again when one of these changes: the rendered subgoals. Size changes are watched on their own. */
   layoutSources: WatchSource[]
 }) {
-  let observer: ResizeObserver | null = null
-
-  function measure(): { boxes: Box[]; end: number } {
+  function measure(): Measured | null {
     const card = options.card()
     const list = options.list.value
-    if (!card) return { boxes: [], end: 0 }
+    if (!card) return null
     const ref = card.offsetParent
     const items = [card, ...(list ? list.querySelectorAll<HTMLElement>(`.goal-card[data-goal-id], ${BOUNDS}`) : [])]
     const end = list && list.offsetParent !== null ? offsetIn(list, ref).top + list.offsetHeight : 0
@@ -82,15 +121,14 @@ export function useGroupWash(options: {
         shift: home && list ? Math.max(0, offsetIn(home, ref).left - firstList) : 0,
       }
     })
-    return { boxes, end }
+    if (!boxes.length) return null
+    const style = getComputedStyle(boxes[0].el)
+    const gap = parseFloat(style.getPropertyValue('--subgoal-gap')) || 1
+    const lane = { left: boxes[0].left + (parseFloat(style.getPropertyValue('--goal-shape-inset')) || 0), right: boxes[0].right }
+    return { boxes, end, gap, lane }
   }
 
-  function place(): void {
-    const { boxes: all, end } = measure()
-    if (!all.length) return
-    const style = getComputedStyle(all[0].el)
-    const gap = parseFloat(style.getPropertyValue('--subgoal-gap')) || 1
-    const lane = { left: all[0].left + (parseFloat(style.getPropertyValue('--goal-shape-inset')) || 0), right: all[0].right }
+  function write({ boxes: all, end, gap, lane }: Measured): void {
     all.forEach((box, i) => {
       if (box.bound) return
       const prev = all[i - 1]
@@ -98,25 +136,35 @@ export function useGroupWash(options: {
       const top = prev ? (prev.bottom + box.top + gap) / 2 : box.top
       // an open goal's colour runs on down its steps and notes to the end of its piece
       const bottom = Math.max(box.end, next ? (box.bottom + next.top - gap) / 2 : Math.max(box.bottom, end))
+      const shape = [box.row.top - top, bottom - box.row.bottom, box.row.left - lane.left - box.shift, lane.right - box.row.right]
+        .map((px) => `${px.toFixed(2)}px`)
+      if (written.get(box.el) === shape.join()) return
+      written.set(box.el, shape.join())
       const style = box.el.style
-      style.setProperty('--wash-t', `${(box.row.top - top).toFixed(2)}px`)
-      style.setProperty('--wash-b', `${(bottom - box.row.bottom).toFixed(2)}px`)
-      style.setProperty('--wash-l', `${(box.row.left - lane.left - box.shift).toFixed(2)}px`)
-      style.setProperty('--wash-r', `${(lane.right - box.row.right).toFixed(2)}px`)
+      style.setProperty('--wash-t', shape[0])
+      style.setProperty('--wash-b', shape[1])
+      style.setProperty('--wash-l', shape[2])
+      style.setProperty('--wash-r', shape[3])
     })
   }
 
-  // Observing starts with a first callback, which measures.
+  const group: Group = { measure, write }
+  function watchSize(el: HTMLElement | null, old?: HTMLElement | null): void {
+    if (old) { sizes?.unobserve(old); owners.delete(old) }
+    if (el) { owners.set(el, group); sizes?.observe(el) }
+  }
+  // Observing starts with a first report, which measures.
   onMounted(() => {
-    observer = new ResizeObserver(place)
-    const card = options.card()
-    if (card) observer.observe(card)
-    if (options.list.value) observer.observe(options.list.value)
+    groups.add(group)
+    watchSize(options.card())
+    watchSize(options.list.value)
   })
-  watch(options.list, (list, old) => { // the list appears and disappears with the subgoals
-    if (old) observer?.unobserve(old)
-    if (list) observer?.observe(list)
-  }, { flush: 'post' })
-  watch(options.layoutSources, place, { flush: 'post' })
-  onBeforeUnmount(() => observer?.disconnect())
+  watch(options.list, (list, old) => watchSize(list, old), { flush: 'post' }) // the list comes and goes with the subgoals
+  watch(options.layoutSources, () => schedule(group), { flush: 'post' })
+  onBeforeUnmount(() => {
+    groups.delete(group)
+    due.delete(group)
+    watchSize(null, options.card())
+    watchSize(null, options.list.value)
+  })
 }
