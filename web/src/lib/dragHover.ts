@@ -21,7 +21,10 @@ export const COLUMN_DWELL_MS = 200
 
 /** Flow 4 (KK, 28 Sep 2026: "The same while dragging ... Great."): holding a dragged goal over a goal opens it, over a
  *  step goes one level in, over a line above goes back up, exactly as a click there does. About half a second, as the
- *  sketches said: long enough that passing over goals on the way opens nothing, short enough to feel like waiting on it. */
+ *  sketches said: long enough that passing over goals on the way opens nothing, short enough to feel like waiting on it.
+ *  Only from a goal's middle, where a drop means "into it" (KK picked it on 29 Sep 2026): its edges, where a drop means
+ *  "before it" or "after it", only reorder. A pause there to aim used to open the goal, move the column, and once land
+ *  the reorder in the wrong place. */
 export const GOAL_HOLD_MS = 500
 
 export interface DragHoverCallbacks {
@@ -36,8 +39,9 @@ export interface DragHoverCallbacks {
 }
 
 export interface DragHoverController {
-  /** Feed every armed pointermove with the column vertical under the pointer (or null off-board), and where it is. */
-  onMove(columnVertical: string | null, x?: number, y?: number): void
+  /** Feed every armed pointermove with the column vertical under the pointer (or null off-board), where it is, and the
+   *  goal a drop there would go into, if any. */
+  onMove(columnVertical: string | null, x?: number, y?: number, into?: string | null): void
   /** Clears the dwell timer and forgets the last-seen column. Call on arm (defensively) and on
    *  every release/cancel — no timer may outlive its own gesture. */
   reset(): void
@@ -59,10 +63,12 @@ export function createDragHover(cb: DragHoverCallbacks): DragHoverController {
     holdEl = null
   }
 
-  /** The goal row under the pointer (the flying copy takes no pointer). A new row restarts the clock; a row that opened
-   *  stays the same row, so it never opens twice. */
-  function trackGoalHold(x: number, y: number): void {
-    const row = document.elementFromPoint(x, y)?.closest<HTMLElement>('.goal-card[data-goal-id]') ?? null
+  /** The goal row under the pointer (the flying copy takes no pointer), while a drop there would go into it. A new row
+   *  restarts the clock, and so does coming back to the middle from an edge; a row that opened stays the same row, so it
+   *  never opens twice. */
+  function trackGoalHold(x: number, y: number, into: string | null): void {
+    const under = document.elementFromPoint(x, y)?.closest<HTMLElement>('.goal-card[data-goal-id]') ?? null
+    const row = under && under.dataset.goalId === into ? under : null
     const key = row?.dataset.rowKey ?? null
     if (key === holdRow) return
     clearHold()
@@ -96,9 +102,9 @@ export function createDragHover(cb: DragHoverCallbacks): DragHoverController {
   }
 
   return {
-    onMove(columnVertical, x, y) {
+    onMove(columnVertical, x, y, into = null) {
       trackColumnDwell(columnVertical)
-      if (x !== undefined && y !== undefined) trackGoalHold(x, y)
+      if (x !== undefined && y !== undefined) trackGoalHold(x, y, into)
     },
     reset() {
       clearDwell()

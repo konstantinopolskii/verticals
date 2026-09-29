@@ -143,7 +143,9 @@ export function createDragActions(deps: DragActionDeps) {
     const hit = trackPointerMove(state.drag, state.board, clientX, clientY, altKey)
     // D246: only while actually armed (`hit` is null before the threshold arms the drag) — the
     // dwell timer is meaningless during the pre-arm hold.
-    if (hit) dragHover.onMove(hit.columnVertical, clientX, clientY)
+    if (!hit) return
+    const target = state.drag.target
+    dragHover.onMove(hit.columnVertical, clientX, clientY, target?.kind === 'combine' ? target.targetId : null)
   }
   function setDragPreviewSize(width: number, height: number): void {
     if (!state.drag.id || width <= 0 || height <= 0) return
