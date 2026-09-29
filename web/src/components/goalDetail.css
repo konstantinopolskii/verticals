@@ -268,6 +268,10 @@
 }
 .goal-detail__mention-list button:hover > span:first-child { text-decoration: underline; text-decoration-color: rgba(0, 0, 0, .2); text-underline-offset: 2.25px; }
 .goal-detail__mention-date { flex: none; color: rgba(0, 0, 0, .5); font-size: 13px; }
+/* A step lists its parents' documents after its own: each parent named once above its documents, in the facts line's
+   voice, and the documents in the lines' grey, as D251's inherited chips were muted. */
+.goal-detail__mention-from { margin: 8px 0 2px; color: rgba(0, 0, 0, .5); font-size: 13px; line-height: 20px; }
+.goal-detail__mention-list button[data-inherited] { color: rgba(0, 0, 0, .5); }
 .goal-detail-inline .goal-detail__rule {
   order: 5;
   margin: 14px 0 8px;

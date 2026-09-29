@@ -317,23 +317,39 @@ function onBodySurfaceKeydown(event: KeyboardEvent) {
 }
 
 /* Two lines of documents after the notes, one look, each opening its list, newest first:
-   - the goal's own, which the agent linked on lines of their own: "3 documents · latest 24 Sep";
+   - the goal's own, which the agent linked on lines of their own: "3 documents · latest 24 Sep", and after them the
+     ones its parents link, greyed as D251's chips were, under "From" and the parent's name, nearest parent first (KK
+     picked it on 29 Sep 2026: a step keeps its parents' documents in view; its own link to the same document wins);
    - the ones that mention the goal (their text links to it) and aren't in its notes: "Mentioned in 13 documents · latest
-     24 Sep". They used to be pills, 21 on one goal. A document linked from an ancestor is its ancestor's (D251) and
-     isn't repeated here, and two documents with one title show once, the newer: the 25 Sep migration left copies of some
-     under `migration/`. */
-type DocItem = { key: string; title: string; updated: string | null; open: () => void }
+     24 Sep". They used to be pills, 21 on one goal. Two documents with one title show once, the newer: the 25 Sep
+     migration left copies of some under `migration/`. */
+type DocItem = { key: string; title: string; updated: string | null; open: () => void; from?: string; fromId?: string }
 const openList = ref<'documents' | 'mentions' | null>(null)
 const newestFirst = (a: DocItem, b: DocItem) => (b.updated ?? '').localeCompare(a.updated ?? '')
 const documents = computed<DocItem[]>(() => {
   // a document's own title: the link's words are the sentence's ("the review document")
   const known = new Map(store.state.docs.list.map((d) => [d.path, d]))
-  return linkedDocs.value.map((d) => ({
+  const own = linkedDocs.value.map((d) => ({
     key: d.path,
     title: known.get(d.path)?.title || d.title,
     updated: known.get(d.path)?.updated_at ?? null,
     open: () => void store.followBodyLink({ kind: 'doc', target: d.path }),
   })).sort(newestFirst)
+  const mine = new Set(own.map((d) => d.key))
+  const ancestors = goal.value?.ancestors ?? []
+  const nearness = new Map(ancestors.map((a, i) => [a.id, ancestors.length - i])) // 1 is the parent
+  const parents = (goal.value?.docs ?? [])
+    .filter((d) => d.source === 'goal' && d.inherited_from && !mine.has(d.path))
+    .map((d) => ({
+      key: d.path,
+      title: d.title || known.get(d.path)?.title || d.path,
+      updated: known.get(d.path)?.updated_at ?? null,
+      open: () => store.openDocFromGoal(d.id),
+      from: d.inherited_from?.title,
+      fromId: d.inherited_from?.id,
+    }))
+    .sort((a, b) => ((nearness.get(a.fromId ?? '') ?? 99) - (nearness.get(b.fromId ?? '') ?? 99)) || newestFirst(a, b))
+  return [...own, ...parents]
 })
 const mentions = computed<DocItem[]>(() => {
   const g = goal.value
@@ -351,7 +367,10 @@ const mentions = computed<DocItem[]>(() => {
 const docLines = computed(() => [
   { role: 'goal-documents', list: 'documents' as const, docs: documents.value, label: (n: number) => `${n} ${n === 1 ? 'document' : 'documents'}` },
   { role: 'goal-mentions', list: 'mentions' as const, docs: mentions.value, label: (n: number) => `Mentioned in ${n} ${n === 1 ? 'document' : 'documents'}` },
-].filter((line) => line.docs.length))
+].filter((line) => line.docs.length).map((line) => ({
+  ...line,
+  latest: line.docs.reduce<string | null>((max, d) => (d.updated && (!max || d.updated > max) ? d.updated : max), null),
+})))
 watch(() => documents.value.length + mentions.value.length, (n) => {
   if (n && !store.state.docs.list.length && !store.state.docs.listLoading) void store.loadDocs()
 }, { immediate: true })
@@ -517,13 +536,21 @@ function fitIntoView(): void {
                     :data-role="line.role"
                     :aria-expanded="openList === line.list"
                     @click="openList = openList === line.list ? null : line.list"
-                  ><b>{{ line.label(line.docs.length) }}</b><template v-if="line.docs[0].updated"><span class="goal-detail__mentions-sep" aria-hidden="true">·</span>latest {{ shortDate(line.docs[0].updated) }}</template></button>
+                  ><b>{{ line.label(line.docs.length) }}</b><template v-if="line.latest"><span class="goal-detail__mentions-sep" aria-hidden="true">·</span>latest {{ shortDate(line.latest) }}</template></button>
                   <ul v-if="openList === line.list" class="goal-detail__mention-list" :data-role="`${line.role}-list`">
-                    <li v-for="doc in line.docs" :key="doc.key">
-                      <button type="button" :data-doc="doc.key" @click="doc.open()">
-                        <span>{{ doc.title }}</span><span class="goal-detail__mention-date">{{ shortDate(doc.updated) }}</span>
-                      </button>
-                    </li>
+                    <template v-for="(doc, i) in line.docs" :key="doc.key">
+                      <li v-if="doc.fromId && doc.fromId !== line.docs[i - 1]?.fromId" class="goal-detail__mention-from">From {{ doc.from }}</li>
+                      <li>
+                        <button
+                          type="button"
+                          :data-doc="doc.key"
+                          :data-inherited="doc.fromId ? 'true' : undefined"
+                          @click="doc.open()"
+                        >
+                          <span>{{ doc.title }}</span><span class="goal-detail__mention-date">{{ shortDate(doc.updated) }}</span>
+                        </button>
+                      </li>
+                    </template>
                   </ul>
                 </template>
               </GoalDetailEditor>
