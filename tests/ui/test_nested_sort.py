@@ -160,8 +160,10 @@ def _move_to_row_once(
 
 
 def _move_to_column_gap_settled(page: Page, vertical: str, timeout_ms: int = 2000) -> tuple[float, float]:
-    """test_hand_drag.py's own empty-gap target: below every card in a column, immune to the live
-    resort preview a specific fixture row's narrow band would be displaced by."""
+    """test_hand_drag.py's own empty-gap target: below every planned card in a column, immune to the
+    live resort preview a specific fixture row's narrow band would be displaced by. Carried goals sit
+    under a red now-line below them and take no drop (KK, 26 Sep 2026, f3ade3f: "allow drops only
+    into planned slots"), so they are not what "below everything" measures from."""
     previous: tuple[float, float, float] | None = None
     consecutive = 0
     deadline = time.monotonic() + timeout_ms / 1000
@@ -175,6 +177,7 @@ def _move_to_column_gap_settled(page: Page, vertical: str, timeout_ms: int = 200
                  if (!column) return null
                  const colRect = column.getBoundingClientRect()
                  const rows = [...column.querySelectorAll('[data-goal-id] > .goal-card__row')]
+                   .filter(r => !r.closest('[data-section="carried"]'))
                  const bottoms = rows.map(r => r.getBoundingClientRect().bottom)
                  const lastBottom = bottoms.length ? Math.max(...bottoms) : colRect.top + 40
                  return { x: colRect.left + colRect.width / 2, bottom: lastBottom }

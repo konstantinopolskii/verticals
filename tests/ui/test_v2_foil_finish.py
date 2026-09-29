@@ -14,6 +14,11 @@ CARD = '[data-goal-id="SYNCOL04"]'
 LAST_COLUMN_CARD = '[data-vertical="life"] [data-goal-id="SYNLIF01"]'
 OVERLAY = '[data-role="iridescent-overlay"]'
 
+pytestmark = pytest.mark.skip(
+    reason='Foil is off the card (KK, 27 Sep 2026: "let\'s kill the foil option. It\'s a mess for now"): no menu item, no '
+    "shimmer. The stored flag and kit-ext/iridescent stay for when it comes back, and so does this file."
+)
+
 
 @pytest.fixture
 def ui_reduced_motion(request: pytest.FixtureRequest) -> str:

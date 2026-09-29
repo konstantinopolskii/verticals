@@ -98,13 +98,16 @@ def test_adopt_before_only_child_shows_final_order_at_once(ui_f2: UiSession) -> 
     since = len(session.request_log)
     _drag_before(page, moved, child)
     assert _kids(page, parent) == [moved, child], "the moved card must show before the child at once"
-    assert _kids(page, moved) == [moved_child]
+    # The board draws two levels (KK, 27 Sep 2026, 7e9e791): the moved card's own child, a third level now, isn't drawn
+    # under it; it stays its child (checked below).
+    assert _kids(page, moved) == []
 
     _wait_patch(session, moved, since)
     page.wait_for_timeout(1500)
     assert _kids(page, parent) == [moved, child]
-    rows = _rows(session, [parent, child, moved])
+    rows = _rows(session, [parent, child, moved, moved_child])
     assert rows[moved][0] == parent
+    assert rows[moved_child][0] == moved
     assert rows[parent][1] < rows[moved][1] < rows[child][1], rows
 
 

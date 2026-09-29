@@ -13,6 +13,7 @@ from tests.ui.conftest import UiSession, activate_column
 
 GRIP = {"x": 50, "y": 6}
 FLIP_SETTLE_MS = 300
+GOAL_HOLD_MS = 500  # lib/dragHover.ts: a drag held this long in a goal's middle opens the goal (flow 4)
 
 _TOP_LEVEL_IDS = """vertical => {
   const column = document.querySelector(`.pattern-vertical-board__column[data-vertical="${vertical}"]`)
@@ -58,10 +59,12 @@ def _signature(state: dict) -> tuple:
     return (state["above"], state["below"], state["combine"], round(state["top"] or 0))
 
 
-def _jitter(page: Page, x: float, y: float, amplitude: float) -> list[tuple]:
+def _jitter(page: Page, x: float, y: float, amplitude: float, until: float | None = None) -> list[tuple]:
     seen = []
     offsets = [1, -1, 2, -2, 3, -3, amplitude / 2, -amplitude / 2, amplitude, -amplitude, 0]
     for dy in offsets:
+        if until is not None and time.monotonic() > until:
+            break
         page.mouse.move(x + (1 if dy > 0 else -1), y + dy, steps=2)
         page.wait_for_timeout(40)
         seen.append(_signature(_state(page)))
@@ -114,18 +117,25 @@ def test_first_card_rests_in_gap_without_reflow(ui_f2: UiSession) -> None:
     seen = _jitter(page, x, gap_y, amplitude=max(4.0, state["height"] / 2 - 4))
     assert set(seen) == {resting}, f"the board moved while the pointer rested in the gap: {seen}"
 
+    # Held half a second in a goal's middle, a drag opens the goal (flow 4, KK 28 Sep 2026; the middle only, 29 Sep): the
+    # hand asked for that. So the board's stillness is checked while the hand aims there, inside that half second, and the
+    # hand leaves before the goal opens. Coming into the middle moves nothing: the gap stays and only the goal lights up.
     b_live = _row_box(page, second)
     b_centre = b_live["y"] + b_live["height"] / 2
     page.mouse.move(x, b_centre, steps=4)
-    page.wait_for_timeout(FLIP_SETTLE_MS)
+    arrived = time.monotonic()
+    page.wait_for_timeout(80)
     combining = _signature(_state(page))
     assert combining == (second, third, second, resting[3]), combining
-    seen = _jitter(page, x, b_centre, amplitude=2)
+    # Half the hold for looking: the last jiggle and the move out take up to another 150 ms.
+    seen = _jitter(page, x, b_centre, amplitude=2, until=arrived + (GOAL_HOLD_MS - 250) / 1000)
+    assert len(seen) >= 2, f"too slow to watch the combine hover inside the hold: {seen}"
     assert set(seen) == {combining}, f"the board moved while combining into {second}: {seen}"
 
     page.mouse.move(x, gap_y, steps=4)
     page.wait_for_timeout(FLIP_SETTLE_MS)
     assert _signature(_state(page)) == resting
+    assert page.locator(".goal-card--detail-open").count() == 0, "the hand left before the hold, yet a goal opened"
 
     page.mouse.up()
     deadline = time.monotonic() + 5

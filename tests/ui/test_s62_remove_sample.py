@@ -13,6 +13,7 @@ import psycopg
 import pytest
 
 from tests.ui.conftest import UiSession
+from tests.ui.views import switch_view
 
 
 def _row(conn: psycopg.Connection, goal_id: str) -> tuple:
@@ -73,15 +74,16 @@ def test_s62_remove_sample(ui_f1u: UiSession) -> None:
 
         # --- Inbox shows USERROW2, and only USERROW2 (F1u's sample data has no root Maybe row:
         # SAMPLE06 is a subgoal, MAYBE_PREDICATE requires parent_id IS NULL) --------------------------
-        session.page.click('[data-nav-item="inbox"]')
+        switch_view(session.page, "inbox")
         session.page.wait_for_selector('[data-cap="inbox"]')
         assert session.page.locator('[data-goal-id]').count() == 1
         assert session.page.locator('[data-goal-id="USERROW2"]').count() == 1
 
         # --- reload restores nothing ---------------------------------------------------------------
         session.page.reload(wait_until="domcontentloaded")
-        session.page.wait_for_selector('[data-nav-item="verticals"]')
-        session.page.click('[data-nav-item="verticals"]')
+        session.page.wait_for_selector('[data-cap="inbox"]')
+        # A reloaded Inbox names no view in the command field, so the way back to the board is the browser's back.
+        session.page.go_back()
         session.page.wait_for_selector('[data-goal-id="USERROW1"]')
         assert session.page.locator('[data-cap="sample-banner"]').count() == 0, "reload brought the sample banner back"
         assert session.page.locator('[data-goal-id]').count() == 1, "reload changed the surviving board row count"

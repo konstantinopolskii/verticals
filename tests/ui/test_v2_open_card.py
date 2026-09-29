@@ -8,7 +8,9 @@ is gone along with the modal it lived in) — same-vertical children are the ord
 D245-D247 drag machinery applies to them unchanged. Cross-vertical children stay in their own
 columns exactly as before (D192) but now carry the D235 "open-related" wash
 (`goal-card--open-related`) while an ancestor's card is open, in place of the old detail-only
-list that used to hide them. Ideas/principles grouped sections (D207/legacy) had no equivalent in
+list that used to hide them. Flow 4 (KK agreed it on 28-29 Sep 2026) draws that cue as the open family's light by
+distance (`data-light`: the open goal's steps and children one level away are "light"), the rest of the board turned
+off. Ideas/principles grouped sections (D207/legacy) had no equivalent in
 the killed modal's board-hosted mode and have none here either — this file pins their continued
 absence rather than re-inventing them.
 """
@@ -59,8 +61,11 @@ def test_parent_open_card_nests_same_vertical_children_and_washes_cross_vertical
     session.page.wait_for_selector(f'[data-goal-id="{parent.id}"]')
     _open(session, parent.id)
 
+    # The notes end the open goal's piece, in the list right after its card (the opened-card cleanup, KK 27-28 Sep 2026).
     inline = session.page.locator('#goal-detail[data-role="inline-detail"]')
-    assert inline.evaluate("el => el.closest('[data-goal-id]').dataset.goalId") == parent.id
+    assert inline.evaluate(
+        "el => el.closest('.goal-card__children').previousElementSibling.dataset.goalId"
+    ) == parent.id
     assert "pattern-vertical-board__column--deck-main" in (
         session.page.locator('[data-vertical="year"]').get_attribute("class") or ""
     )
@@ -70,25 +75,24 @@ def test_parent_open_card_nests_same_vertical_children_and_washes_cross_vertical
 
     # D248: the same-vertical child is an ORDINARY board GoalCard nested under the open card's own
     # `[data-goal-id]` — no parallel render surface, no separate list, so the drag machinery that
-    # already governs every other nested card applies to it too. It also wears the D235
-    # open-related wash: it is a descendant of the open goal.
+    # already governs every other nested card applies to it too. It also takes the family's light,
+    # one level away from the open goal.
     nested_year = session.page.locator(
         f'[data-goal-id="{parent.id}"] + .goal-card__children [data-goal-id="{year.id}"]'
     )
     expect(nested_year).to_be_visible()
-    assert "goal-card--open-related" in (nested_year.get_attribute("class") or "")
+    assert nested_year.get_attribute("data-light") == "light"
 
     # Cross-vertical children: NOT drawn inside the opened card (D192, unchanged by D248) — they
-    # stay in their own columns, marked by the D235 open-related wash rather than duplicated into
+    # stay in their own columns, lit by the open family where they are rather than duplicated into
     # a detail-only list (that list no longer exists at all, asserted below).
     for child in (month, week):
         own_column_card = session.page.locator(
             f'[data-vertical="{child.vertical}"] [data-goal-id="{child.id}"]'
         )
         expect(own_column_card).to_be_visible()
-        assert "goal-card--open-related" in (own_column_card.get_attribute("class") or ""), (
-            f"D235: cross-vertical child {child.id} must wear the open-related wash while its "
-            "ancestor's card is open"
+        assert own_column_card.get_attribute("data-light") == "light", (
+            f"cross-vertical child {child.id} must take the family's light while its ancestor's card is open"
         )
         assert session.page.locator(
             f'[data-goal-id="{parent.id}"] .goal-card__children [data-goal-id="{child.id}"]'
@@ -111,12 +115,11 @@ def test_parent_open_card_nests_same_vertical_children_and_washes_cross_vertical
     assert "pattern-vertical-board__column--deck-main" in (
         session.page.locator('[data-vertical="day"]').get_attribute("class") or ""
     )
-    # Closing clears the wash too — it tracks `store.state.openGoalId`, not a sticky flag.
+    # Closing clears the light too — it tracks the open path, not a sticky flag.
     for child in (month, week):
-        assert "goal-card--open-related" not in (
-            session.page.locator(f'[data-vertical="{child.vertical}"] [data-goal-id="{child.id}"]')
-            .get_attribute("class") or ""
-        )
+        card = session.page.locator(f'[data-vertical="{child.vertical}"] [data-goal-id="{child.id}"]')
+        assert card.get_attribute("data-light") is None
+        assert "goal-card--open-related" not in (card.get_attribute("class") or "")
 
 
 def test_value_open_card_nests_same_vertical_children_without_a_parallel_list(
@@ -143,7 +146,7 @@ def test_value_open_card_nests_same_vertical_children_without_a_parallel_list(
             f'[data-goal-id="{value.id}"] + .goal-card__children [data-goal-id="{child.id}"]'
         )
         expect(nested).to_be_visible()
-        assert "goal-card--open-related" in (nested.get_attribute("class") or "")
+        assert nested.get_attribute("data-light") == "light"
     assert session.page.locator('[data-role="principles-section"]').count() == 0
     assert session.page.locator('[data-role="linked-subgoals"]').count() == 0
 

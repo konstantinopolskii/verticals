@@ -39,7 +39,11 @@ def test_leaf_click_completes_but_parent_click_opens_unified_menu(ui_f2: UiSessi
     session.page.click(_affordance("SYNDAY01"))
     session.page.wait_for_selector(MENU)
     session.page.wait_for_timeout(100)
-    assert _menu_items(session) == ["Details", "Complete", "Foil", "Remove from vertical"]
+    # The opened-card cleanup (KK 27-28 Sep 2026): foil left the card, and "Remove from vertical" sits with the ways to
+    # move a goal, below the actions. "Comment" starts a comment on a goal that has none (KK, 29 Sep 2026).
+    assert _menu_items(session) == ["Details", "Comment", "Complete"]
+    assert session.page.locator(f'{MENU} [data-menu-item="park"]').count() == 1
+    assert session.page.locator(f'{MENU} [data-menu-item="foil"]').count() == 0
     assert all(ord(ch) < 128 for text in _menu_items(session) for ch in text)
     assert not any(
         row["method"] == "PATCH" and row["url"].endswith("/api/goals/SYNDAY01")
@@ -68,7 +72,8 @@ def test_right_click_uses_same_menu_and_details_action(ui_f2: UiSession) -> None
     card.wait_for(state="visible")
     card.click(button="right")
     session.page.wait_for_selector(MENU)
-    assert _menu_items(session) == ["Details", "Foil", "Remove from vertical"]
+    assert _menu_items(session) == ["Details", "Comment"]
+    assert session.page.locator(f'{MENU} [data-menu-item="park"]').count() == 1
     assert session.page.locator(f'{MENU} [data-menu-item="complete"]').count() == 0
     assert session.page.locator(f'{MENU} [data-menu-item="ignore"]').count() == 0
 
@@ -76,21 +81,9 @@ def test_right_click_uses_same_menu_and_details_action(ui_f2: UiSession) -> None
     session.page.wait_for_selector("#goal-detail")
 
 
-def test_foil_toggle_class_hook_and_park_removes_card(ui_f2: UiSession) -> None:
+def test_park_removes_card(ui_f2: UiSession) -> None:
+    """Foil's half of this test left with foil (KK, 27 Sep 2026: "let's kill the foil option. It's a mess for now")."""
     session = ui_f2
-    foil_card = session.page.locator(_card("SYNCOL04"))
-    foil_card.wait_for(state="visible")
-    foil_card.click(button="right")
-    with session.page.expect_response(
-        lambda response: response.request.method == "PATCH"
-        and response.url.endswith("/api/goals/SYNCOL04")
-    ):
-        session.page.click(f'{MENU} [data-menu-item="foil"]')
-    session.page.wait_for_selector(f'{_card("SYNCOL04")}.foil')
-
-    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
-        assert conn.execute("SELECT foil FROM goals WHERE id = 'SYNCOL04'").fetchone() == (True,)
-
     park_card = session.page.locator(_card("SYNORD01"))
     park_card.wait_for(state="visible")
     activate_column(session.page, "week")

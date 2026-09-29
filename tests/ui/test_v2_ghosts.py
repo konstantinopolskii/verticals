@@ -53,11 +53,16 @@ def test_ghost_is_dimmed_due_ignore_is_ghost_only_and_expired_ignore_returns(
     card = session.page.locator(f'[data-goal-id="{ghost.id}"]')
     card.wait_for(state="visible")
     assert card.get_attribute("data-ghost") == "true"
-    # D125/D127: due state is an inline, punctuated title prefix.
-    assert card.locator('.goal-card__due').text_content() == "Due. "
+    # KK, 26 Sep 2026 (f3ade3f): D125's red "Due." title prefix became one red now-line per carrying column, with the
+    # carried goals below it and no prefix on their titles.
+    week = session.page.locator('.pattern-vertical-board__column[data-vertical="week"]')
+    carried = week.locator('[data-section="carried"]')
+    assert carried.locator(f'[data-goal-id="{ghost.id}"]').count() == 1
+    assert week.locator('[data-role="now-line"]').count() == 1
+    assert card.locator(".goal-card__due").count() == 0
     native = session.page.locator(f'[data-goal-id="{control.id}"]')
     assert native.get_attribute("data-ghost") is None
-    assert native.locator('.goal-card__due').count() == 0
+    assert carried.locator(f'[data-goal-id="{control.id}"]').count() == 0
     # D168: carryover cards stay opaque.
     assert card.evaluate("el => getComputedStyle(el).opacity") == native.evaluate(
         "el => getComputedStyle(el).opacity"

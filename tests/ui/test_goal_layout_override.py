@@ -46,8 +46,8 @@ def test_saved_goal_layout_defaults_panel_persistence_and_space_key(ui_f2: UiSes
     second_card = children.locator(f':scope > [data-goal-id="{second.id}"]')
     expect(first_card).to_be_visible()
     expect(second_card).to_be_visible()
-    assert first_card.evaluate("el => getComputedStyle(el, '::before').opacity") == "1"
-    assert second_card.evaluate("el => getComputedStyle(el, '::before').opacity") == "0"
+    # No separator lines between steps any more (the opened-card cleanup, KK 27-28 Sep 2026): a step's ::before is its
+    # highlight shape now (`lib/goalWash.ts`), so the old "first line only" default has nothing left to pin.
 
     column.locator('.pattern-vertical-board__header').first.click()
     page.wait_for_function(

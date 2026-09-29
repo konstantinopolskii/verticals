@@ -33,12 +33,15 @@ from __future__ import annotations
 import psycopg
 
 from tests.ui.conftest import UiSession
+from tests.ui.views import switch_view
 
 PRIMARY_GOAL = "SYNMAY01"  # scheduled to week 2026-W32 — the scenario's own two gestures
 SECONDARY_GOAL = "SYNMAY02"  # separate card, separate popover — the supplementary "life" check
 
 DETAIL_MODAL = "#goal-detail"
-DETAIL_TRIGGER = f'{DETAIL_MODAL} [data-cap="schedule"]'
+# The open goal's date is the first fact under its title, and it opens the schedule popup (GoalFacts.vue, the
+# opened-card cleanup, KK 27-28 Sep 2026).
+DETAIL_TRIGGER = '.goal-card--detail-open .goal-facts [data-cap="schedule"]'
 DETAIL_POPOVER = (
     '#dropdownPortal [data-popover-surface][data-state="open"]:has(.schedule-popover__row)'
 )
@@ -68,7 +71,7 @@ def test_s66_schedule(ui_f2: UiSession) -> None:
         # (`InboxView.vue`), not on the Verticals board `Board.vue` draws. `GoalDetail.vue` itself
         # is mounted at `App.vue` level regardless of which nav view is active (this file's own
         # relocation fix), so the click-to-open works the same once the card is actually visible.
-        session.page.click('[data-nav-item="inbox"]')
+        switch_view(session.page, "inbox")
         session.page.wait_for_selector('[data-cap="inbox"]', timeout=5000)
         session.page.click(_card_title(PRIMARY_GOAL))
         session.page.wait_for_selector(DETAIL_TRIGGER, timeout=5000)
@@ -176,7 +179,7 @@ def test_s66_schedule(ui_f2: UiSession) -> None:
         popover.wait_for(state="hidden", timeout=5000)
         session.page.keyboard.press("Escape")
         session.page.wait_for_selector(DETAIL_TRIGGER, state="hidden", timeout=5000)
-        session.page.click('[data-nav-item="verticals"]')
+        switch_view(session.page, "verticals")
         session.page.wait_for_selector(f'[data-vertical="week"] [data-goal-id="{PRIMARY_GOAL}"]', timeout=5000)
         marker_survived = session.page.evaluate("() => window.__wp22NoReloadMarker === true")
         assert marker_survived, "window.__wp22NoReloadMarker did not survive — a page reload happened"
@@ -196,12 +199,12 @@ def test_s66_schedule(ui_f2: UiSession) -> None:
         # Ruling 1 retired the board's own Maybe column (`[data-vertical="maybe"]` no longer
         # exists on `Board.vue` at all) — the honest form of "no longer Maybe" now is "no longer
         # in the Inbox view", `InboxView.vue`'s own card list.
-        session.page.click('[data-nav-item="inbox"]')
+        switch_view(session.page, "inbox")
         session.page.wait_for_selector('[data-cap="inbox"]', timeout=5000)
         assert session.page.locator(f'[data-cap="inbox"] [data-goal-id="{PRIMARY_GOAL}"]').count() == 0, (
             f"{PRIMARY_GOAL} still rendered in the Inbox view after being scheduled to week"
         )
-        session.page.click('[data-nav-item="verticals"]')
+        switch_view(session.page, "verticals")
         session.page.wait_for_selector(f'[data-vertical="week"] [data-goal-id="{PRIMARY_GOAL}"]', timeout=5000)
 
         # --- supplementary, non-gesture-budget-counted check: scheduling to life (E2E.md's own
@@ -219,7 +222,7 @@ def test_s66_schedule(ui_f2: UiSession) -> None:
         gestures_before_supplement = session.gestures.count
         # SECONDARY_GOAL is still unverticaled (Maybe) at this point — same Inbox detour as
         # PRIMARY_GOAL's own opening above, not routed through `session.gestures`.
-        session.page.click('[data-nav-item="inbox"]')
+        switch_view(session.page, "inbox")
         session.page.wait_for_selector('[data-cap="inbox"]', timeout=5000)
         session.page.click(_card_title(SECONDARY_GOAL))
         session.page.wait_for_selector(DETAIL_TRIGGER, timeout=5000)
@@ -238,7 +241,7 @@ def test_s66_schedule(ui_f2: UiSession) -> None:
         life_popover.wait_for(state="hidden", timeout=5000)
         session.page.keyboard.press("Escape")
         session.page.wait_for_selector(DETAIL_TRIGGER, state="hidden", timeout=5000)
-        session.page.click('[data-nav-item="verticals"]')
+        switch_view(session.page, "verticals")
         session.page.wait_for_selector(f'[data-vertical="life"] [data-goal-id="{SECONDARY_GOAL}"]', timeout=5000)
         # These clicks (close, reopen, trigger, cell) are supplementary verification, not scripted
         # "Steps" of S-66 — deliberately not routed through `session.gestures` so they never inflate

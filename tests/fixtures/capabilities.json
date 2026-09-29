@@ -212,7 +212,7 @@
   },
   {
     "cap": "filter_value",
-    "ui_selector": "[data-cap=value-filter]",
+    "ui_selector": null,
     "http_method": "GET",
     "http_path": "/api/board?value={id}",
     "mcp_tool": "board",

@@ -277,13 +277,15 @@ def _assert_capture_is_forgiving(page: Page, label: str, out_dir: Path) -> Path:
     assert not offenders, f"{label}: punishing class/data-* values on the board: {offenders}"
 
     # 3. Pixels.
-    # D125/D127 render carryover state as a deliberately red inline `Due.` title prefix. Keep
-    # S-69's punishment scan over every other board pixel while excluding that owner-ruled cue.
+    # Carryover state has one owner-ruled red cue: D125/D127's red inline `Due.` title prefix, and since
+    # KK's 26 Sep 2026 approval (f3ade3f) one red now-line per carrying column in its place, with its count (the count
+    # stands over the 1 px line, outside its box). Keep
+    # S-69's punishment scan over every other board pixel while excluding that cue.
     # (D234's .value-bar__dot briefly held a slot here; D238 removed the dots with the bar —
     # value links are plain nav text now, so no menu pixel carries a value colour any more.
     # The scan stays PAGE-wide, which is also what proves that.)
     excluded = page.locator(
-        '[data-role="milestone-ring"], [data-role="leaf-square"], .goal-card__due'
+        '[data-role="milestone-ring"], [data-role="leaf-square"], [data-role="now-line"], [data-role="now-count"]'
     ).evaluate_all(
         """(els) => {
           const root = document.querySelector('.pattern-vertical-board').getBoundingClientRect();

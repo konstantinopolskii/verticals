@@ -57,6 +57,7 @@ from pathlib import Path
 from playwright.sync_api import Page, expect
 
 from tests.ui.conftest import REPO_ROOT, UiSession, activate_column
+from tests.ui.views import FIELD
 
 DIST = REPO_ROOT / "web" / "dist"
 
@@ -89,15 +90,16 @@ CARD_TITLE = '[data-goal-id="SYNSCH04"] > .goal-card__row .goal-card__title'
 # from `CARD_TITLE`'s own `SYNSCH04`) — this scenario only needs *a* card whose detail surface it
 # can open to reach the popover, not specifically an unverticaled one, so no nav detour is needed.
 SCHEDULE_CARD_TITLE = '[data-goal-id="SYNSCH05"] .goal-card__title'
-SCHEDULE_TRIGGER = '#goal-detail [data-cap="schedule"]'
+# Since the opened-card cleanup (KK 27-28 Sep 2026) the open goal's date is the first fact under its title, and it
+# opens the same schedule popover (GoalFacts.vue).
+SCHEDULE_TRIGGER = '.goal-card--detail-open .goal-facts [data-cap="schedule"]'
 SCHEDULE_POPOVER = (
     '#dropdownPortal [data-popover-surface][data-state="open"]:has(.schedule-popover__row)'
 )
 DETAIL_BODY = ".goal-detail__body"
-SEARCH_TRIGGER = '[data-cap="search-trigger"]'
-SEARCH_MODAL = '[data-cap="search-modal"]'
-SEARCH_INPUT = '[data-cap="search-input"] input'
-SEARCH_RESULTS = '[data-cap="search-results"]'
+# The search modal left with the bottom bar's redo (3bc40f9): words go into the one field, and when nothing matches, the
+# field itself says so on the line above it.
+SEARCH_EMPTY = '[data-role="search-empty"]'
 
 # A query that clears the 3-character client-side floor (§10-D6) and matches nothing in F2, so the
 # results panel renders its empty state rather than a list.
@@ -178,13 +180,11 @@ def test_s78_no_emoji_in_any_user_facing_string(ui_f2: UiSession) -> None:
     expect(page.locator(DETAIL_BODY)).to_be_hidden()
 
     # --- surface 4: the empty state -----------------------------------------------------------
-    page.click(SEARCH_TRIGGER)
-    expect(page.locator(SEARCH_MODAL)).to_be_visible()
-    expect(page.locator(SEARCH_INPUT)).to_be_visible()
-    page.fill(SEARCH_INPUT, EMPTY_STATE_QUERY)
-    panel = page.locator(SEARCH_RESULTS)
-    expect(panel).to_be_visible()
-    expect(panel).to_contain_text("No results matched your search")
+    page.locator(FIELD).click()
+    page.fill(FIELD, EMPTY_STATE_QUERY)
+    panel = page.locator(SEARCH_EMPTY)
+    expect(panel).to_be_visible(timeout=10000)
+    expect(panel).to_contain_text("Nothing matches")
     surfaces["empty-state"] = _surface_text(page)
 
     # --- scan 1: rendered text, both character sets -------------------------------------------
