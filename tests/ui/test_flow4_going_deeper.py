@@ -14,8 +14,8 @@ The light falls off by distance in the family: the open goal and its parent full
 further the farthest tint; everything else turns off under the veil, and nothing changes while nothing is open ("Don't
 change the default way we right now light stuff on verticals please!!! No dim when nothing is opened").
 
-What the pointer does to the light while a goal is open is left out on purpose: "the right active colour" is still
-KK's call (build round 1, 29 Sep 2026), so no test pins today's answer.
+While a goal is open, the goal under the pointer takes the open card's colour, full, and the rest keeps its light (KK
+picked it on 29 Sep 2026, for "when I hover he other tasks I expect them to get the right active colour").
 
 Every scenario runs on the real bundle against a real backend, with prefers-reduced-motion (E2E.md §6): the family
 moves in one frame, so each state is read the moment it lands.
@@ -109,6 +109,13 @@ def _title(vertical: str, goal_id: str) -> str:
     return f"{_card(vertical, goal_id)} > .goal-card__row .goal-card__title"
 
 
+def _tint(page: Page, vertical: str, goal_id: str) -> float:
+    """How strong a goal's colour is: the opacity of the layer behind its row."""
+    return float(page.locator(_card(vertical, goal_id)).first.evaluate(
+        "el => getComputedStyle(el.querySelector(':scope > .goal-card__row'), '::before').opacity"
+    ))
+
+
 def _open_card(goal_id: str) -> str:
     return f'.goal-card.goal-card--detail-open[data-goal-id="{goal_id}"]'
 
@@ -180,16 +187,51 @@ def test_open_lists_its_own_column_and_lights_the_family_by_distance(ui_f2: UiSe
     assert page.locator(_card("quarter", fam.unrelated)).first.get_attribute("data-light") is None
 
     # Each step down the light is a weaker tint of the goal's colour, and a goal that's off shows none.
-    def tint(vertical: str, goal_id: str) -> float:
-        return float(page.locator(_card(vertical, goal_id)).first.evaluate(
-            "el => getComputedStyle(el.querySelector(':scope > .goal-card__row'), '::before').opacity"
-        ))
-
     page.wait_for_timeout(400)  # the light's own 150 ms under reduced motion
-    full, light = tint("year", fam.parent), tint("month", fam.month_step)
-    faint, far = tint("month", fam.inner_month), tint("week", fam.week)
-    off = tint("quarter", fam.unrelated)
+    full, light = _tint(page, "year", fam.parent), _tint(page, "month", fam.month_step)
+    faint, far = _tint(page, "month", fam.inner_month), _tint(page, "week", fam.week)
+    off = _tint(page, "quarter", fam.unrelated)
     assert full == 1 and full > light > faint > far > off == 0, (full, light, faint, far, off)
+
+
+def test_the_goal_under_the_pointer_takes_the_open_cards_colour(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    fam = _seed(session)
+    header = page.locator('.pattern-vertical-board__column[data-vertical="week"] .pattern-vertical-board__header').first
+
+    def point(vertical: str, goal_id: str) -> None:
+        page.locator(_title(vertical, goal_id)).first.hover()
+
+    # Nothing open: pointing is the hover it always was, the lighter tint.
+    point("decade", fam.decade)
+    lighter = _tint(page, "decade", fam.decade)
+    assert 0 < lighter < 1, lighter
+
+    _click_open(page, "quarter", fam.open)
+    header.hover()  # on a column's name: no goal under the pointer
+    page.wait_for_timeout(400)  # the light's own 150 ms under reduced motion
+    others = [("year", fam.parent), ("month", fam.month_step), ("month", fam.inner_month), ("life", fam.value)]
+    resting = {key: _tint(page, *key) for key in others}
+    assert _tint(page, "decade", fam.decade) < lighter, "the grandparent rests faint"
+
+    # A relative under the pointer takes the open card's colour, full; the rest keeps its light.
+    point("decade", fam.decade)
+    assert _tint(page, "decade", fam.decade) == 1
+    assert {key: _tint(page, *key) for key in others} == resting
+
+    # A step inside the open card already stands on its colour: pointing lays the lighter tint over it, as before.
+    step = page.locator(f'{_open_card(fam.open)} + .goal-card__children--open [data-goal-id="{fam.step_one}"]').first
+    step.locator(":scope > .goal-card__row .goal-card__title").hover()
+    assert float(step.evaluate(
+        "el => getComputedStyle(el.querySelector(':scope > .goal-card__row'), '::before').opacity"
+    )) == lighter
+
+    # A goal that's off swaps the light as before, and is full in its lit chain.
+    point("quarter", fam.unrelated)
+    expect(page.locator(_card("quarter", fam.unrelated)).first).to_have_attribute("data-light", "light")
+    assert _tint(page, "quarter", fam.unrelated) == 1
+    assert page.locator(_card("year", fam.parent)).first.get_attribute("data-light") is None
 
 
 def test_a_click_opens_the_chain_it_is_drawn_under(ui_f2: UiSession) -> None:
