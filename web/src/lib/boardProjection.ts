@@ -41,9 +41,14 @@ export function toCardData(
   // count because it describes the family, not the visible inline subset.
   // Canonical decorations belong to this column instance. A historical period and the
   // current carried section can contain the same id with different ghost/done metadata.
-  const childCards = columnCards.size
+  // In the family's order: `board.children` is the list a drop's placement reorders at once (`boardPlacement.ts`), so a
+  // card dropped among new siblings shows in its slot at release. Drawn in the column's order, it showed after its new
+  // sibling and jumped into place when the write came back (test_drag_adopt).
+  const familyOrder = new Map(kids.map((child, index) => [child.id, index]))
+  const childCards = (columnCards.size
     ? [...columnCards.values()].filter(child => child.parent_id === g.id)
-    : kids
+    : [...kids]
+  ).sort((a, b) => (familyOrder.get(a.id) ?? kids.length) - (familyOrder.get(b.id) ?? kids.length))
   const visibleKids = childCards.filter(child => child.vertical !== null
     && child.vertical === g.vertical && columnIds.has(child.id)
     && !!child.ghost === !!g.ghost && !(child.ghost && child.done_at !== null))
