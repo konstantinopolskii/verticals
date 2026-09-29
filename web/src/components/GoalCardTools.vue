@@ -40,6 +40,15 @@ function discuss() {
   window.dispatchEvent(new CustomEvent('verticals:discuss-goal', { detail: { id: props.id } }))
   closeMenu()
 }
+/* A goal with no comments shows none on its card, so the menu is where one starts (KK picked it on 29 Sep 2026). An open
+   card that has some shows them in its facts line, which opens the same panel, so its menu leaves "Comment" out. The
+   panel names no goal, so a closed card opens as well, as "Details" does. */
+const showComment = computed(() => !props.open || store.unresolvedCommentCount('goal', props.id) === 0)
+function comment() {
+  if (!props.open) emit('details')
+  store.openCommentsPanel('goal', props.id)
+  closeMenu()
+}
 const targets = computed(() => store.reparentTargets(props.id))
 const fixedSameVerticalParent = computed(() => store.sameVerticalParentId(props.id))
 const grid = computed(() => store.scheduleGrid.value.props)
@@ -146,7 +155,7 @@ defineExpose({ openMenu })
 
     <!-- An open card shows its details, completes by its checkbox and offers the agent in its facts line, so those three
          and Reschedule (its date) leave its menu. -->
-    <div v-if="!props.open || props.showIgnore" data-menu-section="actions">
+    <div v-if="!props.open || props.showIgnore || showComment" data-menu-section="actions">
       <button
         v-if="!props.open"
         type="button"
@@ -163,6 +172,14 @@ defineExpose({ openMenu })
         data-menu-item="discuss"
         @click="discuss"
       >Discuss with agent</button>
+      <button
+        v-if="showComment"
+        type="button"
+        role="menuitem"
+        class="dropdown__item goal-actions__item"
+        data-menu-item="comment"
+        @click="comment"
+      >Comment</button>
       <button
         v-if="props.isParent && !props.open"
         type="button"
@@ -199,7 +216,7 @@ defineExpose({ openMenu })
       >Was done on time</button>
     </div>
 
-    <hr v-if="!props.open || props.showIgnore">
+    <hr v-if="!props.open || props.showIgnore || showComment">
 
     <div
       class="goal-actions__legacy-content"
