@@ -64,3 +64,24 @@ export function useInlineTitleEdit(options: {
 
   return { editing, draft, start, onInput, commit, cancel }
 }
+
+/** Where in the title a click landed, as a character offset, so editing starts with the caret there (D67, KK
+ *  2026-08-10: "он весь выделяется вместо того чтобы поставить курсор ровно туда куда ты нажал"; it had come back
+ *  as select-all). `null` for a keyboard click, which has no point: then the whole title is selected. */
+export function caretAt(event: MouseEvent): number | null {
+  if (event.detail === 0) return null
+  const root = (event.currentTarget as HTMLElement).querySelector('.goal-card__title-text')
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+  const position = doc.caretPositionFromPoint?.(event.clientX, event.clientY)
+  const range = position ? null : doc.caretRangeFromPoint?.(event.clientX, event.clientY)
+  const node = position?.offsetNode ?? range?.startContainer ?? null
+  const offset = position?.offset ?? range?.startOffset ?? 0
+  if (!root || !node || !root.contains(node)) return null
+  const before = document.createRange()
+  before.selectNodeContents(root)
+  before.setEnd(node, offset)
+  return before.toString().length
+}

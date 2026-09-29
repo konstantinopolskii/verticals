@@ -12,7 +12,6 @@ import {
   reparentGoal as apiReparentGoal,
   parkGoal as apiParkGoal,
   dueAckGoal as apiDueAckGoal,
-  ApiError,
   type BoardResponse,
   type GoalCard,
   type GoalDetail,
@@ -28,6 +27,7 @@ import {
 import * as viewState from './lib/boardViewState'
 import { createDetailSurface } from './lib/detailSurface'
 import { createFamilyView } from './lib/familyView'
+import { createGoalDelete } from './lib/goalDelete'
 import { createDocsView, createInitialDocsState, type DocsState } from './lib/docsView'
 import { createCommentsPanel, createInitialCommentsState, type CommentsState } from './lib/comments'
 import { isoDate, localDate } from './lib/schedule'
@@ -578,42 +578,7 @@ const {
 
 // --- delete --------------------------------------------------------------------------------------
 
-/** `DELETE /api/goals/{id}`, no confirmation dialog — the same shape `removeSample` already ships
- *  and the same reason (§10-D12; a confirm dialog is also a `role="dialog"` node every "this
- *  happened without a modal" assertion in the suite would then see).
- *
- *  A goal with children is `core.goals.delete`'s own `HasChildren` (409), and this does **not**
- *  silently retry with `?cascade=true`: destroying a subtree nobody asked about is a different act
- *  from deleting the row that was clicked. The 409 surfaces as a toast whose action performs the
- *  cascading delete, so the second, larger write is always a second, deliberate click. */
-async function removeGoal(id: string): Promise<void> {
-  const placement = removePlacement(state.board, id)
-  try {
-    await deleteGoal(id)
-    placement?.reconcile()
-  } catch (err) {
-    placement?.rollback()
-    if (err instanceof ApiError && err.status === 409) {
-      toast('This goal has subgoals.', {
-        action: 'Delete all',
-        onAction: () => void removeGoalCascade(id),
-      })
-      return
-    }
-    toast(messageForError(err))
-  }
-}
-
-async function removeGoalCascade(id: string): Promise<void> {
-  const placement = removePlacement(state.board, id, true)
-  try {
-    await deleteGoal(id, true)
-    placement?.reconcile()
-  } catch (err) {
-    placement?.rollback()
-    toast(messageForError(err))
-  }
-}
+const { removeGoal } = createGoalDelete(state) // `lib/goalDelete.ts`
 
 // --- goal detail (S-104, D226) ----------------------------------------------------------------
 //
