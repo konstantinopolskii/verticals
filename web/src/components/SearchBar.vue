@@ -240,6 +240,10 @@ onBeforeUnmount(() => {
 
 <style>
 .command-field { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 300; width: min(720px, calc(100vw - 32px)); background: #fff; border: 0; border-radius: var(--radius, 12px); box-shadow: none; color: #242424; font-family: var(--font-body); }
+/* Toasts stand just above the field: the field's 16 px, its 48 px, then the kit's 8 px between toasts. At the kit's 24 px
+   they sat under the field, 8 px of black showing, and no one could read one or press its Undo (test_s77, 29 Sep 2026).
+   The kit's attribute outranks its own rule, which the build puts after this one. */
+.toast-stack[data-toast-stack] { bottom: calc(16px + 48px + 8px); }
 .command-field__surface { position: absolute; inset: calc(-1 * var(--conversation-height, 0px)) 0 0; z-index: -1; pointer-events: none; border-radius: var(--radius, 12px); background: #fff; box-shadow: var(--shadow-float); }
 .command-field__input { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; box-sizing: border-box; }
 .command-field__input input { flex: 1; min-width: 40px; width: 100%; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: #242424; font: 400 16px/24px var(--font-body); }
