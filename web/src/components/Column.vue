@@ -522,6 +522,16 @@ onBeforeUnmount(() => swapAnimation?.cancel())
   left: 8px;
   right: 8px;
 }
+/* The last column has no neighbour on its right, only the window's edge, which cuts a lifted card there anyway. Room past
+   it only widened the board, and the board scrolled 8 px sideways (D244: the board never overflows horizontally). */
+.pattern-vertical-board--flat > .pattern-vertical-board__column:last-child .period-track:not(.period-track--swapping) > .period-slide {
+  width: calc(100% + 8px);
+  margin-right: 0;
+  padding-right: 0;
+}
+.pattern-vertical-board--flat > .pattern-vertical-board__column:last-child .period-track:not(.period-track--swapping) > .period-slide > .pattern-vertical-board__header {
+  right: 0;
+}
 .pattern-vertical-board__drop-indicator {
   position: relative;
   box-sizing: border-box;
