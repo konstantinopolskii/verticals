@@ -196,9 +196,21 @@ export function useCardLift(options: {
     }
   }
 
+  /* A click holds the lift, heard on the way down to what was clicked. A plain listener, not the card's
+     `@click.capture`: Vue runs a handler only for an event newer than the handler by `Date.now()`, so under a clock that
+     stands still (the UI suite pins it) only the first Vue handler on an event's path runs, and a capture handler on the
+     card is always first: a click on a card's title opened nothing there. */
+  let clickHost: HTMLElement | null = null
+  watch(() => options.card(), (card) => {
+    clickHost?.removeEventListener('click', hold, true)
+    clickHost = card
+    clickHost?.addEventListener('click', hold, true)
+  }, { flush: 'post' })
+
   onBeforeUnmount(() => {
     clearTimers()
     observer.disconnect()
+    clickHost?.removeEventListener('click', hold, true)
     window.removeEventListener('pointermove', moveOn)
     waiting.delete(retry)
     afterMenu.delete(retry)

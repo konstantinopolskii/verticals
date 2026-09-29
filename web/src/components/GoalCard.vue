@@ -385,7 +385,6 @@ const {
   leave: liftLeave,
   drop: dropLift,
   atRest: liftAtRest,
-  hold: holdLift,
 } = useCardLift({
   card: rootElement,
   list: childrenListEl,
@@ -530,7 +529,6 @@ function onRowKeydown(event: KeyboardEvent) {
     :data-ghost="ghost ? 'true' : undefined"
     @mouseenter="onCardEnter"
     @mouseleave="onCardLeave"
-    @click.capture="holdLift"
   >
     <div
       class="goal-card__row"
