@@ -339,9 +339,13 @@ def test_holding_a_dragged_goal_over_a_step_opens_it(ui_f2: UiSession) -> None:
     assert _open_path(page) == [fam.open]
 
     # In its middle, where a drop means "into it", the row fills with light while the hold runs, then the step opens as
-    # a click on it would.
-    aim(0.5, 4)
-    expect(page.locator(f'.goal-card[data-goal-id="{fam.step_one}"][data-holding]')).to_have_count(1)
+    # a click on it would. The gap under the hand may still be settling: aim again at where the step is now.
+    holding = page.locator(f'.goal-card[data-goal-id="{fam.step_one}"][data-holding]')
+    for _ in range(4):
+        aim(0.5, 4)
+        if holding.count():
+            break
+    expect(holding).to_have_count(1)
     page.wait_for_timeout(GOAL_HOLD_MS + 400)
     page.wait_for_selector(_open_card(fam.step_one))
     assert _open_path(page) == [fam.open, fam.step_one]
