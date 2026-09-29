@@ -129,21 +129,24 @@ export function useCardLift(options: {
     for (const el of [card, list]) if (el) observer.observe(el)
   }, { flush: 'post' })
 
-  /** Reads the card as it lies at rest, while it stays lifted on screen: the lift is taken off and put back inside
-   *  this one call, so nothing is painted in between. */
+  /** Reads the board as it lies at rest, while a lifted card stays lifted on screen: every lift on the board is taken
+   *  off and put back inside this one call, so nothing is painted in between. The whole board, not only this card: a
+   *  step pressed inside a lifted piece is lifted by its top-level goal, and a drag measures every row it may land on
+   *  (a lifted piece is up to 6% larger: the gap a picked-up card left pushed the cards below 1.5 px). */
   function atRest<T>(read: () => T): T {
-    const els = [options.card(), options.list.value].filter((el): el is HTMLElement => el !== null)
-    if (!lifted.value || !els.length) return read()
-    for (const el of els) {
+    const els = [...document.querySelectorAll<HTMLElement>(`.${LIFTED_CLASS}, .${LIFTED_LIST_CLASS}`)]
+    if (!els.length) return read()
+    const classes = els.map((el) => (el.classList.contains(LIFTED_CLASS) ? LIFTED_CLASS : LIFTED_LIST_CLASS))
+    els.forEach((el, i) => {
       el.style.setProperty('transition', 'none', 'important')
-      el.classList.remove(LIFTED_CLASS, LIFTED_LIST_CLASS)
-    }
+      el.classList.remove(classes[i])
+    })
     const value = read()
-    for (const el of els) {
-      el.classList.add(el === els[0] ? LIFTED_CLASS : LIFTED_LIST_CLASS)
+    els.forEach((el, i) => {
+      el.classList.add(classes[i])
       void el.offsetWidth // settle the lifted style before the transition comes back
       el.style.removeProperty('transition')
-    }
+    })
     return value
   }
 

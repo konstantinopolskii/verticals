@@ -462,8 +462,10 @@ function onRowPointerDown(event: PointerEvent) {
   if (fromControl(event)) return
   const row = event.currentTarget as HTMLElement
   row.focus({ preventScroll: true })
-  const rect = liftAtRest(() => row.getBoundingClientRect()) // drag starts from the card at rest, lifted or not
-  store.pointerDownCard(props.id, event.clientX, event.clientY, rect, event.pointerType, event.altKey)
+  // A drag starts from the board at rest, lifted or not: its row, the gap it leaves, the rows it may land on.
+  liftAtRest(() => store.pointerDownCard(
+    props.id, event.clientX, event.clientY, row.getBoundingClientRect(), event.pointerType, event.altKey,
+  ))
 }
 
 /* A `click` fires on the nearest common ancestor of its `pointerdown` and its `pointerup` with no
