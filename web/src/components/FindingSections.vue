@@ -5,7 +5,8 @@ import { computed } from 'vue'
 import { KCardStack } from '@konstantinopolskii/vue'
 import GoalCard from './GoalCard.vue'
 import { found, nothingIn, sectionsFor } from '../lib/finding'
-import { serverMatches } from '../lib/commandFilter'
+import { commandFilter, serverMatches } from '../lib/commandFilter'
+import { store } from '../store'
 import type { GoalCardData } from '../types'
 
 const props = defineProps<{
@@ -26,6 +27,18 @@ const sections = computed(() => serverMatches.value
 const planned = computed(() => props.shown.filter(goal => !goal.ghost))
 const cut = computed(() => props.vertical === 'life' && !!serverMatches.value && !!found.result?.truncated)
 
+/* A goal from another period opens where it lives: the words go and the board moves to it. Its square still ticks. */
+function open(event: MouseEvent): void {
+  const target = event.target as HTMLElement
+  if (target.closest('[data-cap="complete"], [data-role="goal-actions-trigger"]')) return
+  const id = target.closest<HTMLElement>('[data-goal-id]')?.dataset.goalId
+  if (!id) return
+  event.preventDefault()
+  event.stopPropagation()
+  commandFilter.text = ''
+  void store.navigateToGoal(id)
+}
+
 function cardProps(goal: GoalCardData) {
   return {
     id: goal.id, parentId: goal.parentId, title: goal.title, done: goal.done, color: goal.color, vertical: goal.vertical,
@@ -40,7 +53,7 @@ function cardProps(goal: GoalCardData) {
     <section v-for="section in sections" :key="section.key" class="finding__period" :data-period-key="section.key"
       :data-when="section.coming ? 'coming' : 'closed'">
       <h3 class="finding__headline" data-role="finding-headline">{{ section.headline }}</h3>
-      <KCardStack dense>
+      <KCardStack dense @click.capture="open">
         <GoalCard v-for="goal in section.goals" :key="goal.id" v-bind="cardProps(goal)" />
       </KCardStack>
     </section>
