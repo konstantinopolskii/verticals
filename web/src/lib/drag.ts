@@ -479,9 +479,9 @@ export function hitTest(x: number, y: number, sourceId: string | null = null): P
   }
   if (!colEl) return hit
 
-  // Carried goals are a computed pile, never a drop/reorder destination.
-  const nowLine = colEl.querySelector<HTMLElement>(`${LIVE_SLIDE} [data-role="now-line"]`)
-  if (nowLine && y >= nowLine.getBoundingClientRect().top) {
+  // Carried goals are a computed pile, never a drop/reorder destination (their group, S4.P2).
+  const group = colEl.querySelector<HTMLElement>(`${LIVE_SLIDE} [data-role="carried-group"]`)?.getBoundingClientRect()
+  if (group && y >= group.top && y <= group.bottom) {
     hit.columnVertical = null
     hit.columnPeriodKey = null
     return hit

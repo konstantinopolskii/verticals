@@ -111,6 +111,26 @@ def _validate_date(value: object) -> _date:
     return value
 
 
+def _ladder() -> tuple[vertical.VerticalDescriptor, ...]:
+    return tuple(vertical.descriptor(key) for key in vertical.ROLL_LADDER)
+
+
+def _roll_thresholds(today: _date) -> dict[str, _date]:
+    """`roll_<own>_<k>`: a plan of scale `own` anchored before it has reached scale `k` by
+    `today`. Reaching k means the (k-1)-period it arrived in has ended before the current
+    k-period began; walking that back down the ladder gives one date per pair, so the statement
+    compares anchors only."""
+    ladder = _ladder()
+    out: dict[str, _date] = {}
+    for i, own in enumerate(ladder):
+        for k in range(i + 1, len(ladder)):
+            threshold = ladder[k].bounds_fn(today)[0]
+            for m in range(k - 1, i, -1):
+                threshold = ladder[m].bounds_fn(threshold - _timedelta(days=1))[0]
+            out[f"roll_{own.key}_{ladder[k].key}"] = own.bounds_fn(threshold)[0]
+    return out
+
+
 def _build_statement() -> str:
     """Built once, at import time — the branches' `WHERE` text never depends on a call's
     own parameter *values* (only on `core/vertical.py`'s fixed scale list), so there is nothing
@@ -137,13 +157,17 @@ def _build_statement() -> str:
         f"WHEN %(vt_{h.key})s::vertical_scale THEN %(current_start_{h.key})s::date"
         for h in bounded
     ) + " END"
-    # Projection only: try each bounded scale from the goal's own vertical upwards. Calendar
-    # thresholds come from descriptors; the final bounded scale catches arbitrarily old work.
+    # The roll (docs/design-handoff S4.P1): a missed plan stays in its own scale until the next
+    # larger period turns, then falls one scale up, and so on to the ladder's top. `roll_<own>_<k>`
+    # is the oldest anchor that has not yet reached scale k (see `board()`); scales past the
+    # ladder stay in their own column.
+    ladder = _ladder()
     landing = "CASE " + " ".join(
-        f"WHEN vertical IN ({', '.join(f'%(vt_{source.key})s::vertical_scale' for source in bounded[:index + 1])}) "
-        f"AND anchor_date >= %(previous_start_{candidate.key})s::date THEN '{candidate.key}'"
-        for index, candidate in enumerate(bounded[:-1])
-    ) + f" ELSE '{bounded[-1].key}' END"
+        f"WHEN vertical = %(vt_{own.key})s::vertical_scale AND anchor_date >= %(roll_{own.key}_{ladder[k].key})s::date "
+        f"THEN '{ladder[k - 1].key}'"
+        for i, own in enumerate(ladder) for k in range(i + 1, len(ladder))
+    ) + f" WHEN vertical IN ({', '.join(f'%(vt_{h.key})s::vertical_scale' for h in ladder)}) THEN '{ladder[-1].key}'" \
+        + " ELSE vertical::text END"
     for col_ord, h in enumerate(vertical.VERTICALS, start=1):
         if vertical.loads_legacy_period_keys(h.key):
             # R2 keeps legacy `2020s`/`2030s` rows byte-untouched. Their anchor dates still
@@ -460,10 +484,8 @@ def board(
         if bounds is not None:
             params[f"start_{h.key}"], params[f"end_{h.key}"] = bounds
             params[f"live_{h.key}"] = params[f"pk_{h.key}"] == h.period_key_fn(today)
-            current = h.bounds_fn(today)
-            previous = h.bounds_fn(current[0] - _timedelta(days=1))
-            params[f"current_start_{h.key}"] = current[0]
-            params[f"previous_start_{h.key}"] = previous[0]
+            params[f"current_start_{h.key}"] = h.bounds_fn(today)[0]
+    params.update(_roll_thresholds(today))
 
     rows = conn.execute(STATEMENT, params).fetchall()
 
