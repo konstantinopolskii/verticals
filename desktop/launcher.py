@@ -192,6 +192,30 @@ CHAT_UI = ROOT / "chat" / "ui"  # the agents' marks; the conversation itself is 
 BOOT = secrets.token_hex(8)  # tells chat clients the event log restarted
 
 
+_FRAMES: dict[str, bool] = {}
+
+
+def framable(url):
+    """Whether a web page can open in a window (docs/design-handoff S3.P4.026): fetched once, following redirects, it
+    must end in a 2xx with no X-Frame-Options and no frame-ancestors that leaves the app out. Remembered per address."""
+    if url in _FRAMES:
+        return _FRAMES[url]
+    answer = False
+    if url.startswith(("https://", "http://")):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh) Verticals"})
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                ok = 200 <= resp.status < 300
+                policy = resp.headers.get("Content-Security-Policy", "")
+                ancestors = next((d.strip().split()[1:] for d in policy.split(";") if d.strip().startswith("frame-ancestors")), None)
+                allowed = ancestors is None or "*" in ancestors or any(o in ancestors for o in UI_ORIGINS)
+                answer = ok and not resp.headers.get("X-Frame-Options") and allowed
+        except (OSError, ValueError):
+            answer = False
+    _FRAMES[url] = answer
+    return answer
+
+
 def make_gateway(token, chat):
     class Gateway(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -279,6 +303,12 @@ def make_gateway(token, chat):
                 return self.chat_events()
             if self.command == "GET" and path == "/__chat/agents":
                 return self.send_json({"agents": chat.agents()})
+            if self.command == "GET" and path == "/__chat/frame":
+                page = parse_qs(urlparse(self.path).query).get("url", [""])[0]
+                return self.send_json({"framable": framable(page)})
+            if self.command == "GET" and path == "/__chat/goal":
+                goal = parse_qs(urlparse(self.path).query).get("id", [""])[0]
+                return self.send_json({"conversations": chat.goal_conversations(goal)})
             if self.command == "GET" and path == "/__chat/probe":
                 try:
                     return self.send_json(chat.probe(parse_qs(urlparse(self.path).query).get("provider", [""])[0]))

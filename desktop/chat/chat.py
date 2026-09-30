@@ -609,7 +609,9 @@ class Session:
         self.running = False
         ms = int((time.time() - (self.started_at or time.time())) * 1000)
         self.chat.record(self.id, "assistant", self.reply)
-        self.emit({"t": "done", "error": bool(error), "detail": detail or "", "ms": ms})
+        at = time.time()
+        self.chat.update(self.id, lastTurnAt=at)
+        self.emit({"t": "done", "error": bool(error), "detail": detail or "", "ms": ms, "at": at})
         for key in list(self.asks):
             self.resolve(key, "Expired")
         if self.queue:
@@ -673,6 +675,15 @@ class Chat:
             log.append([role, text[:4000]])
             del log[:-40]
             self.save(data)
+
+    def goal_conversations(self, goal_id):
+        """A goal's conversations, the latest turn first: Discuss with agent continues the first (docs/design-handoff
+        S3.P1)."""
+        found = [{"session": id, "provider": entry.get("provider"), "title": (entry.get("goal") or {}).get("title", ""),
+                  "lastTurnAt": entry.get("lastTurnAt") or 0}
+                 for id, entry in self.load().items()
+                 if isinstance(entry, dict) and (entry.get("goal") or {}).get("id") == goal_id]
+        return sorted(found, key=lambda c: c["lastTurnAt"], reverse=True)
 
     def session(self, id) -> Session:
         try:
@@ -792,6 +803,9 @@ class Chat:
             raise ChatError("Empty message")
         s = self.session(id)
         settings = clean_settings(settings)
+        goal = context.get("goal") if isinstance(context, dict) else None
+        if isinstance(goal, dict) and isinstance(goal.get("id"), str) and len(goal["id"]) < 100:
+            self.update(id, goal={"id": goal["id"], "title": str(goal.get("title", ""))[:300]})
         if not which(settings["provider"]):
             raise ChatError(f"{AGENTS[settings['provider']]['label']} is not installed.")
         s.emit({"t": "user", "text": text, "provider": settings["provider"], "model": settings.get("model"),
@@ -936,6 +950,12 @@ def format_context(ctx):
             lines.append(f"{label}: {str(ctx[key])[:limit]}")
     goal = ctx.get("goal")
     if isinstance(goal, dict) and isinstance(goal.get("id"), str) and len(goal["id"]) < 100:
-        lines.append(f"This conversation is about the goal \"{str(goal.get('title', ''))[:300]}\" "
-                     f"(id {goal['id']}, link #goal/{goal['id']}). Read it with the goal tool before answering.")
+        about = f"This conversation is about the goal \"{str(goal.get('title', ''))[:300]}\" (id {goal['id']}, link #goal/{goal['id']})."
+        changes = str(ctx.get("changes") or "")[:4000]
+        if changes:
+            lines.append(f"{about} You know it from the earlier turns; what changed on it since your last turn:\n{changes}")
+        elif ctx.get("continuing"):
+            lines.append(f"{about} You know it from the earlier turns; nothing changed on it since.")
+        else:
+            lines.append(f"{about} Read it with the goal tool before answering.")
     return "\n".join(lines)

@@ -4,6 +4,7 @@
 // the agent is unavailable there and the field only finds.
 import { computed, reactive } from 'vue'
 import { stepPhrase } from './agentSteps'
+import { goalChangesSince } from './goalChanges'
 
 export interface AgentInfo {
   id: string
@@ -260,6 +261,9 @@ function touchThread(patch: Partial<Thread>): void {
 
 let stream: EventSource | null = null
 let pendingGoal: GoalRef | null = null
+/** When the agent last answered in the goal conversation that is open: what changed after it goes with your next
+ *  message (S3.P1.005). */
+let goalSince: number | null = null
 
 export function openThread(id: string, goal: GoalRef | null = null): void {
   pendingGoal = goal
@@ -280,7 +284,25 @@ export function openThread(id: string, goal: GoalRef | null = null): void {
 }
 
 export function newThread(goal: GoalRef | null = null): void {
+  goalSince = null
   openThread(crypto.randomUUID(), goal)
+}
+
+/** Discuss with agent: the goal's latest conversation, wherever it was started in Verticals, or a new one about it
+ *  (S3.P1.002, .003). */
+export async function openForGoal(goal: GoalRef): Promise<void> {
+  let latest: { session: string; lastTurnAt: number } | null = null
+  try {
+    const { conversations } = await api<{ conversations?: { session: string; lastTurnAt: number }[] }>(`goal?id=${encodeURIComponent(goal.id)}`)
+    latest = conversations?.[0] ?? null
+  } catch {
+    latest = null
+  }
+  const local = agentChat.threads.filter((thread) => thread.goal?.id === goal.id).sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  const id = latest?.session ?? local?.id
+  if (!id) { newThread(goal); return }
+  openThread(id, goal)
+  goalSince = latest?.lastTurnAt ? latest.lastTurnAt * 1000 : local?.updatedAt ?? null
 }
 
 function record(event: ChatEvent, live = true): void {
@@ -293,6 +315,8 @@ function record(event: ChatEvent, live = true): void {
 
 let reply = ''
 let brk = false
+/* Only a turn you sent from here lands in the circle: the stream replays a conversation's past turns on connect. */
+let awaitingReplies = 0
 function follow(event: ChatEvent): void {
   switch (event.t) {
     case 'turn_start':
@@ -321,8 +345,12 @@ function follow(event: ChatEvent): void {
       break
     case 'done':
       agentChat.running = false
+      // The server's clock, the one the goal's record keeps.
+      if (currentThread.value?.goal) goalSince = typeof event.at === 'number' ? event.at * 1000 : Date.now()
       touchThread({ status: event.error ? 'failed' : 'idle' })
-      if (!event.error && reply.trim()) agentChat.answer = { text: reply, at: Date.now() }
+      // With the conversation open the answer is its balloon at once; only a hidden one lands in the circle (S2.P4.034).
+      if (!event.error && reply.trim() && awaitingReplies > 0 && !agentChat.open) agentChat.answer = { text: reply, at: Date.now() }
+      awaitingReplies = Math.max(0, awaitingReplies - 1)
       reply = ''
       break
     case 'exit':
@@ -386,9 +414,15 @@ export async function send(text: string, extra: Record<string, unknown> = {}): P
   }
   touchThread({ provider: agentChat.selection!.provider, status: 'working' })
   agentChat.answer = null
+  awaitingReplies += 1
   record({ t: 'user', text: words, pending: true }, false)
+  const since: Record<string, unknown> = {}
+  if (goal && goalSince !== null) {
+    since.continuing = true
+    since.changes = await goalChangesSince(goal.id, goalSince).catch(() => '')
+  }
   try {
-    await api('send', { session: agentChat.current, text: words, context: { ...pageContext(goal), ...extra },
+    await api('send', { session: agentChat.current, text: words, context: { ...pageContext(goal), ...since, ...extra },
       settings: agentChat.selection, mode: agentChat.running ? 'queue' : 'send' })
   } catch (error) {
     record({ t: 'local_error', text: (error as Error).message }, false)
