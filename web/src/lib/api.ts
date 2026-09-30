@@ -321,6 +321,12 @@ export function findGoals(q: string): Promise<FindResponse> {
   return request<FindResponse>(`/api/search${qs({ q, with: 'parents', limit: 200 })}`)
 }
 
+/** The day's carry-over into the "Replan carried-over plans" task (docs/design-handoff S4.P1): the server does it once
+ *  a day, however often it is asked, and answers the task it wrote to. */
+export function runReplan(date: string): Promise<{ task_id: string | null }> {
+  return request<{ task_id: string | null }>(`/api/replan${qs({ date })}`, { method: 'POST' })
+}
+
 export function createGoal(payload: CreateGoalPayload): Promise<GoalCard> {
   return request<GoalCard>('/api/goals', { method: 'POST', body: JSON.stringify(payload) })
 }

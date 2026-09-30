@@ -15,9 +15,10 @@ import DevGoalLayoutPanel from './components/DevGoalLayoutPanel.vue'
 import DevTuningPanel from './components/DevTuningPanel.vue'
 import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
-import { store } from './store'
+import { store, todayIso } from './store'
 import { commandFilter } from './lib/commandFilter'
 import { agentChat, currentThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
+import { carryOver, FIRST_MESSAGE, replanTask } from './lib/replan'
 import { closeWindows, frontWindow, openWindow, outOfFocus, stepWindow, windows } from './lib/windows'
 import WindowStack from './components/WindowStack.vue'
 import AgentConversation from './components/AgentConversation.vue'
@@ -164,6 +165,23 @@ function onDiscussGoal(event: Event): void {
   // The menu that asked gives its focus back on its next tick; the field takes it after that (S3.P2.016).
   void nextTick(() => nextTick(() => searchBar.value?.focusField()))
 }
+/* "Replan": the task pops out as a goal's window with its conversation over it, and our first message goes from you
+   when the task has no conversation yet (S4.P4.004-.006, .032). */
+async function onReplan(event: Event): Promise<void> {
+  const from = ((event as CustomEvent).detail?.from ?? null) as Element | null
+  let task = replanTask(store.state.board)
+  if (!task && await carryOver(todayIso())) {
+    await store.reloadBoard()
+    task = replanTask(store.state.board)
+  }
+  if (!task || !agentChat.available) return
+  openWindow({ kind: 'goal', target: task.id, title: task.title }, from)
+  agentChat.open = true
+  agentChat.engaged = true
+  goalOpening = openForGoal(task).finally(() => { goalOpening = null })
+  await goalOpening
+  if (!agentChat.history.some((e) => e.t === 'user')) void send(FIRST_MESSAGE)
+}
 /* Esc, when nothing smaller takes it, sends the windows away; ⌘[ and ⌘] move one window (S3.P2.011, S3.P3.017). */
 function onWindowsKey(event: KeyboardEvent): void {
   if (!windows.list.length || event.defaultPrevented) return
@@ -182,10 +200,13 @@ function onWindowsKey(event: KeyboardEvent): void {
 onMounted(() => {
   void startAgentChat()
   window.addEventListener('verticals:discuss-goal', onDiscussGoal)
+  window.addEventListener('verticals:replan', onReplan)
   window.addEventListener('keydown', onWindowsKey)
+  void carryOver(todayIso())
 })
 onUnmounted(() => {
   window.removeEventListener('verticals:discuss-goal', onDiscussGoal)
+  window.removeEventListener('verticals:replan', onReplan)
   window.removeEventListener('keydown', onWindowsKey)
 })
 

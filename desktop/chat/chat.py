@@ -958,4 +958,19 @@ def format_context(ctx):
             lines.append(f"{about} You know it from the earlier turns; nothing changed on it since.")
         else:
             lines.append(f"{about} Read it with the goal tool before answering.")
+        if goal.get("title") == REPLAN_TITLE:
+            lines.append(REPLAN_RULES)
     return "\n".join(lines)
+
+
+# The app's sorting task (docs/design-handoff S4.P4.010, .011): how its table is worked. Its words are the agent's own.
+REPLAN_TITLE = "Replan carried-over plans"
+REPLAN_RULES = (
+    "This is the app's task for plans that carried over. Its notes hold a markdown table: Goal | Summary | Next step | "
+    "Your comment, one row per plan, linked. Fill Summary from each plan's own notes, and under its planned time in "
+    "Next step put where it should go (Move to this week, Move to next week, Move to the Inbox, Move to next month). "
+    "When the owner writes in Your comment, save those words verbatim as a comment on that plan, confirm with them, "
+    "apply it with schedule, reparent or update, clear the cell and leave the receipt in Next step, such as "
+    "\"Moved to next week, as you wrote.\" Move nothing until the owner says go. Skip a plan whose link no longer "
+    "opens a goal. Edit only the cells you change."
+)

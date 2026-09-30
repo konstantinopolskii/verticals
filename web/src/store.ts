@@ -11,7 +11,6 @@ import {
   deleteGoal,
   reparentGoal as apiReparentGoal,
   parkGoal as apiParkGoal,
-  dueAckGoal as apiDueAckGoal,
   type BoardResponse,
   type GoalCard,
   type GoalDetail,
@@ -52,6 +51,8 @@ import { createLiveBoard } from './lib/liveBoard'
 import { bump as bumpBoardEpoch, current as currentBoardEpoch } from './lib/boardEpoch'
 import type { VerticalScale } from './lib/periods'
 import type { BoardColumnData } from './types'
+import { carryOver } from './lib/replan'
+import { captureRows, slideIntoGroups } from './lib/rollSlide'
 
 /** Today, as the client reads it. Plain `new Date()` — the `ui` suite pins this transparently via
  *  `page.clock.setFixedTime` (`docs/E2E.md` §1 instrumentation entry 3); production reads the real
@@ -198,7 +199,14 @@ const dayRollover = createDayRollover({
   today: todayIso,
   anchorDate: () => state.board?.anchor_date ?? null,
   busy: () => Boolean(state.drag.id || state.drag.settling),
-  load: loadBoard,
+  // The day turned: the carry-over first, so the board it loads holds the day's Replan task (S4.P1.017); the plans left
+  // over slide into their groups (S4.P1.013).
+  load: async (date) => {
+    await carryOver(date)
+    const before = captureRows()
+    await loadBoard(date)
+    await slideIntoGroups(before)
+  },
 })
 const checkDayRollover = dayRollover.check
 const startDayRollover = dayRollover.start
@@ -421,27 +429,6 @@ async function parkGoal(id: string): Promise<void> {
     placement?.reconcile()
   } catch (err) {
     placement?.rollback()
-    toast(messageForError(err))
-  }
-}
-
-async function ignoreGhost(id: string, until: string): Promise<void> {
-  try {
-    await patchGoal(id, { carryover_ignored_until: until })
-    await reloadBoard()
-  } catch (err) {
-    toast(messageForError(err))
-  }
-}
-
-/** 011: acknowledge a ghost's dueness with a verdict. Either verdict removes the ghost from the
- *  board (the server's ghost branch excludes acknowledged periods); 'done_on_time' also
- *  completes the goal server-side, so the reload reflects both effects at once. */
-async function dueAckGhost(id: string, verdict: 'overdue' | 'done_on_time'): Promise<void> {
-  try {
-    await apiDueAckGoal(id, verdict)
-    await reloadBoard()
-  } catch (err) {
     toast(messageForError(err))
   }
 }
@@ -687,8 +674,6 @@ export const store = {
   moveGoalToInbox,
   setValueFilter,
   parkGoal,
-  ignoreGhost,
-  dueAckGhost,
   removeSample,
   parentVertical,
   boardGoalHost,
