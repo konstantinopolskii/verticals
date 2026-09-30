@@ -19,6 +19,7 @@ import {
   IconFolder,
   IconHierarchy,
   IconHistory,
+  IconInbox,
   IconListDetails,
   IconMessageCircle,
   IconPlus,
@@ -44,6 +45,7 @@ const REGISTRY = {
   folder: IconFolder,
   hierarchy: IconHierarchy,
   history: IconHistory,
+  inbox: IconInbox,
   plus: IconPlus,
   repeat: IconRotateClockwise,
   search: IconSearch,
@@ -67,7 +69,7 @@ const props = withDefaults(defineProps<{
 
 const icon = computed(() => REGISTRY[props.name])
 const BASE_NAMES = new Set<keyof typeof REGISTRY>([
-  'calendar', 'comment', 'file', 'folder', 'hierarchy', 'history', 'plus', 'repeat', 'subtask', 'tag', 'trash',
+  'calendar', 'comment', 'file', 'folder', 'hierarchy', 'history', 'inbox', 'plus', 'repeat', 'subtask', 'tag', 'trash',
 ])
 const ARROW_NAMES = new Set<keyof typeof REGISTRY>([
   'arrow-left', 'arrow-right', 'chevron-down', 'chevron-left', 'chevron-right', 'today',

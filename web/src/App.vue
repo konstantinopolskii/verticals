@@ -16,6 +16,7 @@ import DevTuningPanel from './components/DevTuningPanel.vue'
 import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
 import { store } from './store'
+import { commandFilter } from './lib/commandFilter'
 
 /* The shell, not `Board.vue`, owns the day-rollover watcher: it is mounted for the whole life of
    the tab, while `Board` unmounts every time Inbox is active — a planner left on Inbox overnight
@@ -113,12 +114,20 @@ onMounted(() => {
 })
 onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentState))
 
+/* Until the conversation moves into this app (S2.P1), the field hands its words to the injected chat. */
+function onSubmit(text: string): void {
+  if (!agentState.value.available) return
+  window.dispatchEvent(new CustomEvent('verticals:agent-draft', { cancelable: true, detail: { text, submit: true } }))
+  commandFilter.text = ''
+  ;(document.activeElement as HTMLElement | null)?.blur()
+}
+
 </script>
 
 <template>
   <div class="app-shell">
     <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search'" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
-    <SearchBar id="verticals-command-bar" :agent-available="agentState.available" />
+    <SearchBar id="verticals-command-bar" :agent-available="agentState.available" @submit="onSubmit" />
     <div class="app-content">
       <!-- Mutually exclusive (`v-if`/`v-else`), not `v-show`: before ruling 1 (owner, 2026-08-09),
            `InboxView` rendered the same Maybe-bucket goals as Board's own eighth column
