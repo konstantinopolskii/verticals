@@ -20,6 +20,7 @@ from verticals.api.deps import get_conn, verify_bearer_token
 from verticals.api.schemas import board_to_json
 from verticals.core import board as core_board
 from verticals.core import replan as core_replan
+from verticals.core import spans as core_spans
 
 router = APIRouter(dependencies=[Depends(verify_bearer_token)])
 
@@ -41,6 +42,19 @@ def get_board(
     owner = request.app.state.config.owner
     with get_conn(request) as conn:
         result = core_board.board(conn, owner=owner, date=date, value=value)
+        response.headers["X-Query-Count"] = str(conn.query_count)
+    return board_to_json(result)
+
+
+@router.get("/api/spans")
+def get_spans(
+    request: Request, response: Response, vertical: str, date: _date, count: int = 7, value: str | None = None,
+) -> dict:
+    """One vertical's periods in a row, from the one holding `date`, in the board's own payload
+    (docs/design-handoff S5.P1.030): the board a moved goal opens over a column's dots."""
+    owner = request.app.state.config.owner
+    with get_conn(request) as conn:
+        result = core_spans.spans(conn, owner=owner, scale=vertical, start=date, count=count, value=value)
         response.headers["X-Query-Count"] = str(conn.query_count)
     return board_to_json(result)
 

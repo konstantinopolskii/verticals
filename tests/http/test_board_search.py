@@ -143,3 +143,13 @@ def test_finding_asks_for_parents_over_http(client: httpx.Client) -> None:
     assert body["parents"] == {"SYNSCH04": []}
     assert "parents" not in client.get("/api/search", params={"q": "motorcycle"}).json()
     assert client.get("/api/search", params={"q": "motorcycle", "tag": "retro", "with": "parents"}).status_code == 422
+
+
+def test_spans_are_board_columns_of_one_vertical(client: httpx.Client) -> None:
+    """docs/design-handoff S5.P1.030: weeks in a row, in the board's payload shape."""
+    response = client.get("/api/spans", params={"vertical": "week", "date": "2026-08-08", "count": 3})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [c["period_key"] for c in body["columns"]] == ["2026-W32", "2026-W33", "2026-W34"]
+    assert {"progress", "ancestors", "children"} <= set(body)
+    assert client.get("/api/spans", params={"vertical": "life", "date": "2026-08-08"}).status_code in (400, 422)
