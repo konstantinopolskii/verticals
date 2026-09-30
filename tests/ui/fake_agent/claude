@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """A stand-in for `claude --print --input-format stream-json` in the UI suite: no model, no network. It answers each
 message by marks in its words: `[tool:NAME]` calls Verticals' tool NAME, `[ask]` asks permission first, `[slow]` works
-for a second and a half, `[long]` answers in three paragraphs, `[fail]` ends the turn with an error."""
+for a second and a half, `[long]` answers in three paragraphs, `[fail]` ends the turn with an error, `[say]` answers
+with the words after it, and `[context]` with the app context Verticals sent."""
 import json
 import re
 import sys
@@ -19,6 +20,8 @@ def read():
 
 
 def answer_for(words):
+    if "[say]" in words:
+        return words.split("[say]", 1)[1].strip()
     if "[long]" in words:
         return ("Here is the first part of a longer answer, with **bold** words.\n\n"
                 "The second part goes on about the plan, the dates and what could move next week.\n\n"
@@ -43,6 +46,8 @@ for msg in iter(read, None):
         continue
     text = "".join(block.get("text", "") for block in msg["message"]["content"] if block.get("type") == "text")
     words = text.split("</app_context>")[-1].strip()
+    if "[context]" in words:
+        words = "[say] " + text.split("<app_context>")[-1].split("</app_context>")[0].strip()
     if not started:
         out({"type": "system", "subtype": "init", "model": "fake-model"})
         started = True
