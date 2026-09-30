@@ -56,10 +56,10 @@ function onInlinePointerDown(event: PointerEvent) {
   // (`CommentsPanel.vue`'s header comment) — no longer a descendant of `[data-goal-id]`. Without
   // this, writing a reply or clicking Resolve inside the panel would register as a pointerdown
   // OUTSIDE the card and collapse it mid-write. The open goal's steps list (`data-open-region`)
-  // is part of the card: a press between its steps is not a press outside. A token in the command field closes the goal
+  // is part of the card: a press between its steps is not a press outside. A view's tag over the circle closes the goal
   // itself when its click changes the view; closed first, on the press, the goal rewound the address to the view it was
-  // opened from, and that rewind landed after the click: taking "Inbox" away over an open Inbox goal stayed in Inbox.
-  if (target.closest('#goal-detail, #dropdownPortal, [data-goal-id], [data-open-region], [data-role="comments-panel"], .command-field__token')) return
+  // opened from, and that rewind landed after the click: leaving Inbox over an open Inbox goal stayed in Inbox.
+  if (target.closest('#goal-detail, #dropdownPortal, [data-goal-id], [data-open-region], [data-role="comments-panel"], .circle-tag')) return
   requestClose()
 }
 
