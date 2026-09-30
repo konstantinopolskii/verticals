@@ -389,8 +389,8 @@ async function scheduleGoalTo(
 }
 
 /** Card-menu schedule: commit before transport and settle from response without a board GET. */
-async function scheduleGoalQuick(id: string, scale: VerticalScale, periodKey: string): Promise<void> {
-  const anchor = scheduleGrid.value.anchorDate(scale, periodKey)
+async function scheduleGoalQuick(id: string, scale: VerticalScale, periodKey: string, day?: string): Promise<void> {
+  const anchor = day ?? scheduleGrid.value.anchorDate(scale, periodKey)
   const placement = schedulePlacement(state.board, id, { vertical: scale, periodKey }, anchor)
   try {
     const updated = await scheduleGoal(id, scale, anchor)
@@ -712,6 +712,7 @@ export const store = {
   reparentTargets,
   reparent,
   reparentQuick,
+  combineInto,
   pointerDownCard,
   pointerMoveDrag,
   setDragPreviewSize,

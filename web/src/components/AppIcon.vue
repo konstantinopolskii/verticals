@@ -31,6 +31,7 @@ import {
   IconTrash,
   IconWorld,
   IconX,
+  IconCircleXFilled,
 } from '@tabler/icons-vue'
 
 const REGISTRY = {
@@ -57,6 +58,7 @@ const REGISTRY = {
   trash: IconTrash,
   world: IconWorld,
   x: IconX,
+  'x-circle': IconCircleXFilled,
 } as const
 
 const props = withDefaults(defineProps<{
