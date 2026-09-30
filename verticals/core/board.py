@@ -422,13 +422,18 @@ def _column_for(key: str, anchor: _date, goals: tuple[Goal, ...]) -> Column:
 
 
 def board(
-    conn: psycopg.Connection, *, owner: str, date: _date, value: str | None = None
+    conn: psycopg.Connection, *, owner: str, date: _date, value: str | None = None,
+    today: _date | None = None,
 ) -> Board:
     """The whole board, one statement (IR-07): eight columns, every card's `progress`,
     `ancestors` and direct `children`. `date` is the anchor "today" the board renders against —
     `board`'s own parameter, distinct from any single `Goal.anchor_date` (`docs/E2E.md` S-20 and
     S-22 both call it `date`, and so does the `GET /api/board?date=` query parameter — this
     follows all three rather than the field name on `Goal`).
+
+    `today` is the wall-clock date the ghosts and the live columns read. Leave it out: the
+    default is the server's own date. Tests pass it to stand on a calendar edge without a mock
+    (S-109 bans mocks and monkeypatch).
 
     IR-02: takes an open connection, never commits, never opens a transaction of its own.
     """
@@ -442,10 +447,11 @@ def board(
         "as_of": _datetime.now(_timezone.utc),
         "value": value,
     }
-    # R10 (revised, KK ruling 2026-08-16): the one wall-clock read in this module. Ghost rows
+    # R10 (revised, KK ruling 2026-08-16): the one wall-clock read in this module (and `today`, when
+    # a caller passes one, replaces it). Ghost rows
     # exist only where the requested period IS the current period for that scale — comparing
     # period keys is exactly "does this scale's requested period contain today".
-    today = _date.today()
+    today = _date.today() if today is None else _validate_date(today)
     params["today"] = today
     for h in vertical.VERTICALS:
         params[f"vt_{h.key}"] = h.key

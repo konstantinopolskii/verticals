@@ -122,16 +122,6 @@ def _expected_landing(own: str, anchor: date, today: date):
     return next((h for h in BOUNDED[vertical.rank(own):] if anchor >= _previous_start(h.key, today)), BOUNDED[-1])
 
 
-def _pin_today(monkeypatch: pytest.MonkeyPatch, value: date) -> date:
-    class ClockDate(date):
-        @classmethod
-        def today(cls):
-            return cls.fromordinal(value.toordinal())
-
-    monkeypatch.setattr(board, "_date", ClockDate)
-    return ClockDate.today()
-
-
 @pytest.mark.parametrize("own", [h.key for h in BOUNDED])
 def test_carryover_ages_up_from_own_vertical_without_writing_goal(db, own: str) -> None:
     today = date.today()
@@ -169,25 +159,25 @@ def test_current_period_is_not_due_merely_because_anchor_is_before_today(db, own
 
 
 @pytest.mark.parametrize("boundary", ["month-start", "month-end", "quarter-start", "quarter-end"])
-def test_calendar_edges_use_previous_calendar_periods(db, monkeypatch, boundary: str) -> None:
+def test_calendar_edges_use_previous_calendar_periods(db, boundary: str) -> None:
     scale, edge = boundary.split("-")
     bounds = vertical.descriptor(scale).bounds_fn(date.today())
-    today = _pin_today(monkeypatch, bounds[0 if edge == "start" else 1])
+    today = bounds[0 if edge == "start" else 1]
     for landing in BOUNDED[:-1]:
         threshold = _previous_start(landing.key, today)
         exact = _create(db, "SYN exact calendar threshold", threshold, "day")
         older = _create(db, "SYN one day before threshold", threshold - timedelta(days=1), "day")
-        result = board.board(db, owner=OWNER, date=today)
+        result = board.board(db, owner=OWNER, date=today, today=today)
         assert _locations(result, exact.id) == [_expected_landing("day", threshold, today).key]
         # Calendar boundaries, including ISO-week/year edges, are inclusive at the start.
         assert _locations(result, older.id) == [_expected_landing("day", older.anchor_date, today).key]
 
 
-def test_named_day_and_week_ages_use_runtime_calendar(db, monkeypatch) -> None:
+def test_named_day_and_week_ages_use_runtime_calendar(db) -> None:
     month_start = vertical.descriptor("month").bounds_fn(date.today())[0]
     midmonth = month_start + timedelta(days=14)
     # A runtime-relative Saturday makes all named "earlier this week/month" cases possible.
-    today = _pin_today(monkeypatch, midmonth + timedelta(days=(5 - midmonth.weekday()) % 7))
+    today = midmonth + timedelta(days=(5 - midmonth.weekday()) % 7)
     week_start = vertical.descriptor("week").bounds_fn(today)[0]
     last_week = week_start - timedelta(days=7)
     cases = [
@@ -200,7 +190,7 @@ def test_named_day_and_week_ages_use_runtime_calendar(db, monkeypatch) -> None:
         ("Week two weeks old", "week", last_week - timedelta(days=7), "month"),
     ]
     created = [(_create(db, f"SYN {name}", anchor, own), target) for name, own, anchor, target in cases]
-    result = board.board(db, owner=OWNER, date=today)
+    result = board.board(db, owner=OWNER, date=today, today=today)
     for goal, target in created:
         assert _locations(result, goal.id) == [target], goal.title
 
@@ -228,13 +218,13 @@ def test_promoted_ignore_expires_by_today_and_ack_keeps_original_key(db) -> None
     assert life.id not in board.board(db, owner=OWNER, date=today).ghosts
 
 
-def test_only_landing_live_gate_applies_and_historical_copy_is_not_a_ghost(db, monkeypatch) -> None:
+def test_only_landing_live_gate_applies_and_historical_copy_is_not_a_ghost(db) -> None:
     # Use the end of the runtime month so its first day necessarily ages past the Week window.
     start, end = vertical.descriptor("month").bounds_fn(date.today())
-    today = _pin_today(monkeypatch, end)
+    today = end
     goal = _create(db, "SYN historical day plus current landing month", start, "day")
-    requested = type(today).fromordinal(start.toordinal())
-    historical = board.board(db, owner=OWNER, date=requested)
+    requested = start
+    historical = board.board(db, owner=OWNER, date=requested, today=today)
     assert _locations(historical, goal.id) == ["day", "month"]
 
     from verticals.api.schemas import board_to_json
@@ -247,9 +237,9 @@ def test_only_landing_live_gate_applies_and_historical_copy_is_not_a_ghost(db, m
         assert copies["month"]["ghost"] is True
         assert str(copies["month"]["ghost_until"]) == str(end)
 
-    other_day = board.board(db, owner=OWNER, date=requested + timedelta(days=1))
+    other_day = board.board(db, owner=OWNER, date=requested + timedelta(days=1), today=today)
     assert _locations(other_day, goal.id) == ["month"]
     # A non-live landing column suppresses the ghost; it does not promote it again to Year.
-    next_month = board.board(db, owner=OWNER, date=today + timedelta(days=1))
+    next_month = board.board(db, owner=OWNER, date=today + timedelta(days=1), today=today)
     assert goal.id not in next_month.ghosts
     assert _locations(next_month, goal.id) == []
