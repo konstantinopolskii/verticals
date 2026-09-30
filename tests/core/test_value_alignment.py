@@ -148,11 +148,12 @@ def test_value_filter_keeps_the_subtrees_ghosts(db: psycopg.Connection) -> None:
     ghosted = _child(db, "SYN first old week", first.id, vertical="week", anchor=PAST_ANCHOR)
 
     mine = _board(db, value=first.id)
-    week_ids = {g.id for g in _column(mine, "week").goals}
-    assert ghosted.id in week_ids and ghosted.id in mine.ghosts
+    # KK, 26 Sep 2026: a carried plan lands in the first eligible window; one from 2020 is past them all.
+    landed_ids = {g.id for g in _column(mine, "decade").goals}
+    assert ghosted.id in landed_ids and ghosted.id in mine.ghosts
 
     other = _board(db, value=second.id)
-    assert ghosted.id not in {g.id for g in _column(other, "week").goals}
+    assert ghosted.id not in {g.id for g in _column(other, "decade").goals}
     assert ghosted.id not in other.ghosts
 
 
