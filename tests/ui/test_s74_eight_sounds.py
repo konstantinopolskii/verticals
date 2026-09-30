@@ -250,24 +250,20 @@ def test_s74_eight_sounds(ui_f2: UiSession) -> None:
             page.wait_for_timeout(100)
         assert parent == "SYNQ1R01", f"the drag did not reparent SYNORD04 (parent_id={parent!r})"
 
-        # 4 — v2 removal gesture. Delete left the stamped unified menu; Remove from vertical is its
-        # non-destructive successor and retains the legacy removal sound asset.
+        # 4 — the removal gesture: Delete in the goal's menu plays the removal sound. "Remove from vertical" left the
+        # menu with its systematic order (docs/design-handoff S5.P5.007); park stays over HTTP and MCP.
         activate_column(page, "week")
         page.locator(ORD03_CARD).click(button="right")
         page.wait_for_selector(CONTEXT_MENU)
-        session.gestures.click(f'{CONTEXT_MENU} [data-menu-item="park"]')
+        session.gestures.click(f'{CONTEXT_MENU} [data-action="delete"]')
         _wait_for_plays(page, 4)
         page.wait_for_selector('[data-goal-id="SYNORD03"]', state="detached", timeout=5000)
         deadline = time.monotonic() + 5
-        parked = conn.execute(
-            "SELECT vertical, parked_from_vertical FROM goals WHERE id = 'SYNORD03'"
-        ).fetchone()
-        while parked != (None, "week") and time.monotonic() < deadline:
+        left = conn.execute("SELECT count(*) FROM goals WHERE id = 'SYNORD03'").fetchone()
+        while left != (0,) and time.monotonic() < deadline:
             page.wait_for_timeout(50)
-            parked = conn.execute(
-                "SELECT vertical, parked_from_vertical FROM goals WHERE id = 'SYNORD03'"
-            ).fetchone()
-        assert parked == (None, "week")
+            left = conn.execute("SELECT count(*) FROM goals WHERE id = 'SYNORD03'").fetchone()
+        assert left == (0,)
 
         # 5 — the inline add row of the day column. Typing is not a gesture; Enter commits.
         session.gestures.click(DAY_ADD)

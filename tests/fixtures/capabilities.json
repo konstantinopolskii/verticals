@@ -116,7 +116,7 @@
   },
   {
     "cap": "park",
-    "ui_selector": "[data-cap=park]",
+    "ui_selector": null,
     "http_method": "POST",
     "http_path": "/api/goals/{id}/park",
     "mcp_tool": "park",

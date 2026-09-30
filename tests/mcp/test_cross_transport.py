@@ -457,9 +457,11 @@ def test_s59_capability_parity_holds_in_both_directions(f2_dsn: str, tmp_path: P
     manifest = json.loads(_F5_PATH.read_text())
     assert len(manifest) == 29, f"F5 should carry 29 rows, found {len(manifest)}"
     park_rows = [row for row in manifest if row["cap"] == "park"]
+    # "Remove from vertical" left the goal's menu with its systematic order (docs/design-handoff S5.P5.007): park is
+    # HTTP/MCP only now, the same shape as every other null-selector row.
     assert park_rows == [{
         "cap": "park",
-        "ui_selector": "[data-cap=park]",
+        "ui_selector": None,
         "http_method": "POST",
         "http_path": "/api/goals/{id}/park",
         "mcp_tool": "park",

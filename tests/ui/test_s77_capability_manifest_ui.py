@@ -170,8 +170,8 @@ def _open_card_menu(page, vertical: str, goal_id: str) -> None:
 
 def _open_reparent_menu(page, vertical: str, goal_id: str) -> None:
     _open_card_menu(page, vertical, goal_id)
-    page.click('#dropdownPortal [data-action="reparent"] > button')
-    page.wait_for_selector('[data-role="goal-actions-reparent"]', timeout=5000)
+    page.click('#dropdownPortal [data-move="under"]')
+    page.wait_for_selector('[data-role="move-step"][data-step="under"]', timeout=5000)
 
 
 def _open_tags(page, goal_id: str) -> None:
@@ -241,10 +241,12 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         f"F5 must hold 29 rows (20 + D250's four doc capabilities + D254's link/unlink + WP-A's "
         f"three comment capabilities), found {len(rows)}"
     )
+    # "Remove from vertical" left the goal's menu with its systematic order (docs/design-handoff S5.P5.007): park is
+    # HTTP/MCP only now.
     park_rows = [row for row in rows if row["cap"] == "park"]
     assert park_rows == [{
         "cap": "park",
-        "ui_selector": "[data-cap=park]",
+        "ui_selector": None,
         "http_method": "POST",
         "http_path": "/api/goals/{id}/park",
         "mcp_tool": "park",
@@ -283,7 +285,7 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     # 2026-08-09 click-opens ruling removed the selection gesture and the bulk bar, so there is no
     # element for this row to resolve against and nothing to click. Its absence from the DOM is
     # asserted below — a `[data-cap=bulk]` element reappearing would mean the ruling regressed.
-    gesture_caps = {"park", "set_tags", "list_tags"}
+    gesture_caps = {"set_tags", "list_tags"}
     board_rows = [
         row
         for row in rows
@@ -331,14 +333,13 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     page.keyboard.press("Escape")
     page.wait_for_selector('#goal-detail[data-role="inline-detail"]', state="detached", timeout=5000)
 
-    park_row = next(row for row in rows if row["cap"] == "park")
+    move_group = '[data-role="goal-context-menu"] [data-menu-section="move"]'
     activate_column(page, "day")
     page.click('[data-goal-id="SYNDAY01"] [data-role=goal-actions-trigger]')
-    page.wait_for_selector(_selector_of(park_row), timeout=5000)
-    if page.locator(_selector_of(park_row)).count() == 0:
-        unresolved.append(park_row)
+    page.wait_for_selector(move_group, timeout=5000)
+    assert page.locator("[data-cap=park]").count() == 0
     page.keyboard.press("Escape")
-    page.wait_for_selector(_selector_of(park_row), state="hidden", timeout=5000)
+    page.wait_for_selector(move_group, state="hidden", timeout=5000)
 
     # `due_ack` left the card's menu with the roll (docs/design-handoff S4.P1.020): its row is
     # HTTP/MCP only now (`ui_selector: null`), and a carried plan's menu must not offer it.
@@ -347,7 +348,7 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     page.wait_for_selector(f'[data-goal-id="{live_ghost.id}"]', timeout=5000)
     activate_column(page, "year")
     page.click(f'[data-goal-id="{live_ghost.id}"] [data-role=goal-actions-trigger]')
-    page.wait_for_selector(_selector_of(park_row), timeout=5000)
+    page.wait_for_selector(move_group, timeout=5000)
     assert page.locator("[data-cap=due-ack]").count() == 0
     page.keyboard.press("Escape")
     page.goto(session.base_url)
@@ -521,28 +522,19 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         observed,
     )
 
-    # Park is mounted only inside this same menu sheet.
-    _open_card_menu(page, "day", "SYNCOL04")
-    _activate_row(
-        session,
-        by_cap["park"],
-        lambda: page.click('#dropdownPortal [data-cap="park"]'),
-        observed,
-    )
-
-    # Reparent and detach are two states of the nested Move-to surface.
+    # Reparent and detach are two rows of the menu's Under step (docs/design-handoff S5.P5.012).
     _open_reparent_menu(page, "week", "SYNORD03")
     _activate_row(
         session,
         by_cap["reparent"],
-        lambda: page.click('[data-role="goal-actions-reparent"] [data-parent-id="SYNSCH01"]'),
+        lambda: page.click('[data-role="move-step"] [data-parent-id="SYNSCH01"]'),
         observed,
     )
     _open_reparent_menu(page, "week", "SYNORD03")
     _activate_row(
         session,
         by_cap["detach"],
-        lambda: page.click('[data-role="goal-actions-reparent"] [data-parent-id=""]'),
+        lambda: page.click('[data-role="move-step"] [data-parent-id=""]'),
         observed,
     )
 
