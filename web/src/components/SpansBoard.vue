@@ -90,6 +90,8 @@ watch(() => spans.offset, async (now, was) => {
   display: flex;
   background: var(--color-bg);
 }
+/* Empty periods are common here: their add row stands on the page, not on the kit's first-card fill. */
+.spans-board .column-add-row { background: transparent; }
 .spans-board__view { flex: 1 1 auto; min-width: 0; overflow: clip; }
 .spans-board--float-left .spans-board__view { order: 2; }
 .spans-board__row.spans-board__row { height: 100%; overflow: clip; flex-wrap: nowrap; }
