@@ -104,12 +104,12 @@ function onGoalDown(event: PointerEvent): void {
 .moving-stack__goal.is-in-hand { visibility: hidden; }
 /* Picked: 14% bigger and 10 px higher on a spring, a strong shadow in its colour; the other steps aside (S5.P4.007). */
 .moving-stack__view,
-.moving-stack__goal { transition: transform 290ms var(--vt-ease-large), box-shadow 290ms ease; }
+.moving-stack__goal { transition: transform var(--vt-lift-picked-ms) var(--vt-ease-large), box-shadow var(--vt-lift-picked-ms) ease; }
 .moving-stack__view.is-aside,
 .moving-stack__goal.is-aside { transition-timing-function: var(--vt-ease-sway); }
-.moving-stack__view.is-picked { transform: translateY(-10px) scale(1.14); box-shadow: 0 16px 26px -6px rgb(0 0 0 / 45%), 0 46px 100px -12px rgb(0 0 0 / 35%); }
+.moving-stack__view.is-picked { transform: translateY(var(--vt-lift-picked-rise)) scale(var(--vt-lift-picked-scale)); box-shadow: 0 16px 26px -6px rgb(0 0 0 / 45%), 0 46px 100px -12px rgb(0 0 0 / 35%); }
 .moving-stack__goal.is-picked {
-  transform: translateY(-10px) scale(1.14);
+  transform: translateY(var(--vt-lift-picked-rise)) scale(var(--vt-lift-picked-scale));
   background: rgb(var(--vt-tint, 220, 220, 220));
   box-shadow: 0 16px 26px -6px rgba(var(--vt-tint, 200, 200, 200), .62), 0 46px 100px -12px rgba(var(--vt-tint, 200, 200, 200), .62);
 }

@@ -10,6 +10,7 @@ import psycopg
 from playwright.sync_api import Page, expect
 
 from tests.ui.conftest import UiSession
+from tests.ui.test_agent_conversation import ui_agent  # noqa: F401  (the fixture)
 from tests.ui.views import FIELD
 
 SPANS = '[data-role="spans-board"]'
@@ -187,3 +188,20 @@ def test_typing_brings_the_board_and_clearing_the_weeks(ui_f2: UiSession) -> Non
     expect(page.locator('[data-role="moving-view"]')).to_have_text("Weeks")
     page.locator(FIELD).fill("")
     expect(page.locator(SPANS)).to_have_count(1)
+
+
+def test_words_sent_while_moving_go_to_the_agent_with_the_move(ui_agent: UiSession) -> None:  # noqa: F811
+    """S5.P3.038's second half, .041, .042: ↵ sends a new task with the move's context and ends the move."""
+    page = ui_agent.page
+    page.wait_for_selector(f'[data-goal-id="{MONTH_GOAL}"]')
+    dots = _open_weeks(page)
+    _glide(page, dots, _centre(page, ".circle-field__shape"))
+    page.mouse.up()
+    expect(page.locator('[data-role="moving-goal"]')).to_have_count(1)
+    page.locator(FIELD).fill("[context]")
+    page.keyboard.press("Enter")
+    answer = page.locator('[data-balloon][data-who="agent"]').last
+    expect(answer).to_contain_text("moving a goal", timeout=10000)
+    expect(answer).to_contain_text("Fix the bicycles rack")
+    expect(page.locator(SPANS)).to_have_count(0)
+    expect(page.locator('[data-role="moving-stack"]')).to_have_count(0)

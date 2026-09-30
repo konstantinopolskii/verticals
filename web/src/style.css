@@ -77,6 +77,11 @@ body {
   --motion-hover: 300ms;
   --motion-lift-in: 160ms;
   --motion-lift-out: 220ms;
+  /* One lift, two steps (docs/design-handoff S5.P4.023, .024): pointed at on the board 6% and 2 px (lib/cardLift.ts),
+     picked up on the field 14% and 10 px on a 290 ms spring. */
+  --vt-lift-picked-scale: 1.14;
+  --vt-lift-picked-rise: -10px;
+  --vt-lift-picked-ms: 290ms;
   --motion-checkbox: 200ms;
   --motion-title: 150ms;
   --motion-progress: 100ms;
