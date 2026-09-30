@@ -7,6 +7,8 @@ import GoalCard from './GoalCard.vue'
 import InlineAdd from './InlineAdd.vue'
 import FindingSections from './FindingSections.vue'
 import CarriedGroup from './CarriedGroup.vue'
+import ColumnDots from './ColumnDots.vue'
+import type { SpanScale } from '../lib/spans'
 import { store } from '../store'
 import { playSound } from '../lib/sound'
 import type { PeriodDirection } from '../lib/periodNavigation'
@@ -26,10 +28,14 @@ const props = withDefaults(
     periodKey?: string | null
     periodDirection?: PeriodDirection
     periodSwapId?: number
+    /** One period of the spans while a goal moves (docs/design-handoff S5.P1): its header names how far away it is. */
+    span?: boolean
+    /** The span's end, small and light after its date (S5.P1.008-.014). */
+    end?: string
   }>(),
   {
     subLabel: '', active: false, deckActive: false, deckMain: false, addPlaceholder: 'Add…', periodKey: null,
-    periodDirection: 1, periodSwapId: 0,
+    periodDirection: 1, periodSwapId: 0, span: false, end: '',
   },
 )
 
@@ -54,8 +60,10 @@ function onAdd(title: string) {
 // fold affordance anywhere" (KK, verbatim: "let's show all sub-task by default now").
 
 function onHeaderClick(): void {
-  store.toggleExpandedColumn(props.vertical)
+  if (!props.span) store.toggleExpandedColumn(props.vertical)
 }
+/* While a goal is dragged the dots take the period controls' place; a span has neither (S5.P2.017, .019). */
+const dragging = computed(() => store.state.drag.id !== null)
 
 /** One props bag per top-level card, forwarded straight through — no face substitution, no
  *  children truncation. The D244 §5 chain-hover wash (`goal-card--ancestor-hover`, GoalCard.vue's
@@ -274,7 +282,8 @@ onBeforeUnmount(() => swapAnimation?.cancel())
     :data-vertical="vertical"
     :data-period-key="periodKey ?? ''"
   >
-    <div v-if="vertical !== 'life'" class="column-period-controls" data-cap="period-nav">
+    <ColumnDots v-if="dragging && vertical !== 'life' && vertical !== 'maybe' && !span" :vertical="vertical as SpanScale" />
+    <div v-else-if="vertical !== 'life' && !span" class="column-period-controls" data-cap="period-nav">
       <button
         class="column-period-controls__arrow"
         type="button"
@@ -316,7 +325,8 @@ onBeforeUnmount(() => swapAnimation?.cancel())
         <ColumnHeader
           :title="slide.title"
           :sub-label="slide.subLabel"
-          data-cap="column-expand"
+          :end="end"
+          :data-cap="span ? undefined : 'column-expand'"
           @click="onHeaderClick"
         />
         <div class="pattern-vertical-board__body">

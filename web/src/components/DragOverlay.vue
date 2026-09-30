@@ -4,6 +4,7 @@
 import { computed, nextTick, shallowRef, watch } from 'vue'
 import { store } from '../store'
 import { SETTLE_EASING } from '../lib/drag'
+import { dots } from '../lib/spansDrag'
 
 /* Clone the rendered row itself. Copying computed styles before Vue applies the source-ghost
    class preserves every current control and line at the measured footprint without creating a
@@ -12,9 +13,9 @@ const overlayHost = shallowRef<HTMLElement | null>(null)
 const dragVisualId = computed(() => store.state.drag.id ?? store.state.drag.settling?.id ?? null)
 
 function cloneRenderedRow(id: string): HTMLElement | null {
-  const source = document.querySelector<HTMLElement>(
-    `[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`,
-  )
+  // A goal waiting above the field is the one in the hand (docs/design-handoff S5.P3.018).
+  const source = document.querySelector<HTMLElement>(`[data-parked][data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)
+    ?? document.querySelector<HTMLElement>(`[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)
   if (!source) return null
   const clone = source.cloneNode(true) as HTMLElement
   const sources = [source, ...source.querySelectorAll<HTMLElement>('*')]
@@ -200,8 +201,23 @@ const overlayStyle = computed(() => {
     v-if="dragVisualId"
     ref="overlayHost"
     class="pattern-vertical-board__drag-overlay"
+    :class="{ 'drag-overlay--melted': dots.melted }"
     data-role="drag-overlay"
     data-dnd-overlay
-    :style="overlayStyle"
+    :style="[overlayStyle, { '--grab-x': `${store.state.drag.offsetX}px`, '--grab-y': `${store.state.drag.offsetY}px` }]"
   />
 </template>
+
+<style>
+/* Resting on a column's dots the goal melts into them, and grows back out under the hand once the spans have come
+   (docs/design-handoff S5.P2.013, .015). */
+.pattern-vertical-board__drag-overlay > * {
+  transform-origin: var(--grab-x) var(--grab-y);
+  transition: transform 200ms var(--vt-ease-large), filter 200ms var(--vt-ease-large), opacity 200ms var(--vt-ease-large);
+}
+.drag-overlay--melted > * { transform: scale(.55); filter: blur(3px); opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .pattern-vertical-board__drag-overlay > * { transition: opacity 120ms linear; }
+  .drag-overlay--melted > * { transform: none; filter: none; }
+}
+</style>

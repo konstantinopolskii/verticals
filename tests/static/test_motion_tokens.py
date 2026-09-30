@@ -15,6 +15,7 @@ PREDATE_THE_TOKENS = {
     "components/goalCard.css",
     "components/goalDetail.css",
     "lib/drag.ts",
+    "lib/dragSettle.ts",  # the settle curve, split out of lib/drag.ts unchanged (S5.P1.038)
     "lib/familyMotion.ts",
 }
 

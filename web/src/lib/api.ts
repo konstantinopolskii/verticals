@@ -321,6 +321,11 @@ export function findGoals(q: string): Promise<FindResponse> {
   return request<FindResponse>(`/api/search${qs({ q, with: 'parents', limit: 200 })}`)
 }
 
+/** One vertical's periods in a row, in the board's own payload (docs/design-handoff S5.P1.030). */
+export function fetchSpans(vertical: string, date: string, count: number, value: string | null = null): Promise<BoardResponse> {
+  return request<BoardResponse>(`/api/spans${qs({ vertical, date, count, ...(value ? { value } : {}) })}`)
+}
+
 /** The day's carry-over into the "Replan carried-over plans" task (docs/design-handoff S4.P1): the server does it once
  *  a day, however often it is asked, and answers the task it wrote to. */
 export function runReplan(date: string): Promise<{ task_id: string | null }> {

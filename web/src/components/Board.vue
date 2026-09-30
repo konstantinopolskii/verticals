@@ -11,6 +11,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { KButton, KCardStack } from '@konstantinopolskii/vue'
 import Column from './Column.vue'
 import DragOverlay from './DragOverlay.vue'
+import SpansBoard from './SpansBoard.vue'
+import { spans } from '../lib/spans'
 import { store, todayIso } from '../store'
 import { AUTOSCROLL_TICK_MS } from '../lib/drag'
 import { wheelIntent } from '../lib/boardWheel'
@@ -22,7 +24,7 @@ import {
 import type { BoardColumnData } from '../types'
 import { mountIridescentOverlay } from '../kit-ext/iridescent'
 import { devDeck } from '../lib/devDeck'
-import { filterColumns, nothingFound } from '../lib/commandFilter'
+import { commandFilter, filterColumns, nothingFound } from '../lib/commandFilter'
 
 const props = withDefaults(defineProps<{ columns: BoardColumnData[]; showSampleBanner?: boolean }>(), {
   showSampleBanner: false,
@@ -226,8 +228,11 @@ onBeforeUnmount(() => document.body.classList.remove('pattern-vertical-board__no
     role="status"
     aria-label="Loading"
   />
+  <!-- Moving a goal: one vertical's periods in a row, in the board's place (docs/design-handoff S5.P1). -->
+  <!-- Typing goes back to the regular board and its matches; clearing brings the spans back (S5.P3.016). -->
+  <SpansBoard v-if="spans.vertical && !commandFilter.text" />
   <KCardStack
-    v-if="dated.length"
+    v-if="dated.length && (!spans.vertical || commandFilter.text)"
     ref="boardRoot"
     class="pattern-vertical-board"
     :class="{

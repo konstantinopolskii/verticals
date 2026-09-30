@@ -8,7 +8,9 @@
 withDefaults(defineProps<{
   title: string
   subLabel?: string
-}>(), { subLabel: '' })
+  /** A span's end, after its date (docs/design-handoff S5.P1.014). */
+  end?: string
+}>(), { subLabel: '', end: '' })
 
 </script>
 
@@ -18,7 +20,7 @@ withDefaults(defineProps<{
       <p class="t-caption column-header__sub-label">{{ subLabel }}</p>
     </div>
     <div class="column-header__title-row">
-      <h3 class="t-title">{{ title }}</h3>
+      <h3 class="t-title">{{ title }}<span v-if="end" class="column-header__end" data-role="span-end">{{ end }}</span></h3>
     </div>
   </header>
 </template>
@@ -70,5 +72,11 @@ withDefaults(defineProps<{
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--color-text);
+}
+.column-header__end {
+  margin-left: 10px;
+  color: #b3b4b7;
+  font-size: 17px;
+  font-weight: 700;
 }
 </style>

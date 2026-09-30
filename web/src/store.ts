@@ -30,7 +30,7 @@ import { createGoalDelete } from './lib/goalDelete'
 import { createDocsView, createInitialDocsState, type DocsState } from './lib/docsView'
 import { createCommentsPanel, createInitialCommentsState, type CommentsState } from './lib/comments'
 import { isoDate, localDate } from './lib/schedule'
-import { scheduleOrdering, type DragState } from './lib/drag'
+import { recaptureRowRects, scheduleOrdering, type DragState } from './lib/drag'
 import { createDragActions } from './lib/dragActions'
 import { toColumnData } from './lib/boardProjection'
 import { createDayRollover } from './lib/dayRollover'
@@ -49,10 +49,12 @@ import {
 } from './lib/scheduleView'
 import { createLiveBoard } from './lib/liveBoard'
 import { bump as bumpBoardEpoch, current as currentBoardEpoch } from './lib/boardEpoch'
-import type { VerticalScale } from './lib/periods'
+import { verticalRank, type VerticalScale } from './lib/periods'
 import type { BoardColumnData } from './types'
 import { carryOver } from './lib/replan'
 import { captureRows, slideIntoGroups } from './lib/rollSlide'
+import { spanAnchor, spanGoal, withSpans } from './lib/spans'
+import { afterRelease, beforeRelease, bindSpansDrag, onDragMove } from './lib/spansDrag'
 
 /** Today, as the client reads it. Plain `new Date()` — the `ui` suite pins this transparently via
  *  `page.clock.setFixedTime` (`docs/E2E.md` §1 instrumentation entry 3); production reads the real
@@ -350,6 +352,11 @@ async function createGoalOn(verticalBucket: string, title: string): Promise<void
  *  wants (`{vertical, anchor_date}`, never a computed `period_key`, AC-010). Popover scheduling
  *  retains its broad reload. Drag scheduling already names a visible destination, so it moves the
  *  local row before the request and reconciles from the returned card without a board refetch. */
+/** A period's start day for the schedule write: a span's own, or the schedule grid's (docs/design-handoff S5.P6.003). */
+function anchorFor(scale: VerticalScale, periodKey: string): string {
+  return spanAnchor(scale, periodKey) ?? scheduleGrid.value.anchorDate(scale, periodKey)
+}
+
 async function scheduleGoalTo(
   id: string,
   scale: VerticalScale,
@@ -357,12 +364,13 @@ async function scheduleGoalTo(
   optimisticDrag = false,
   insertBeforeId: string | null = null,
 ): Promise<void> {
-  const anchor = scheduleGrid.value.anchorDate(scale, periodKey)
+  const anchor = anchorFor(scale, periodKey)
+  const board = withSpans(state.board)
   const ordering = optimisticDrag
-    ? scheduleOrdering(state.board, id, { insertBeforeId, vertical: scale, periodKey })
+    ? scheduleOrdering(board, id, { insertBeforeId, vertical: scale, periodKey })
     : null
   const placement = optimisticDrag
-    ? schedulePlacement(state.board, id, { vertical: scale, periodKey }, anchor, insertBeforeId)
+    ? schedulePlacement(board, id, { vertical: scale, periodKey }, anchor, insertBeforeId)
     : null
   try {
     const updated = await scheduleGoal(id, scale, anchor, ordering ?? undefined)
@@ -509,9 +517,20 @@ async function reparent(id: string, parentId: string | null, optimisticDrag = fa
  *  it appends like every other non-drag schedule write) — no reload on success; a failed write
  *  rolls its placement back and toasts, matching the drag-commit paths in `lib/dragActions.ts`. */
 async function combineInto(id: string, targetId: string): Promise<void> {
+  const parent = findGoalById(targetId) ?? spanGoal(targetId)
+  const child = findGoalById(id) ?? spanGoal(id)
+  // Let go on a smaller vertical's goal, the held goal takes that goal's period first, then becomes its step (S5.P6.002).
+  if (parent?.vertical && child?.vertical && verticalRank(child.vertical as VerticalScale) > verticalRank(parent.vertical as VerticalScale)) {
+    try {
+      await scheduleGoal(id, parent.vertical as VerticalScale, parent.anchor_date)
+    } catch (err) {
+      toast(messageForError(err))
+      return
+    }
+    await reparent(id, targetId)
+    return
+  }
   await reparent(id, targetId, true)
-  const parent = findGoalById(targetId)
-  const child = findGoalById(id)
   if (!parent || !child) return
   if (child.vertical === parent.vertical && child.anchor_date === parent.anchor_date) return
   const placement = schedulePlacement(
@@ -551,16 +570,26 @@ const {
   autoScrollDrag,
   pointerUpDrag,
 } = createDragActions({
-  state,
-  findGoalById,
+  // While spans are open the drag reads their goals beside the board's (docs/design-handoff S5.P1).
+  state: { drag: state.drag, get board() { return withSpans(state.board) } },
+  findGoalById: (id) => findGoalById(id) ?? spanGoal(id),
   sameVerticalParentId,
   combineInto,
   scheduleGoalTo,
-  anchorDate: (scale, periodKey) => scheduleGrid.value.anchorDate(scale, periodKey),
+  anchorDate: anchorFor,
+  onMove: onDragMove,
+  onRelease: afterRelease,
+  beforeRelease,
   quietReload,
   expandedVertical: () => state.expandedVertical,
   expandColumn,
   openFamily: (path, vertical) => family.openFamily(path, vertical), // bound late: the family view is made below
+})
+
+bindSpansDrag({
+  drag: state.drag, today: todayIso, reload: reloadBoard,
+  expanded: () => state.expandedVertical, setExpanded: (vertical) => { state.expandedVertical = vertical },
+  retarget: () => { recaptureRowRects(); pointerMoveDrag(state.drag.x, state.drag.y) },
 })
 
 // --- delete --------------------------------------------------------------------------------------
