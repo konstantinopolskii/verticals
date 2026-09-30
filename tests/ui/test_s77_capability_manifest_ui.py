@@ -31,7 +31,7 @@ import json
 import re
 import time
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
@@ -153,12 +153,12 @@ def _activate_row(
 
 def _seed_live_ghost(session: UiSession, title: str):
     """R10 revised (KK ruling 2026-08-16): ghosts exist only on the wall-clock current period,
-    so the pinned 2026-08-08 board carries none — `due_ack` (ghost-gated, D230) can only be
-    resolved on `/h/<real today>` against a row overdue RELATIVE TO RUNTIME TODAY."""
+    so the pinned 2026-08-08 board carries none; a year's plan from last year stays in Year's
+    group whatever day the suite runs on (docs/design-handoff S4.P1.007)."""
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
         return core_goals.create(
-            conn, owner="t1", title=title, vertical="week",
-            anchor_date=date.today() - timedelta(days=7),
+            conn, owner="t1", title=title, vertical="year",
+            anchor_date=date(date.today().year - 1, 6, 15),
         ).goal
 
 
@@ -283,7 +283,7 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     # 2026-08-09 click-opens ruling removed the selection gesture and the bulk bar, so there is no
     # element for this row to resolve against and nothing to click. Its absence from the DOM is
     # asserted below — a `[data-cap=bulk]` element reappearing would mean the ruling regressed.
-    gesture_caps = {"park", "set_tags", "list_tags", "due_ack"}
+    gesture_caps = {"park", "set_tags", "list_tags"}
     board_rows = [
         row
         for row in rows
@@ -340,21 +340,16 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     page.keyboard.press("Escape")
     page.wait_for_selector(_selector_of(park_row), state="hidden", timeout=5000)
 
-    # `due_ack` (D230) is ghost-only, the same gate as Ignore: it resolves inside a CARRY-OVER
-    # card's menu sheet and nowhere else. R10 revised: only the real today's board shows a
-    # ghost, so resolve this row there against a freshly seeded overdue week row, then return
-    # to the pinned board for the rest of the sweep.
-    due_ack_row = next(row for row in rows if row["cap"] == "due_ack")
-    live_ghost = _seed_live_ghost(session, "SYN s77 due-ack ghost")
+    # `due_ack` left the card's menu with the roll (docs/design-handoff S4.P1.020): its row is
+    # HTTP/MCP only now (`ui_selector: null`), and a carried plan's menu must not offer it.
+    live_ghost = _seed_live_ghost(session, "SYN s77 carried plan")
     page.goto(f"{session.base_url}/h/{date.today().isoformat()}")
     page.wait_for_selector(f'[data-goal-id="{live_ghost.id}"]', timeout=5000)
-    activate_column(page, "week")
+    activate_column(page, "year")
     page.click(f'[data-goal-id="{live_ghost.id}"] [data-role=goal-actions-trigger]')
-    page.wait_for_selector(_selector_of(due_ack_row), timeout=5000)
-    if page.locator(_selector_of(due_ack_row)).count() == 0:
-        unresolved.append(due_ack_row)
+    page.wait_for_selector(_selector_of(park_row), timeout=5000)
+    assert page.locator("[data-cap=due-ack]").count() == 0
     page.keyboard.press("Escape")
-    page.wait_for_selector(_selector_of(due_ack_row), state="hidden", timeout=5000)
     page.goto(session.base_url)
     page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=5000)
 
@@ -535,22 +530,6 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         observed,
     )
 
-    # due_ack lives only in a GHOST card's menu (D230); R10 revised means only the real
-    # today's board can show one — seed an overdue row in the previous real ISO week,
-    # activate the row there, then return to the pinned board.
-    live_ghost = _seed_live_ghost(session, "SYN s77 due-ack activation ghost")
-    page.goto(f"{session.base_url}/h/{date.today().isoformat()}")
-    page.wait_for_selector(f'[data-goal-id="{live_ghost.id}"]', timeout=5000)
-    _open_card_menu(page, "week", live_ghost.id)
-    _activate_row(
-        session,
-        by_cap["due_ack"],
-        lambda: page.click('#dropdownPortal [data-cap="due-ack"]'),
-        observed,
-    )
-    page.goto(session.base_url)
-    page.wait_for_selector('[data-goal-id="SYNORD03"]', timeout=5000)
-
     # Reparent and detach are two states of the nested Move-to surface.
     _open_reparent_menu(page, "week", "SYNORD03")
     _activate_row(
@@ -603,10 +582,13 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         for request in session.request_log[activation_start:]
         if request["method"] in MUTATING_METHODS
     ]
+    # The app's own daily carry-over (docs/design-handoff S4.P1.017) runs on every page load; it
+    # is housekeeping, not a capability, the same carve-out as `tests/mcp/test_cross_transport.py`.
     off_manifest = [
         _route_shape(request)
         for request in writes
         if not any(_request_matches(row, request) for row in rows)
+        and urlsplit(request["url"]).path != "/api/replan"
     ]
     assert off_manifest == [], f"unmanifested mutating route shape(s): {off_manifest}"
 

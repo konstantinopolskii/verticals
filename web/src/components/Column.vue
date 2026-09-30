@@ -6,6 +6,7 @@ import ColumnHeader from './ColumnHeader.vue'
 import GoalCard from './GoalCard.vue'
 import InlineAdd from './InlineAdd.vue'
 import FindingSections from './FindingSections.vue'
+import CarriedGroup from './CarriedGroup.vue'
 import { store } from '../store'
 import { playSound } from '../lib/sound'
 import type { PeriodDirection } from '../lib/periodNavigation'
@@ -72,8 +73,6 @@ function cardProps(goal: GoalCardData) {
     columnVertical: props.vertical,
     foil: goal.foil,
     ghost: goal.ghost,
-    ghostUntil: goal.ghostUntil,
-    plannedPeriod: goal.plannedPeriod,
     progress: goal.progress,
     subgoalCount: goal.subgoalCount,
     repeat: goal.repeat,
@@ -164,9 +163,9 @@ function renderItems(slide: PeriodSlide): RenderItem[] {
 function carriedGoals(slide: PeriodSlide): GoalCardData[] {
   return slide.goals.filter(goal => goal.ghost)
 }
-function carriedCount(slide: PeriodSlide): number {
-  const count = (goals: GoalCardData[]): number => goals.reduce((sum, goal) => sum + Number(!!goal.ghost) + count(goal.children ?? []), 0)
-  return count(carriedGoals(slide))
+/* "Replan" opens the Inbox task that holds the carried plans (S4.P2.038, S4.P4). */
+function onReplan(from: Element): void {
+  window.dispatchEvent(new CustomEvent('verticals:replan', { detail: { from } }))
 }
 
 const columnRoot = ref<HTMLElement | null>(null)
@@ -321,6 +320,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
           @click="onHeaderClick"
         />
         <div class="pattern-vertical-board__body">
+          <CarriedGroup v-if="carriedGoals(slide).length" :vertical="vertical" :goals="carriedGoals(slide)" @replan="onReplan" />
           <KCardStack dense data-section="planned">
             <template v-for="item in renderItems(slide)" :key="item.key">
               <div
@@ -348,15 +348,6 @@ onBeforeUnmount(() => swapAnimation?.cancel())
             <InlineAdd v-if="!filterActive" :placeholder="addPlaceholder" data-cap="create-goal" @add="onAdd" />
           </KCardStack>
           <FindingSections v-if="filterActive && slide.state !== 'outgoing'" :vertical="vertical" :period-key="slide.periodKey" :shown="slide.goals" />
-          <template v-if="carriedCount(slide)">
-            <div class="column-now-line" data-role="now-line" :aria-label="`${carriedCount(slide)} carried-over goals`">
-              <span class="column-now-line__rule" aria-hidden="true"></span>
-              <span class="t-caption" data-role="now-count">{{ carriedCount(slide) }}</span>
-            </div>
-            <KCardStack dense data-section="carried">
-              <GoalCard v-for="goal in carriedGoals(slide)" :key="goal.id" v-bind="cardProps(goal)" />
-            </KCardStack>
-          </template>
         </div>
       </section>
     </div>
@@ -365,15 +356,6 @@ onBeforeUnmount(() => swapAnimation?.cancel())
 </template>
 
 <style>
-/* A row leaves 6px of card padding on either side of the 2px stack gap. The
-   line center uses that same visible 14px rhythm, including the add row's 6px inset. */
-.column-now-line { display: flex; align-items: center; gap: 8px; height: 1px; margin: 7.5px calc(6px + var(--space-2)); color: #df496d; }
-.column-now-line__rule { flex: 1; height: 1px; background: #df496d; }
-.column-now-line [data-role='now-count'] { font-size: 15px; font-variant-numeric: tabular-nums; }
-.pattern-vertical-board__column--active .column-now-line { margin-block: calc(7.5px + var(--kkov-expanded-goal-spacing)); }
-/* Fit the add row to its text, so the line has the same visible gap on both sides
-   in compact and expanded columns instead of inheriting its fixed 34px shell. */
-.pattern-vertical-board__body:has(> .column-now-line) > [data-section='planned'] > .column-add-row { height: auto; }
 /* Compact board geometry (COMPACT_BOARD_HANDOFF.md §3, HC-1/HC-2): seven EQUAL columns filling
    the viewport exactly — `flex: 1 1 0` shares the strip evenly regardless of content, so there
    is never a horizontal scroll or a dead right gutter. Day gets no special width (KK ruling).

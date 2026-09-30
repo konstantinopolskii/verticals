@@ -201,7 +201,7 @@
   },
   {
     "cap": "due_ack",
-    "ui_selector": "[data-cap=due-ack]",
+    "ui_selector": null,
     "http_method": "POST",
     "http_path": "/api/goals/{id}/due_ack",
     "mcp_tool": "due_ack",

@@ -19,15 +19,11 @@ const props = defineProps<{
   /** The card is the open goal: its facts line already shows the date, the checkbox completes it and it is open, so
    *  the menu keeps only what the card doesn't show (KK, 27 Sep 2026, the cleaned-up card). */
   open?: boolean
-  showIgnore?: boolean
 }>()
 const emit = defineEmits<{
   details: []
   complete: []
   park: []
-  ignore: []
-  'ack-due': []
-  'ack-done': []
   'open-change': [open: boolean]
 }>()
 
@@ -70,13 +66,10 @@ function closeMenu() {
   if (open.value) trigger.value?.click()
 }
 
-function act(name: 'details' | 'complete' | 'park' | 'ignore' | 'ack-due' | 'ack-done') {
+function act(name: 'details' | 'complete' | 'park') {
   if (name === 'details') emit('details')
   else if (name === 'complete') emit('complete')
-  else if (name === 'park') emit('park')
-  else if (name === 'ack-due') emit('ack-due')
-  else if (name === 'ack-done') emit('ack-done')
-  else emit('ignore')
+  else emit('park')
 }
 
 function schedule(scale: VerticalScale, periodKey: string) {
@@ -153,7 +146,7 @@ defineExpose({ openMenu })
 
     <!-- An open card shows its details, completes by its checkbox and offers the agent in its facts line, so those three
          and Reschedule (its date) leave its menu. -->
-    <div v-if="!props.open || props.showIgnore || showComment" data-menu-section="actions">
+    <div v-if="!props.open || showComment" data-menu-section="actions">
       <button
         v-if="!props.open"
         type="button"
@@ -187,34 +180,9 @@ defineExpose({ openMenu })
         data-cap="complete"
         @click="act('complete')"
       >Complete</button>
-      <button
-        v-if="props.showIgnore"
-        type="button"
-        role="menuitem"
-        class="dropdown__item goal-actions__item"
-        data-menu-item="ignore"
-        @click="act('ignore')"
-      >Ignore</button>
-      <button
-        v-if="props.showIgnore"
-        type="button"
-        role="menuitem"
-        class="dropdown__item goal-actions__item"
-        data-menu-item="due-ack"
-        data-cap="due-ack"
-        @click="act('ack-due')"
-      >Acknowledge due</button>
-      <button
-        v-if="props.showIgnore"
-        type="button"
-        role="menuitem"
-        class="dropdown__item goal-actions__item"
-        data-menu-item="due-done"
-        @click="act('ack-done')"
-      >Was done on time</button>
     </div>
 
-    <hr v-if="!props.open || props.showIgnore || showComment">
+    <hr v-if="!props.open || showComment">
 
     <div
       class="goal-actions__legacy-content"

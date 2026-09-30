@@ -48,8 +48,6 @@ const props = withDefaults(
     repeat?: RepeatRule | null
     foil?: boolean
     ghost?: boolean
-    ghostUntil?: string | null
-    plannedPeriod?: string
     /** `BoardResponse.progress[id]` — done/total over descendants. Absent on a leaf. */
     progress?: { done: number; total: number }
     subgoalCount?: number
@@ -70,8 +68,6 @@ const props = withDefaults(
     repeat: null,
     foil: false,
     ghost: false,
-    ghostUntil: null,
-    plannedPeriod: undefined,
     progress: undefined,
     subgoalCount: 0,
     children: () => [],
@@ -232,11 +228,6 @@ function park(): void {
   playSound('goal_deleted')
   void store.parkGoal(props.id)
 }
-function ignoreGhost(): void {
-  if (props.ghostUntil) void store.ignoreGhost(props.id, props.ghostUntil)
-}
-function ackDue(): void { void store.dueAckGhost(props.id, 'overdue') }
-function ackDoneOnTime(): void { void store.dueAckGhost(props.id, 'done_on_time') }
 
 /* The compact row keeps its DOM identity while inline detail is open. Drag state may still hide
    that same row temporarily; opening detail never replaces it with a second editor heading. */
@@ -577,7 +568,7 @@ function onRowKeydown(event: KeyboardEvent) {
         >
           <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat, 'goal-card__title-text--context': filterContext, 'goal-card__title-text--finding': titleParts.some(part => part.match) || filterContext }">
             <RepeatMark v-if="repeat" />
-            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template><template v-if="plannedPeriod && !isInlineDetailHost">{{ ' ' }}<span class="goal-card__planned-period">{{ plannedPeriod.replace(/ /g, '\u00a0') }}</span></template>
+            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template>
           </span>
         </p>
         <textarea
@@ -617,13 +608,9 @@ function onRowKeydown(event: KeyboardEvent) {
         :vertical="vertical"
         :repeat="repeat"
         :open="isInlineDetailHost"
-        :show-ignore="ghost"
         @details="onOpenDetail"
         @complete="completeParent"
         @park="park"
-        @ignore="ignoreGhost"
-        @ack-due="ackDue"
-        @ack-done="ackDoneOnTime"
         @open-change="onMenuOpenChange"
       />
     </div>
@@ -706,8 +693,6 @@ function onRowKeydown(event: KeyboardEvent) {
           :column-vertical="columnVertical"
           :foil="item.goal.foil"
           :ghost="item.goal.ghost"
-          :ghost-until="item.goal.ghostUntil"
-          :planned-period="item.goal.plannedPeriod"
           :progress="item.goal.progress"
           :subgoal-count="item.goal.subgoalCount"
           :children="item.goal.children"
