@@ -5,6 +5,7 @@ import { KChip, KInlineAdd } from '@konstantinopolskii/vue'
 import { verticalRank, periodLabel, type VerticalScale } from '../lib/periods'
 import { playSound } from '../lib/sound'
 import { store } from '../store'
+import { agentChat as agentChatState } from '../lib/agentChat'
 import PopoverEngine from './PopoverEngine.vue'
 import RepeatPopover from './RepeatPopover.vue'
 import type { RepeatRule } from '../lib/api'
@@ -32,10 +33,8 @@ const emit = defineEmits<{
 
 const trigger = ref<HTMLButtonElement | null>(null)
 const open = ref(false)
-/* The desktop chat (desktop/chat/ui/chat.js) loads after the board, so ask at open whether it is there. It used to put
-   its own button on every card's row, over the title (KK, 27 Sep 2026: "shitty"); discussing a goal is one of the
-   card's actions, so it lives here. */
-const agentChat = ref(false)
+/* Discussing a goal is one of the card's actions, shown only where an agent exists (docs/design-handoff S2.P1.023). */
+const agentChat = computed(() => agentChatState.available)
 function discuss() {
   window.dispatchEvent(new CustomEvent('verticals:discuss-goal', { detail: { id: props.id } }))
   closeMenu()
@@ -54,7 +53,6 @@ const fixedSameVerticalParent = computed(() => store.sameVerticalParentId(props.
 const grid = computed(() => store.scheduleGrid.value.props)
 const scheduledParentVertical = computed(() => store.parentVertical(props.id))
 function onOpen() {
-  agentChat.value = (window as { __vtChat?: boolean }).__vtChat === true
   open.value = true
   emit('open-change', true)
 }

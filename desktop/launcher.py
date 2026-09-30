@@ -188,8 +188,7 @@ with psycopg.connect(os.environ['VERTICALS_DATABASE_URL']) as c:
 
 # ---------------------------------------------------------------- UI gateway
 
-CHAT_UI = ROOT / "chat" / "ui"
-CHAT_TAG = b'<script src="/__chat/chat.js" defer></script>'
+CHAT_UI = ROOT / "chat" / "ui"  # the agents' marks; the conversation itself is the app's (web/src/lib/agentChat.ts)
 BOOT = secrets.token_hex(8)  # tells chat clients the event log restarted
 
 
@@ -269,8 +268,6 @@ def make_gateway(token, chat):
         def chat_route(self):
             from urllib.parse import parse_qs, urlparse
             path = self.path.split("?", 1)[0]
-            if self.command == "GET" and path == "/__chat/chat.js":
-                return self.static(CHAT_UI / "chat.js")
             if self.command == "GET" and path.startswith("/__chat/assets/"):
                 asset = (CHAT_UI / "assets" / path.removeprefix("/__chat/assets/")).resolve()
                 if asset.parent != (CHAT_UI / "assets").resolve() or not asset.is_file():
@@ -352,12 +349,10 @@ def make_gateway(token, chat):
                 if not rel or not path.is_file() or DIST not in path.parents:
                     path = DIST / "index.html"  # single-page app fallback
             data = path.read_bytes()
-            if path.name == "index.html":
-                data = data.replace(b"</body>", CHAT_TAG + b"</body>", 1)
             self.send_response(200)
             self.send_header("Content-Type", TYPES.get(path.suffix, "application/octet-stream"))
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "no-store" if path.name in ("index.html", "chat.js")
+            self.send_header("Cache-Control", "no-store" if path.name == "index.html"
                              else "public, max-age=31536000, immutable")
             self.end_headers()
             if self.command != "HEAD":

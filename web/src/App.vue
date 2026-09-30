@@ -17,6 +17,11 @@ import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
 import { store } from './store'
 import { commandFilter } from './lib/commandFilter'
+import { agentChat, newThread, send, startAgentChat } from './lib/agentChat'
+import { outOfFocus } from './lib/windows'
+import AgentConversation from './components/AgentConversation.vue'
+import AgentStep from './components/AgentStep.vue'
+import AgentTag from './components/AgentTag.vue'
 
 /* The shell, not `Board.vue`, owns the day-rollover watcher: it is mounted for the whole life of
    the tab, while `Board` unmounts every time Inbox is active — a planner left on Inbox overnight
@@ -103,32 +108,54 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onWindowKeyUp)
 })
 
-const agentState = ref({ available: false, expanded: false, needsYou: false, working: false })
-function onAgentState(event: Event) {
-  const detail = (event as CustomEvent).detail
-  if (detail) agentState.value = { ...agentState.value, ...detail }
-}
-onMounted(() => {
-  window.addEventListener('verticals:agent-state', onAgentState)
-  window.dispatchEvent(new CustomEvent('verticals:agent-request-state'))
-})
-onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentState))
-
-/* Until the conversation moves into this app (S2.P1), the field hands its words to the injected chat. */
+/* The conversation (docs/design-handoff S2.P1–S2.P6): your words rise into it, the field is the circle again and the
+   board goes out of focus; a click on the board sends it away into the circle. No agent, and ↵ does nothing. */
 function onSubmit(text: string): void {
-  if (!agentState.value.available) return
-  window.dispatchEvent(new CustomEvent('verticals:agent-draft', { cancelable: true, detail: { text, submit: true } }))
+  if (!agentChat.available) return
+  void send(text)
+  agentChat.open = true
+  agentChat.engaged = true
   commandFilter.text = ''
   ;(document.activeElement as HTMLElement | null)?.blur()
 }
+function onVeilClick(): void {
+  agentChat.open = false
+}
+/* Links in the conversation move the app in place; a web page opens outside until pages open as windows (S3.P4). */
+function onConversationLink(url: string, web: boolean): void {
+  if (web) { window.open(url, '_blank', 'noopener'); return }
+  agentChat.open = false
+  if (url.startsWith('#')) { location.hash = url; return }
+  history.pushState(history.state, '', url)
+  window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
+}
+/* Discuss with agent: a conversation about the goal, over the board (S2.P1.003). */
+function onDiscussGoal(event: Event): void {
+  const id = (event as CustomEvent).detail?.id as string | undefined
+  if (!id || !agentChat.available) return
+  const title = document.querySelector<HTMLElement>(`.goal-card[data-goal-id="${CSS.escape(id)}"] .goal-card__title-text`)?.innerText.trim()
+  newThread({ id, title: title || 'Goal' })
+  agentChat.open = true
+  agentChat.engaged = true
+}
+onMounted(() => {
+  void startAgentChat()
+  window.addEventListener('verticals:discuss-goal', onDiscussGoal)
+})
+onUnmounted(() => window.removeEventListener('verticals:discuss-goal', onDiscussGoal))
 
 </script>
 
 <template>
   <div class="app-shell">
-    <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search'" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
-    <SearchBar id="verticals-command-bar" :agent-available="agentState.available" @submit="onSubmit" />
-    <div class="app-content">
+    <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
+    <div class="app-veil" :class="{ 'is-shown': outOfFocus }" data-role="out-of-focus" aria-hidden="true" @click="onVeilClick"></div>
+    <AgentConversation @link="onConversationLink" />
+    <AgentStep />
+    <SearchBar id="verticals-command-bar" :agent-available="agentChat.available" @submit="onSubmit">
+      <template #agent-tag><AgentTag /></template>
+    </SearchBar>
+    <div class="app-content" :class="{ 'app-content--out-of-focus': outOfFocus }">
       <!-- Mutually exclusive (`v-if`/`v-else`), not `v-show`: before ruling 1 (owner, 2026-08-09),
            `InboxView` rendered the same Maybe-bucket goals as Board's own eighth column
            (deliberately — see InboxView.vue's header comment), so keeping both mounted at once
@@ -175,9 +202,19 @@ function onSubmit(text: string): void {
 </template>
 
 <style>
-:root { --app-bar-height: 0px; --shadow-float: 0 8px 24px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08); --radius: 12px; }
+:root { --app-bar-height: 0px; --radius: 12px; }
 .app-shell { display: block; height: 100%; overflow: hidden; background: #fff; }
 .board-bottom-fade { position: fixed; inset: auto 0 0; height: 80px; z-index: 299; pointer-events: none; background: linear-gradient(to bottom, rgba(255,255,255,0) 0, #fff 16px, #fff 100%); }
-.app-content { box-sizing: border-box; height: 100%; min-width: 0; overflow: hidden; position: relative; }
+.app-content { box-sizing: border-box; height: 100%; min-width: 0; overflow: hidden; position: relative;
+  transition: filter var(--vt-dur-sent) var(--vt-ease-large); }
+/* Out of focus (S2.P6): the board blurred until no word reads, under a light veil; only while the conversation or a
+   window is open. Its layer stays composited while it is, so WebKit doesn't stall (unknowns.md section 4). */
+.app-content--out-of-focus { filter: blur(var(--vt-focus-blur)) saturate(var(--vt-focus-saturate)); will-change: filter; pointer-events: none; }
+.app-veil { position: fixed; inset: 0; z-index: 280; background: var(--vt-focus-veil); opacity: 0; visibility: hidden;
+  transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s linear var(--vt-dur-sent); }
+.app-veil.is-shown { opacity: 1; visibility: visible; transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s; }
+@media (prefers-reduced-motion: reduce) {
+  .app-content, .app-veil, .app-veil.is-shown { transition-duration: var(--vt-crossfade); }
+}
 .search-goal-surface { box-sizing: border-box; max-width: 720px; height: 100%; margin: 0 auto; padding: 32px 16px 80px; overflow-y: auto; }
 </style>

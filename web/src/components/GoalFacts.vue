@@ -8,6 +8,7 @@ import { computed } from 'vue'
 import SchedulePopover from './SchedulePopover.vue'
 import ShotSizeFields from '../kit-ext/shot-size-fields/ShotSizeFields.vue'
 import { store } from '../store'
+import { agentChat as agentChatState } from '../lib/agentChat'
 import { plannedPeriodLabel } from '../lib/schedule'
 import type { VerticalScale } from '../lib/periods'
 
@@ -33,8 +34,8 @@ function toggleComments(): void {
   else store.openCommentsPanel('goal', props.id)
 }
 
-/* The desktop chat (desktop/chat/ui/chat.js) marks itself on window when it loads; a plain browser has no agent. */
-const agentChat = (window as { __vtChat?: boolean }).__vtChat === true
+/* Only where an agent exists (docs/design-handoff S2.P1.023). */
+const agentChat = computed(() => agentChatState.available)
 function discuss(): void {
   window.dispatchEvent(new CustomEvent('verticals:discuss-goal', { detail: { id: props.id } }))
 }

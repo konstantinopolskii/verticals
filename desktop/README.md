@@ -10,15 +10,16 @@ launcher has its own ports, database, state directory and UI build.
 ## Layout
 
 - `launcher.py` — starts PostgreSQL, the API, the MCP server (streamable HTTP) and a gateway that
-  serves the UI, proxies `/api` with the bearer token (like the Docker nginx) and injects the chat.
+  serves the UI, proxies `/api` with the bearer token (like the Docker nginx) and serves the chat's `/__chat/*` routes.
 - `chat/` — chat backend (`chat.py`: Claude via `claude --print` stream-json, Codex via
   `codex app-server`), `mcp_proxy.py` (stdio → HTTP MCP relay for Codex), `prompt-intro.md`
   (the system prompt is this intro plus `.agents/skills/verticals-operator`, read at startup),
-  `ui/chat.js` (chat bar, conversation list, agent picker, per-goal "discuss" buttons).
+  `ui/assets/` (the agents' and models' marks). The conversation itself is drawn by the app
+  (`web/src/lib/agentChat.ts`, `AgentConversation.vue`).
 - `macos/` — `Verticals.swift` (native window, WKWebView) and `bundle.py` (self-contained
   `Verticals.app` + `.dmg`).
 
-The chat UI follows Enjoy's conversation view and agent picker (layout, strings, model artwork).
+The agent picker follows Enjoy's (strings, model artwork).
 
 ## Run from the repository
 

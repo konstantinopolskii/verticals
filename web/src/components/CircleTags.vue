@@ -18,7 +18,7 @@ function open(view: 'docs' | 'inbox'): void {
 </script>
 
 <template>
-  <div class="circle-tags" :class="{ 'is-shown': shown }" data-role="circle-tags" :aria-hidden="!shown">
+  <div class="circle-tags" :class="{ 'is-shown': shown }" data-role="circle-tags">
     <slot name="agent" />
     <button
       v-for="view in VIEWS"
@@ -29,7 +29,6 @@ function open(view: 'docs' | 'inbox'): void {
       :data-tag="view.key"
       :aria-label="view.name"
       :aria-pressed="store.state.activeView === view.key"
-      :tabindex="shown ? 0 : -1"
       @click="open(view.key)"
     >
       <AppIcon :name="view.icon" :size="16" :stroke="2.2" />
@@ -49,7 +48,7 @@ function open(view: 'docs' | 'inbox'): void {
   pointer-events: none;
   transition: opacity var(--vt-dur-close) ease-out, transform var(--vt-dur-close) var(--vt-ease-large);
 }
-.circle-tags.is-shown {
+.circle-tags.is-shown, .circle-tags:focus-within {
   opacity: 1;
   transform: none;
   pointer-events: auto;

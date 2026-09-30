@@ -1,0 +1,230 @@
+/* The circle and the field (SearchBar.vue): docs/design-handoff S1.P1, S1.P2, S2.P3, S2.P4. */
+.circle-field {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+  font-family: var(--font-body);
+}
+/* Toasts stand above the circle and its tags. */
+.toast-stack[data-toast-stack] { bottom: calc(24px + 84px + 8px); }
+.circle-field__above {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  align-self: stretch;
+  min-height: 28px;
+}
+.circle-field__above > * { pointer-events: auto; }
+.circle-field__above > .circle-tags:not(.is-shown) { pointer-events: none; }
+/* The 8 px between the tags and the field still counts as the field (S2.P2.012). */
+.circle-field__bridge { position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; pointer-events: none; }
+.circle-field__bridge.is-shown { pointer-events: auto; }
+.circle-field__body { margin-top: 8px; }
+.circle-field__shape {
+  position: relative;
+  box-sizing: border-box;
+  cursor: none;
+  pointer-events: auto;
+  transition: width var(--vt-dur-close) var(--vt-ease-large), height var(--vt-dur-close) var(--vt-ease-large);
+}
+.circle-field[data-state='open'] .circle-field__shape { transition-duration: var(--vt-dur-open); }
+.circle-field[data-state='typing'] .circle-field__shape { transition: none; }
+.circle-field[data-pong] .circle-field__shape { transition-duration: var(--vt-dur-shape); }
+.circle-field[data-focused] .circle-field__shape { cursor: text; }
+.circle-field__surface {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--vt-radius-field);
+  background: #000;
+}
+.circle-field__words {
+  position: absolute;
+  left: 32px;
+  right: 84px;
+  bottom: 24px;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+.circle-field:is([data-state='open'], [data-state='typing']) .circle-field__words { opacity: 1; }
+.circle-field__words textarea,
+.circle-field__mirror {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 400 28px/36px var(--font-body);
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.circle-field__words textarea {
+  position: relative;
+  resize: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  caret-color: transparent;
+  cursor: inherit;
+  scrollbar-width: none;
+}
+.circle-field__words textarea::-webkit-scrollbar { display: none; }
+.circle-field__words textarea::selection { background: rgb(255 255 255 / 30%); }
+.circle-field__mirror { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+.circle-field__caption {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  color: rgb(255 255 255 / 40%);
+  font: 400 28px/36px var(--font-body);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.circle-field__send {
+  position: absolute;
+  right: 30px;
+  bottom: 30px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: opacity var(--vt-dur-fade) ease-out;
+}
+.circle-field__send.is-shown { opacity: 1; pointer-events: auto; }
+.circle-field__send:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
+.circle-field__line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 24px;
+  margin: -12px 0 0 -1.5px;
+  border-radius: 1.5px;
+  background: #fff;
+  pointer-events: none;
+}
+.circle-field__line.is-hidden { opacity: 0; }
+.circle-field__line.is-blinking { animation: circle-field-blink 1060ms steps(1) infinite; }
+@keyframes circle-field-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+
+/* Working (S2.P3): the line turns half a turn every 1.6 s. Pointed at, the circle stretches into an oval: the left part
+   keeps the turning line, the right part holds the square stop (S2.P1.046). */
+.circle-field__pivot { position: absolute; inset: 0; pointer-events: none; }
+.circle-field__pivot.is-turning { animation: circle-field-turn 1600ms var(--vt-ease-play) infinite; }
+.circle-field__pivot.is-stopping { left: -48px; }
+@keyframes circle-field-turn { from { transform: rotate(0); } to { transform: rotate(180deg); } }
+.circle-field__stop {
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.circle-field__stop span { width: 14px; height: 14px; border-radius: 3px; background: #fff; }
+.circle-field__stop:hover { background: #2b2b2b; }
+
+/* The answer inside the circle, which grows around it (S2.P4): the message's own words, three lines at most. */
+.circle-field__answer {
+  position: absolute;
+  inset: 24px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #fff;
+  font: 400 15px/22px var(--font-body);
+  cursor: pointer;
+}
+.circle-field__answer-words {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+.circle-field__answer-caret {
+  display: inline-block;
+  width: 2px;
+  height: 17px;
+  margin-left: 3px;
+  vertical-align: -3px;
+  border-radius: 1px;
+  background: #fff;
+  animation: circle-field-blink 1060ms steps(1) infinite;
+}
+.circle-field__answer-choices { display: flex; gap: 8px; margin-top: 10px; }
+.circle-field__answer-choice {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  color: #000;
+  font: 500 14px/20px var(--font-body);
+  cursor: pointer;
+}
+.circle-field__answer-measure {
+  position: absolute;
+  visibility: hidden;
+  width: max-content;
+  max-width: 376px;
+  margin: 0;
+  font: 400 15px/22px var(--font-body);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.circle-field[data-state='answer'] .circle-field__shape { transition-duration: var(--vt-dur-shape); cursor: pointer; }
+
+/* Pong (S1.P1.067): the oval, two lines and a ball. */
+.circle-field[data-pong] .circle-field__line { animation: circle-field-paddle 1300ms var(--vt-ease-breath) infinite alternate; --side: -50px; }
+.circle-field[data-pong] .circle-field__line--second { --side: 50px; animation-delay: -650ms; }
+@keyframes circle-field-paddle {
+  from { transform: translate(var(--side), -10px); }
+  to { transform: translate(var(--side), 10px); }
+}
+.circle-field__ball-run {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  animation: circle-field-ball-x 900ms linear infinite alternate;
+}
+.circle-field__ball {
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 3px;
+  background: #fff;
+  animation: circle-field-ball-y 1300ms var(--vt-ease-breath) infinite alternate;
+}
+@keyframes circle-field-ball-x { from { transform: translateX(-44px); } to { transform: translateX(44px); } }
+@keyframes circle-field-ball-y { from { transform: translateY(-12px); } to { transform: translateY(12px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .circle-field__shape, .circle-field[data-state='open'] .circle-field__shape { transition: none; }
+  .circle-field__words { transition: opacity var(--vt-crossfade) linear; }
+  .circle-field__line.is-blinking, .circle-field__pivot.is-turning, .circle-field__answer-caret { animation: none; }
+}
