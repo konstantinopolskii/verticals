@@ -55,9 +55,10 @@ from verticals.models import Ancestor, Goal
 MAX_CHILDREN_DEPTH = 8  # levels below the created root — distinct from tree.MAX_DEPTH (32, absolute)
 MAX_NODES_PER_CREATE = 200  # root + every descendant, one `create` call
 
-# `goal_origin`'s three labels (001_init.sql). Who is *allowed* to pass 'agent' is an MCP-layer
-# rule (S-53); this module accepts whatever a caller, including a trusted transport, names.
-_ORIGINS: frozenset[str] = frozenset({"human", "agent", "import"})
+# `goal_origin`'s labels (001_init.sql, 016_replan.sql). Who is *allowed* to pass 'agent' is an MCP-layer
+# rule (S-53); this module accepts whatever a caller, including a trusted transport, names. 'app' is
+# the server's own writer, the carry-over task (core/replan.py).
+_ORIGINS: frozenset[str] = frozenset({"human", "agent", "import", "app"})
 
 # IR-05's retry budget — the alphabet/length live with `generate_id` in `field_rules.py`.
 _ID_MAX_ATTEMPTS = 3

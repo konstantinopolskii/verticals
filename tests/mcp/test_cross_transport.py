@@ -386,6 +386,10 @@ _READ_TOOLS = {"board", "goal", "outline", "search", "evidence_due", "tags", "do
 # to name). A second entry here without a spec section like §6 backing it should be treated as
 # suspicious — this set exists for capabilities that are agent tooling, not user capabilities.
 _AGENT_ONLY_TOOLS = {"evidence_update", "tag_mark", "size_report"}
+# The mirror image on HTTP (docs/design-handoff S4.P1.017): the app's own daily carry-over into
+# the Replan task. The app calls it on start and when its day turns; nobody asks for it, so it is
+# housekeeping, not a capability, and the task it writes is a usual goal both surfaces read.
+_APP_ONLY_ROUTES = {("POST", "/api/replan")}
 
 # capabilities.json's `mcp_args` values are placeholders (`"<title>"`, `"<id>"`, ...), not literal
 # values a real caller would send — most placeholders are plain strings and validate as-is against
@@ -501,8 +505,9 @@ def test_s59_capability_parity_holds_in_both_directions(f2_dsn: str, tmp_path: P
     # shipped on one surface and not the other fails this scenario."
     manifest_routes = {_manifest_route(row) for row in manifest}
     mutating_openapi_routes = {(m, p) for m, p in openapi_routes if m in _MUTATING_METHODS and p.startswith("/api/")}
-    missing_routes = mutating_openapi_routes - manifest_routes
+    missing_routes = mutating_openapi_routes - manifest_routes - _APP_ONLY_ROUTES
     assert not missing_routes, f"mutating route(s) with no manifest row at all: {missing_routes}"
+    assert _APP_ONLY_ROUTES <= mutating_openapi_routes, f"stale app-only carve-out: {_APP_ONLY_ROUTES - mutating_openapi_routes}"
 
     manifest_tools = {row["mcp_tool"] for row in manifest}
     mutating_tools = all_tool_names - _READ_TOOLS
