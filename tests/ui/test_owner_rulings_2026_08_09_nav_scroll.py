@@ -25,7 +25,7 @@ from __future__ import annotations
 import httpx
 
 from tests.ui.conftest import UiSession
-from tests.ui.views import FIELD, switch_view
+from tests.ui.views import show_tags, switch_view
 
 
 def _create_day_overflow(session: UiSession) -> None:
@@ -52,16 +52,12 @@ def test_owner_ruling2_nav_items_trimmed(ui_f2: UiSession) -> None:
     page = session.page
     page.wait_for_selector("[data-goal-id]")
 
-    # D111 trimmed the vertical tabs and D250 added Docs. Since the bottom bar became one field (3bc40f9, KK's redo of
-    # the navigation) no nav links remain at all: the views are commands in "Find, filter or ask", the empty field
-    # offers exactly Inbox and Docs, and the board is where you are with neither chosen. Its Day/Week/... words are
-    # filters of the board, not tabs.
+    # D111 trimmed the vertical tabs and D250 added Docs. No nav links remain: the views open from the circle's tags
+    # (docs/design-handoff S2.P2), exactly Docs and Inbox, and the board is where you are with neither chosen.
     assert page.locator("[data-nav-item]").count() == 0, "the D10/D111 nav links are gone"
-    page.locator(FIELD).click()
-    views = page.locator(".command-field__suggestions [data-token]").evaluate_all(
-        "els => els.map(el => el.dataset.token).filter(t => ['inbox', 'docs', 'verticals'].includes(t))"
-    )
-    assert views == ["inbox", "docs"], f"the field's views out of the specified set/order: {views}"
+    show_tags(page)
+    views = page.locator(".circle-tag[data-tag]").evaluate_all("els => els.map(el => el.dataset.tag)")
+    assert views == ["docs", "inbox"], f"the circle's view tags out of the specified set/order: {views}"
 
     # --- the two views work: Inbox shows the Maybe pile, and taking it away shows the board -------------
     switch_view(page, "inbox")

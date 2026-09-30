@@ -97,9 +97,9 @@ SCHEDULE_POPOVER = (
     '#dropdownPortal [data-popover-surface][data-state="open"]:has(.schedule-popover__row)'
 )
 DETAIL_BODY = ".goal-detail__body"
-# The search modal left with the bottom bar's redo (3bc40f9): words go into the one field, and when nothing matches, the
-# field itself says so on the line above it.
-SEARCH_EMPTY = '[data-role="search-empty"]'
+# The search modal left with the bottom bar's redo (3bc40f9): words go into the one field, and when nothing matches, each
+# column says so (docs/design-handoff S1.P3).
+SEARCH_EMPTY = '[data-role="finding-nothing"]'
 
 # A query that clears the 3-character client-side floor (§10-D6) and matches nothing in F2, so the
 # results panel renders its empty state rather than a list.
@@ -180,11 +180,11 @@ def test_s78_no_emoji_in_any_user_facing_string(ui_f2: UiSession) -> None:
     expect(page.locator(DETAIL_BODY)).to_be_hidden()
 
     # --- surface 4: the empty state -----------------------------------------------------------
-    page.locator(FIELD).click()
+    page.keyboard.press("Control+k")
     page.fill(FIELD, EMPTY_STATE_QUERY)
-    panel = page.locator(SEARCH_EMPTY)
+    panel = page.locator(SEARCH_EMPTY).first
     expect(panel).to_be_visible(timeout=10000)
-    expect(panel).to_contain_text("Nothing matches")
+    expect(panel).to_contain_text("Nothing today.")
     surfaces["empty-state"] = _surface_text(page)
 
     # --- scan 1: rendered text, both character sets -------------------------------------------
