@@ -5,6 +5,7 @@ import AppIcon from './AppIcon.vue'
 import ColumnHeader from './ColumnHeader.vue'
 import GoalCard from './GoalCard.vue'
 import InlineAdd from './InlineAdd.vue'
+import FindingSections from './FindingSections.vue'
 import { store } from '../store'
 import { playSound } from '../lib/sound'
 import type { PeriodDirection } from '../lib/periodNavigation'
@@ -346,6 +347,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
             </template>
             <InlineAdd v-if="!filterActive" :placeholder="addPlaceholder" data-cap="create-goal" @add="onAdd" />
           </KCardStack>
+          <FindingSections v-if="filterActive && slide.state !== 'outgoing'" :vertical="vertical" :period-key="slide.periodKey" :shown="slide.goals" />
           <template v-if="carriedCount(slide)">
             <div class="column-now-line" data-role="now-line" :aria-label="`${carriedCount(slide)} carried-over goals`">
               <span class="column-now-line__rule" aria-hidden="true"></span>

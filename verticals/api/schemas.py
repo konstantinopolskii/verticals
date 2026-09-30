@@ -416,10 +416,20 @@ def search_to_json(result: SearchResult) -> dict:
     """`GET /api/search` — cards, not details (same "no `body` outside a detail call" rule as
     every other list-shaped response), plus the `truncated` flag AC-202 requires (S-129, proved
     over this route by S-134's own `limit=201` row)."""
-    return {
+    body: dict = {
         "goals": [goal_to_card(g) for g in result.goals],
         "truncated": result.truncated,
     }
+    if result.parents is not None:
+        body["parents"] = {
+            goal_id: [
+                {"id": a.id, "parent_id": a.parent_id, "title": a.title, "vertical": a.vertical, "anchor_date": a.anchor_date,
+                 "period_key": a.period_key, "done_at": a.done_at, "position": a.position}
+                for a in chain
+            ]
+            for goal_id, chain in result.parents.items()
+        }
+    return body
 
 
 # --- documents (D250, WP-1) ---------------------------------------------------------------------

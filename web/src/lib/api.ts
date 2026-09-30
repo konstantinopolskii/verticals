@@ -141,6 +141,22 @@ export interface SearchResponse {
   truncated: boolean
 }
 
+/** One goal of a match's chain, root first (`GET /api/search?with=parents`). */
+export interface SearchParent {
+  id: string
+  parent_id: string | null
+  title: string
+  vertical: string | null
+  anchor_date: string | null
+  period_key: string | null
+  done_at: string | null
+  position: number
+}
+
+export interface FindResponse extends SearchResponse {
+  parents: Record<string, SearchParent[]>
+}
+
 export interface TagMeta {
   tag: string
   project: boolean
@@ -298,6 +314,11 @@ export function searchGoals(params: {
   limit?: number
 }): Promise<SearchResponse> {
   return request<SearchResponse>(`/api/search${qs(params)}`)
+}
+
+/** The board's finding: titles and notes, every period, each match's parents (docs/design-handoff S1.P3). */
+export function findGoals(q: string): Promise<FindResponse> {
+  return request<FindResponse>(`/api/search${qs({ q, with: 'parents', limit: 200 })}`)
 }
 
 export function createGoal(payload: CreateGoalPayload): Promise<GoalCard> {

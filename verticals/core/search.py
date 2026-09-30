@@ -26,7 +26,7 @@ the flag is what stops a caller believing it saw everything.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import psycopg
 
@@ -79,6 +79,21 @@ RECENT_ORDER_BY = "ORDER BY updated_at DESC, id ASC"
 
 
 @dataclass(frozen=True)
+class Parent:
+    """One goal of a match's chain, root first, for the board to show as the match's context (flow 5's finding,
+    docs/design-handoff S1.P3.013): where it stands (vertical, period) and whether it is done."""
+
+    id: str
+    parent_id: str | None
+    title: str
+    vertical: str | None
+    anchor_date: object
+    period_key: str | None
+    done_at: object
+    position: int
+
+
+@dataclass(frozen=True)
 class SearchResult:
     """`goals` capped at the caller's `limit`; `truncated` is True when the database held at
     least one more row that matched. Deliberately not in `verticals/models.py`: that module is
@@ -87,6 +102,7 @@ class SearchResult:
 
     goals: tuple[Goal, ...]
     truncated: bool
+    parents: dict[str, tuple[Parent, ...]] | None = None
 
 
 def escape_like(text: str) -> str:
@@ -182,6 +198,81 @@ def build_statement(*, with_q: bool, with_tag: bool, with_vertical: bool) -> str
         f"  FROM goals\n"
         f" WHERE " + "\n   AND ".join(clauses) + f"\n {ORDER_BY}\n LIMIT %(limit)s"
     )
+
+
+def build_statement_with_parents(terms: int) -> str:
+    """The title-and-notes search for the board's finding: every word of three letters or more must be in a goal's
+    title or notes, each word one trigram-served predicate. Each match's chain comes in the same statement, as
+    `core/board.py` builds `ancestors` over `path`, and so does its value colour (D231)."""
+    chain = (
+        "jsonb_build_object('id', a.id, 'parent_id', a.parent_id, 'title', a.title, 'vertical', a.vertical, "
+        "'anchor_date', a.anchor_date, 'period_key', a.period_key, 'done_at', a.done_at, 'position', a.position)"
+    )
+    words = "\n     AND ".join(
+        TRIGRAM_PREDICATE.replace("%(pat)s", f"%(pat{i})s") for i in range(terms)
+    )
+    return (
+        f"WITH hits AS (\n"
+        f"  SELECT {COLUMNS}\n"
+        f"    FROM goals\n"
+        f"   WHERE owner = %(owner)s\n"
+        f"     AND {words}\n"
+        f"   {ORDER_BY}\n"
+        f"   LIMIT %(limit)s\n"
+        f")\n"
+        f"SELECT hits.*,\n"
+        f"       COALESCE(anc.chain, '[]'::jsonb),\n"
+        f"       CASE WHEN root.vertical = 'life' THEN root.color END\n"
+        f"  FROM hits\n"
+        f"  LEFT JOIN LATERAL (\n"
+        f"    SELECT jsonb_agg({chain} ORDER BY seg.ord) AS chain\n"
+        f"      FROM unnest(string_to_array(btrim(hits.path, '/'), '/')) WITH ORDINALITY AS seg(aid, ord)\n"
+        f"      JOIN goals a ON a.owner = hits.owner AND a.id = seg.aid\n"
+        f"     WHERE seg.ord <= hits.depth\n"
+        f"  ) anc ON true\n"
+        f"  LEFT JOIN LATERAL (\n"
+        f"    SELECT r.color, r.vertical FROM goals r\n"
+        f"     WHERE r.owner = hits.owner AND r.id = split_part(btrim(hits.path, '/'), '/', 1)\n"
+        f"  ) root ON true\n"
+        f" {ORDER_BY}"
+    )
+
+
+def search_with_parents(
+    conn: psycopg.Connection,
+    *,
+    owner: str,
+    q: str,
+    limit: int = DEFAULT_LIMIT,
+) -> SearchResult:
+    """Every goal whose title or notes hold each word of `q` of three letters or more (shorter words are the
+    board's to match), each coloured by its value, with `parents` keyed by match id and `truncated`. One
+    statement."""
+    owner = _validate_owner(owner)
+    limit = _validate_limit(limit)
+    terms = [word for word in _validate_query(q).split() if len(word) >= MIN_QUERY_CHARS]
+    if not terms:
+        raise ValidationError(
+            f"q needs a word of at least {MIN_QUERY_CHARS} characters", field="q", minimum=MIN_QUERY_CHARS
+        )
+    params: dict[str, object] = {"owner": owner, "limit": limit + 1}
+    for i, term in enumerate(terms):
+        params[f"pat{i}"] = f"%{escape_like(term)}%"
+    rows = conn.execute(build_statement_with_parents(len(terms)), params).fetchall()
+    width = len(COLUMNS.split(","))
+    goals: list[Goal] = []
+    parents: dict[str, tuple[Parent, ...]] = {}
+    for row in rows[:limit]:
+        goal = replace(_to_goal(row[:width]), color=row[width + 1])
+        goals.append(goal)
+        parents[goal.id] = tuple(
+            Parent(
+                id=a["id"], parent_id=a["parent_id"], title=a["title"], vertical=a["vertical"],
+                anchor_date=a["anchor_date"], period_key=a["period_key"], done_at=a["done_at"], position=a["position"],
+            )
+            for a in row[width]
+        )
+    return SearchResult(goals=tuple(goals), truncated=len(rows) > limit, parents=parents)
 
 
 def _to_goal(row: tuple) -> Goal:

@@ -132,3 +132,14 @@ def test_s134_search_matches_core_over_http(client: httpx.Client, server_factory
             assert r8.json()["goals"] == []
         finally:
             t2_client.close()
+
+
+def test_finding_asks_for_parents_over_http(client: httpx.Client) -> None:
+    """docs/design-handoff S1.P3: `with=parents` adds each match's chain; the plain search keeps its shape."""
+    resp = client.get("/api/search", params={"q": "motorcycle", "with": "parents"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [card["id"] for card in body["goals"]] == ["SYNSCH04"]
+    assert body["parents"] == {"SYNSCH04": []}
+    assert "parents" not in client.get("/api/search", params={"q": "motorcycle"}).json()
+    assert client.get("/api/search", params={"q": "motorcycle", "tag": "retro", "with": "parents"}).status_code == 422

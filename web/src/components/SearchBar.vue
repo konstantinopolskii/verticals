@@ -7,6 +7,7 @@ import { store } from '../store'
 import { commandFilter } from '../lib/commandFilter'
 import { circle, circleCaption, circleState } from '../lib/circle'
 import { mascot, useMascot, watchBoardNews } from '../lib/mascot'
+import { followWords } from '../lib/finding'
 import { curve } from '../lib/motion'
 import { anyMenuOpen } from '../lib/cardLift'
 import { defineKnobs, knob } from '../lib/tuning'
@@ -211,6 +212,7 @@ function onResize(): void { room.width = innerWidth }
 defineExpose({ focusField })
 
 let stopNews: (() => void) | null = null
+let stopFinding: (() => void) | null = null
 onMounted(() => {
   const match = /^\/search\/(.*)/.exec(location.pathname)
   if (match?.[1]) { try { commandFilter.text = decodeURIComponent(match[1]) } catch { commandFilter.text = match[1] } }
@@ -219,6 +221,7 @@ onMounted(() => {
   window.addEventListener('verticals:command-focus', onCommandFocus)
   window.addEventListener('verticals:composer-draft', onComposerDraft)
   stopNews = watchBoardNews()
+  stopFinding = followWords(() => commandFilter.text, () => store.state.board)
   void document.fonts?.ready.then(() => void nextTick(measure))
 })
 onBeforeUnmount(() => {
@@ -227,6 +230,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('verticals:command-focus', onCommandFocus)
   window.removeEventListener('verticals:composer-draft', onComposerDraft)
   stopNews?.()
+  stopFinding?.()
   if (stillTimer) clearTimeout(stillTimer)
 })
 </script>

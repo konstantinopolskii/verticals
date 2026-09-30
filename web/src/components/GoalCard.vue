@@ -82,7 +82,7 @@ const props = withDefaults(
 
 const checked = computed(() => props.done)
 const titleParts = computed(() => highlightTitle(props.title))
-const filterContext = computed(() => isContextGoal(props.id, props.columnVertical))
+const filterContext = computed(() => isContextGoal(props.id))
 const cardStyle = computed(() => {
   const palette = devPaletteFor(props.color)
   // flow 4: the family's faint and farthest tints, found from this colour (lib/familyView.ts)

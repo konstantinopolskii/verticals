@@ -21,7 +21,7 @@ import {
 import type { BoardColumnData } from '../types'
 import { mountIridescentOverlay } from '../kit-ext/iridescent'
 import { devDeck } from '../lib/devDeck'
-import { filterColumns } from '../lib/commandFilter'
+import { filterColumns, nothingFound } from '../lib/commandFilter'
 
 const props = withDefaults(defineProps<{ columns: BoardColumnData[]; showSampleBanner?: boolean }>(), {
   showSampleBanner: false,
@@ -421,6 +421,7 @@ const overlayStyle = computed(() => {
       'pattern-vertical-board--flat': !devDeck.use3D,
       'pattern-vertical-board--family': store.familyLight.value !== null,
       'pattern-vertical-board--light-fast': store.state.lightFast,
+      'pattern-vertical-board--nothing-found': nothingFound,
     }"
     :style="deckStyle"
     data-role="column-strip"
