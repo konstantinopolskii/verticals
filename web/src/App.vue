@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /* Issue 1: navigation, search, areas and agent access share one solid bottom surface.
    Supersedes D10/D111's floating bottom-left navigation and D238's permanent area buttons. */
-import { onMounted, onUnmounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Board from './components/Board.vue'
 import GoalCard from './components/GoalCard.vue'
 import InboxView from './components/InboxView.vue'
@@ -17,8 +17,9 @@ import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
 import { store } from './store'
 import { commandFilter } from './lib/commandFilter'
-import { agentChat, newThread, send, startAgentChat } from './lib/agentChat'
-import { outOfFocus } from './lib/windows'
+import { agentChat, currentThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
+import { closeWindows, frontWindow, openWindow, outOfFocus, stepWindow, windows } from './lib/windows'
+import WindowStack from './components/WindowStack.vue'
 import AgentConversation from './components/AgentConversation.vue'
 import AgentStep from './components/AgentStep.vue'
 import AgentTag from './components/AgentTag.vue'
@@ -29,6 +30,7 @@ import AgentTag from './components/AgentTag.vue'
 let stopDayRollover: (() => void) | null = null
 let stopLiveBoard: (() => void) | null = null
 const devPanelsVisible = ref(false)
+const searchBar = ref<InstanceType<typeof SearchBar> | null>(null)
 
 /* And, by the same argument, the shell owns the DRAG lifecycle (D90). `GoalCard.vue`'s row fires
    `pointerdown` wherever it is rendered, and `InboxView` renders the same card as `Board` does, so
@@ -110,39 +112,82 @@ onUnmounted(() => {
 
 /* The conversation (docs/design-handoff S2.P1–S2.P6): your words rise into it, the field is the circle again and the
    board goes out of focus; a click on the board sends it away into the circle. No agent, and ↵ does nothing. */
-function onSubmit(text: string): void {
+/* The goal conversation Discuss is opening; a message sent meanwhile waits for it. */
+let goalOpening: Promise<void> | null = null
+async function onSubmit(text: string): Promise<void> {
   if (!agentChat.available) return
-  void send(text)
   agentChat.open = true
   agentChat.engaged = true
   commandFilter.text = ''
   ;(document.activeElement as HTMLElement | null)?.blur()
+  if (goalOpening) await goalOpening
+  const front = frontWindow.value
+  if (front?.kind === 'goal' && currentThread.value?.goal?.id !== front.target) await openForGoal({ id: front.target, title: front.title })
+  void send(text)
 }
 function onVeilClick(): void {
   agentChat.open = false
 }
-/* Links in the conversation move the app in place; a web page opens outside until pages open as windows (S3.P4). */
-function onConversationLink(url: string, web: boolean): void {
-  if (web) { window.open(url, '_blank', 'noopener'); return }
+/* Links in the conversation: a document or a web page opens as a window in the centre, at the part the link names
+   (S3.P4); a goal or a board date moves the board in place. */
+function onConversationLink(url: string, web: boolean, from: Element | null): void {
+  if (web) {
+    openWindow({ kind: 'page', target: url, title: new URL(url).hostname }, from)
+    agentChat.open = false
+    return
+  }
+  const doc = /^#doc\/([^#]+)(?:#(.+))?$/.exec(url)
+  if (doc) {
+    openWindow({ kind: 'doc', target: decodeURIComponent(doc[1]!), title: from?.textContent?.trim() || 'Document',
+      part: doc[2] ? decodeURIComponent(doc[2]) : undefined }, from)
+    agentChat.open = false
+    return
+  }
   agentChat.open = false
+  closeWindows()
   if (url.startsWith('#')) { location.hash = url; return }
   history.pushState(history.state, '', url)
   window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
 }
-/* Discuss with agent: a conversation about the goal, over the board (S2.P1.003). */
+/* Discuss with agent: the goal pops out of its row into a window, the board goes out of focus, and the goal's latest
+   conversation rises over the card (S3.P2.002, S3.P1.002). */
 function onDiscussGoal(event: Event): void {
-  const id = (event as CustomEvent).detail?.id as string | undefined
+  const { id, session } = ((event as CustomEvent).detail ?? {}) as { id?: string; session?: string }
   if (!id || !agentChat.available) return
-  const title = document.querySelector<HTMLElement>(`.goal-card[data-goal-id="${CSS.escape(id)}"] .goal-card__title-text`)?.innerText.trim()
-  newThread({ id, title: title || 'Goal' })
+  const row = document.querySelector<HTMLElement>(`.goal-card[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)
+  const title = row?.querySelector<HTMLElement>('.goal-card__title-text')?.innerText.trim() || 'Goal'
+  openWindow({ kind: 'goal', target: id, title }, row)
+  if (session) openThread(session, { id, title })
+  else goalOpening = openForGoal({ id, title }).finally(() => { goalOpening = null })
   agentChat.open = true
   agentChat.engaged = true
+  // The menu that asked gives its focus back on its next tick; the field takes it after that (S3.P2.016).
+  void nextTick(() => nextTick(() => searchBar.value?.focusField()))
+}
+/* Esc, when nothing smaller takes it, sends the windows away; ⌘[ and ⌘] move one window (S3.P2.011, S3.P3.017). */
+function onWindowsKey(event: KeyboardEvent): void {
+  if (!windows.list.length || event.defaultPrevented) return
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if ((event.metaKey || event.ctrlKey) && (event.key === '[' || event.key === ']')) {
+    event.preventDefault()
+    stepWindow(event.key === '[' ? -1 : 1)
+    return
+  }
+  if (event.key === 'Escape' && !target?.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) {
+    event.preventDefault()
+    if (agentChat.open) agentChat.open = false
+    else closeWindows()
+  }
 }
 onMounted(() => {
   void startAgentChat()
   window.addEventListener('verticals:discuss-goal', onDiscussGoal)
+  window.addEventListener('keydown', onWindowsKey)
 })
-onUnmounted(() => window.removeEventListener('verticals:discuss-goal', onDiscussGoal))
+onUnmounted(() => {
+  window.removeEventListener('verticals:discuss-goal', onDiscussGoal)
+  window.removeEventListener('keydown', onWindowsKey)
+})
 
 </script>
 
@@ -150,9 +195,10 @@ onUnmounted(() => window.removeEventListener('verticals:discuss-goal', onDiscuss
   <div class="app-shell">
     <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
     <div class="app-veil" :class="{ 'is-shown': outOfFocus }" data-role="out-of-focus" aria-hidden="true" @click="onVeilClick"></div>
+    <WindowStack />
     <AgentConversation @link="onConversationLink" />
     <AgentStep />
-    <SearchBar id="verticals-command-bar" :agent-available="agentChat.available" @submit="onSubmit">
+    <SearchBar id="verticals-command-bar" ref="searchBar" :agent-available="agentChat.available" @submit="onSubmit">
       <template #agent-tag><AgentTag /></template>
     </SearchBar>
     <div class="app-content" :class="{ 'app-content--out-of-focus': outOfFocus }">

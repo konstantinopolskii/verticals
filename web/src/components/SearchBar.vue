@@ -8,6 +8,7 @@ import { commandFilter } from '../lib/commandFilter'
 import { circle, circleCaption, circleState, circleWords } from '../lib/circle'
 import { agentChat, decide, openAsk, stop } from '../lib/agentChat'
 import { plainWords } from '../lib/chatMarkdown'
+import { closeWindows, windows } from '../lib/windows'
 import { mascot, useMascot, watchBoardNews } from '../lib/mascot'
 import { followWords } from '../lib/finding'
 import { curve } from '../lib/motion'
@@ -152,7 +153,8 @@ watch(answerText, async () => {
   const el = answerMeasure.value
   if (!el) return
   answerLines.value = Math.min(3, Math.max(1, Math.round(el.getBoundingClientRect().height / 22)))
-  answerWidth.value = answerLines.value > 1 ? ANSWER_MEASURE : Math.ceil(el.scrollWidth)
+  // The blinking line after the words takes its 5 px on the last line.
+  answerWidth.value = answerLines.value > 1 ? ANSWER_MEASURE : Math.min(ANSWER_MEASURE, Math.ceil(el.scrollWidth) + 6)
 }, { immediate: true, flush: 'post' })
 
 /* The conversation measures itself against the field (S2.P1.009), and moves up when the tags come in (S2.P2.013). */
@@ -182,6 +184,8 @@ function onInput(event: Event): void {
 function focusField(): void {
   const el = input.value
   if (!el) return
+  // Typing, or a click on the field, brings the conversation back; over a window, always (S2.P1.011, .018).
+  if (windows.list.length && agentChat.available) agentChat.engaged = true
   if (agentChat.engaged && !agentChat.open) agentChat.open = true
   el.focus({ preventScroll: true })
   const end = el.value.length
@@ -209,6 +213,7 @@ function onKeyDown(event: KeyboardEvent): void {
     event.stopPropagation()
     if (commandFilter.text) clear()
     else if (agentChat.open) agentChat.open = false
+    else if (windows.list.length) closeWindows()
     else {
       agentChat.engaged = false
       input.value?.blur()

@@ -10,6 +10,7 @@ import '../lib/devIcons'
 import {
   IconArrowLeft,
   IconArrowRight,
+  IconArrowUpRight,
   IconCalendar,
   IconChevronDown,
   IconChevronLeft,
@@ -28,12 +29,14 @@ import {
   IconSearch,
   IconTag,
   IconTrash,
+  IconWorld,
   IconX,
 } from '@tabler/icons-vue'
 
 const REGISTRY = {
   'arrow-left': IconArrowLeft,
   'arrow-right': IconArrowRight,
+  'arrow-up-right': IconArrowUpRight,
   calendar: IconCalendar,
   comment: IconMessageCircle,
   'chevron-down': IconChevronDown,
@@ -52,6 +55,7 @@ const REGISTRY = {
   subtask: IconListDetails,
   tag: IconTag,
   trash: IconTrash,
+  world: IconWorld,
   x: IconX,
 } as const
 
@@ -72,7 +76,7 @@ const BASE_NAMES = new Set<keyof typeof REGISTRY>([
   'calendar', 'comment', 'file', 'folder', 'hierarchy', 'history', 'inbox', 'plus', 'repeat', 'subtask', 'tag', 'trash',
 ])
 const ARROW_NAMES = new Set<keyof typeof REGISTRY>([
-  'arrow-left', 'arrow-right', 'chevron-down', 'chevron-left', 'chevron-right', 'today',
+  'arrow-left', 'arrow-right', 'arrow-up-right', 'chevron-down', 'chevron-left', 'chevron-right', 'today',
 ])
 const tuningClass = computed(() => {
   if (BASE_NAMES.has(props.name)) return 'app-icon--base'

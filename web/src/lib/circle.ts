@@ -4,6 +4,7 @@
 import { computed, reactive } from 'vue'
 import { commandFilter } from './commandFilter'
 import { agentChat, openAsk } from './agentChat'
+import { frontWindow } from './windows'
 
 export type CircleJob = 'board' | 'goal' | 'moving'
 export type CircleState = 'rest' | 'open' | 'typing' | 'working' | 'answer' | 'moving'
@@ -22,7 +23,11 @@ export const circle = reactive({
 })
 
 /** Once an answer has gone up into the conversation, the field asks the agent (S1.P1.015). */
-export const circleCaption = computed(() => (agentChat.engaged && circle.job === 'board' ? 'Ask the agent' : CAPTIONS[circle.job]))
+export const circleCaption = computed(() => {
+  if (circle.job !== 'board') return CAPTIONS[circle.job]
+  if (frontWindow.value?.kind === 'goal') return CAPTIONS.goal
+  return agentChat.engaged ? 'Ask the agent' : CAPTIONS.board
+})
 
 /** What the circle holds while the conversation is hidden: the answer, or the ask the agent waits on (S2.P4, S2.P1.044). */
 export const circleWords = computed(() => {
