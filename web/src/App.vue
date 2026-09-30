@@ -17,7 +17,11 @@ import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
 import { store, todayIso } from './store'
 import { commandFilter } from './lib/commandFilter'
-import { agentChat, currentThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
+import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
+import { circle } from './lib/circle'
+import { endMove, moveContext } from './lib/moving'
+import { findGoal } from './lib/boardIndex'
+import { spanGoal } from './lib/spans'
 import { carryOver, FIRST_MESSAGE, replanTask } from './lib/replan'
 import { closeWindows, frontWindow, openWindow, outOfFocus, stepWindow, windows } from './lib/windows'
 import WindowStack from './components/WindowStack.vue'
@@ -117,6 +121,17 @@ onUnmounted(() => {
 let goalOpening: Promise<void> | null = null
 async function onSubmit(text: string): Promise<void> {
   if (!agentChat.available) return
+  // Sent while moving a goal: a new task with the move's context, and the move ends (docs/design-handoff S5.P3.041, .042).
+  if (circle.moving) {
+    const move = moveContext((id) => (findGoal(store.state.board, id) ?? spanGoal(id))?.title ?? null)
+    endMove()
+    newThread()
+    agentChat.open = true
+    agentChat.engaged = true
+    commandFilter.text = ''
+    void send(text, { move })
+    return
+  }
   agentChat.open = true
   agentChat.engaged = true
   commandFilter.text = ''

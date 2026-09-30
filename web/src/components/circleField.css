@@ -53,6 +53,7 @@
   transition: opacity 100ms ease-out;
 }
 .circle-field:is([data-state='open'], [data-state='typing']) .circle-field__words { opacity: 1; }
+.circle-field[data-state='moving']:not([data-holding]) .circle-field__words { opacity: 1; }
 .circle-field__words textarea,
 .circle-field__mirror {
   display: block;

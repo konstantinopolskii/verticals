@@ -15,6 +15,8 @@ import { curve } from '../lib/motion'
 import { anyMenuOpen } from '../lib/cardLift'
 import { defineKnobs, knob } from '../lib/tuning'
 import CircleTags from './CircleTags.vue'
+import MovingStack from './MovingStack.vue'
+import { backspace as pickBackspace, escape as movingEscape, tab as pickTab } from '../lib/moving'
 import './circleField.css'
 
 defineKnobs('The field', [
@@ -68,6 +70,9 @@ function textWidth(value: string): number {
 
 const answerText = computed(() => (circleWords.value ? plainWords(circleWords.value.text) : ''))
 const stopping = computed(() => state.value === 'working' && circle.pointed)
+/* Holding a goal over the spans, the field is a pill with the mascot; let go over it, it widens to hold what stands above
+   it (S5.P3.002, .007, .039). */
+const holding = computed(() => state.value === 'moving' && store.state.drag.id !== null)
 
 const width = computed(() => {
   if (state.value === 'answer') return Math.max(CIRCLE, Math.min(answerWidth.value + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))
@@ -76,6 +81,8 @@ const width = computed(() => {
     return Math.min(maxWidth.value, Math.max(300, Math.ceil(PAD_LEFT + PAD_RIGHT + textWidth(text.value) + 5)))
   }
   if (state.value === 'open') return Math.min(300, maxWidth.value)
+  if (holding.value) return 120
+  if (state.value === 'moving') return Math.min(circle.pointed ? 434 : 300, maxWidth.value)
   return mascot.pong ? 132 : CIRCLE
 })
 const shownLines = computed(() => Math.min(lines.value, knob('field.maxLines')))
@@ -84,7 +91,8 @@ const height = computed(() => {
   if (state.value === 'answer') return Math.max(CIRCLE, PAD_Y * 2 + answerLines.value * 22 + (circleWords.value?.kind === 'ask' ? 44 : 0))
   return CIRCLE
 })
-const wide = computed(() => state.value === 'open' || state.value === 'typing' || state.value === 'answer')
+const wide = computed(() => state.value === 'open' || state.value === 'typing' || state.value === 'answer'
+  || (state.value === 'moving' && !holding.value))
 const tagsShown = computed(() => (circle.pointed && wide.value)
   || (knob('field.tagsWhileTyping') === 1 && circle.focused))
 
@@ -160,6 +168,14 @@ watch(answerText, async () => {
 /* The conversation measures itself against the field (S2.P1.009), and moves up when the tags come in (S2.P2.013). */
 watch(height, (value) => document.documentElement.style.setProperty('--vt-field-height', `${value}px`), { immediate: true })
 watch(tagsShown, (shown) => document.documentElement.style.setProperty('--vt-tags-lift', shown ? '44px' : '0px'), { immediate: true })
+watch(width, (value) => document.documentElement.style.setProperty('--moving-field-width', `${value}px`), { immediate: true })
+/* Pointed at in the moving mode, the tags take the stack's left end and the stack moves right by their width and 8 px
+   (S5.P3.010, .012). */
+watch(tagsShown, async (shown) => {
+  await nextTick()
+  const tags = shown ? document.querySelector<HTMLElement>('.circle-tags')?.offsetWidth ?? 0 : 0
+  document.documentElement.style.setProperty('--moving-tags-shift', `${tags ? tags + 8 : 0}px`)
+}, { immediate: true })
 
 /* While the agent works the line turns; when it answers it ends upright (S2.P3.003). */
 watch(() => state.value === 'working', (working, was) => {
@@ -208,10 +224,16 @@ function onKeyDown(event: KeyboardEvent): void {
     send()
     return
   }
+  // On an empty field in the moving mode, Backspace and Tab pick up what stands above it (S5.P4.002, .003).
+  if (!commandFilter.text && circle.moving && ((event.key === 'Backspace' && pickBackspace()) || (event.key === 'Tab' && pickTab()))) {
+    event.preventDefault()
+    return
+  }
   if (event.key === 'Escape') {
     event.preventDefault()
     event.stopPropagation()
     if (commandFilter.text) clear()
+    else if (movingEscape()) return
     else if (agentChat.open) agentChat.open = false
     else if (windows.list.length) closeWindows()
     else {
@@ -311,10 +333,12 @@ onBeforeUnmount(() => {
     :data-state="state"
     :data-pong="mascot.pong ? '' : undefined"
     :data-focused="circle.focused ? '' : undefined"
+    :data-holding="holding ? '' : undefined"
     @pointerleave="onLeave"
   >
     <div class="circle-field__above">
       <slot name="above" />
+      <MovingStack />
       <CircleTags :shown="tagsShown" @pointerenter="onTagsEnter">
         <template #agent><slot name="agent-tag" /></template>
       </CircleTags>

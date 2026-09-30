@@ -960,6 +960,17 @@ def format_context(ctx):
             lines.append(f"{about} Read it with the goal tool before answering.")
         if goal.get("title") == REPLAN_TITLE:
             lines.append(REPLAN_RULES)
+    move = ctx.get("move")
+    if isinstance(move, dict):
+        # Words sent while the owner moves a goal on the board (docs/design-handoff S5.P3.041).
+        held = move.get("goal") if isinstance(move.get("goal"), dict) else None
+        spans = [str(s)[:120] for s in move.get("spans") or []][:12]
+        lines.append(
+            f"The owner was moving a goal on the board, in the {str(move.get('view') or 'board')[:40]} view"
+            + (f", showing: {'; '.join(spans)}" if spans else "")
+            + (f"; the goal waiting to be placed: \"{str(held.get('title') or '')[:300]}\" (id {str(held.get('id'))[:40]})" if held else "")
+            + ". Their words are about that move; the move itself was cancelled when they sent them."
+        )
     return "\n".join(lines)
 
 
