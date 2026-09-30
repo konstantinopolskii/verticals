@@ -9,6 +9,7 @@ import { store } from '../store'
 import type { GoalCardData } from '../types'
 import { DEEPEST } from './familyView'
 import { familyMoving } from './familyMotion'
+import { curve, reducedMotion } from './motion'
 
 export function useCardFamily(props: {
   readonly id: string
@@ -128,8 +129,8 @@ export function useCardFamily(props: {
      a goal that had none) grows from nothing and folds away in the opening's time and curve, so the goals below slide
      rather than leap: closing an opened subgoal used to drop its steps and notes in one frame, 460 px (the motion
      trace, 27 Sep 2026). Growing, it aims at its height once its notes have opened too. */
-  const OPENING = { duration: 360, easing: 'cubic-bezier(.22, 1, .36, 1)' }
-  const stillMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches || familyMoving()
+  const opening = () => ({ duration: 360, easing: curve('large') })
+  const stillMotion = () => reducedMotion() || familyMoving()
   function growList(el: Element, done: () => void): void {
     const list = el as HTMLElement
     if (stillMotion()) { done(); return }
@@ -141,7 +142,7 @@ export function useCardFamily(props: {
       const notes = clip ? Math.max(0, clip.scrollHeight - clip.getBoundingClientRect().height) : 0
       const to = list.scrollHeight + notes
       list.style.height = ''
-      list.animate([{ height: '0px', opacity: 0 }, { height: `${to}px`, opacity: 1 }], OPENING).onfinish = () => {
+      list.animate([{ height: '0px', opacity: 0 }, { height: `${to}px`, opacity: 1 }], opening()).onfinish = () => {
         list.style.overflow = ''
         done()
       }
@@ -151,7 +152,7 @@ export function useCardFamily(props: {
     const list = el as HTMLElement
     if (stillMotion()) { done(); return }
     list.style.overflow = 'hidden'
-    list.animate([{ height: `${list.getBoundingClientRect().height}px`, opacity: 1 }, { height: '0px', opacity: 0 }], OPENING).onfinish = done
+    list.animate([{ height: `${list.getBoundingClientRect().height}px`, opacity: 1 }, { height: '0px', opacity: 0 }], opening()).onfinish = done
   }
 
   return {

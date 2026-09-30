@@ -20,9 +20,9 @@
 
 import { shallowRef } from 'vue'
 import { placeAllWashes } from './goalWash'
+import { curve, reducedMotion } from './motion'
 
 const DURATION = 360 // the opening's time and curve (GoalCard.vue's OPENING, goalDetail.css), one rhythm
-const EASE = 'cubic-bezier(.22, 1, .36, 1)'
 const GONE = 0.1 // what only was there is gone by 10% of the time (exits are quicker), so nothing glides over it,
 const OUT = 0.2 // and what only is there now fades in from 20%
 const TITLE_OUT = 0.18 // a title's old look is gone by 18%, and its new look fades in from there to 50%: never two titles
@@ -176,7 +176,7 @@ function stop(): void {
   ghostLayer?.replaceChildren()
 }
 
-const timing = (extra: KeyframeAnimationOptions = {}): KeyframeAnimationOptions => ({ duration: DURATION, easing: EASE, ...extra })
+const timing = (extra: KeyframeAnimationOptions = {}): KeyframeAnimationOptions => ({ duration: DURATION, easing: curve('large'), ...extra })
 
 /* While a drag is held over the board, the goal under the hand stays under the hand (the brief: "While dragging, the
    goal under the hand stays under the hand"): when its column widens or its family moves, the column scrolls so its row
@@ -226,7 +226,7 @@ export async function moveFamily(
   const column = typeof document !== 'undefined'
     ? document.querySelector<HTMLElement>(`.pattern-vertical-board__column--active[data-vertical="${vertical}"]`)
     : null
-  const still = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const still = reducedMotion()
   if (!column || still) {
     change()
     return

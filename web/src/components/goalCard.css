@@ -673,7 +673,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
    swaps under the pointer. Nothing here applies while nothing is open. */
 .pattern-vertical-board {
   --vt-light-ms: 360ms;
-  --vt-light-ease: cubic-bezier(.22, 1, .36, 1);
+  --vt-light-ease: var(--vt-ease-large);
   --goal-off-opacity: var(--kkov-off-opacity, .32);
   --goal-off-grey: var(--kkov-off-grey, .5);
 }

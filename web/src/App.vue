@@ -12,6 +12,8 @@ import DevColorPanel from './components/DevColorPanel.vue'
 import DevDeckPanel from './components/DevDeckPanel.vue'
 import DevIconPanel from './components/DevIconPanel.vue'
 import DevGoalLayoutPanel from './components/DevGoalLayoutPanel.vue'
+import DevTuningPanel from './components/DevTuningPanel.vue'
+import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
 import { store } from './store'
 
@@ -159,6 +161,7 @@ onUnmounted(() => window.removeEventListener('verticals:agent-state', onAgentSta
     <DevDeckPanel />
     <DevIconPanel />
     <DevGoalLayoutPanel />
+    <DevTuningPanel />
   </template>
 </template>
 

@@ -26,22 +26,22 @@ const TUNED_DEFAULTS: DevPaletteState = {
   yellow: {
     card: { color: '#ffd500', opacity: 0.3 },
     box: { color: '#ffe45c', opacity: 1 },
-    tick: { color: '#ffffff', opacity: 1 },
+    tick: { color: '#000000', opacity: 1 },
   },
   rose: {
     card: { color: '#ff003c', opacity: 0.15 },
     box: { color: '#ff003c', opacity: 0.5 },
-    tick: { color: '#ffffff', opacity: 1 },
+    tick: { color: '#000000', opacity: 1 },
   },
   lime: {
     card: { color: '#a5e619', opacity: 0.3 },
     box: { color: '#c3ec69', opacity: 1 },
-    tick: { color: '#ffffff', opacity: 1 },
+    tick: { color: '#000000', opacity: 1 },
   },
   blue: {
     card: { color: '#0088ff', opacity: 0.15 },
     box: { color: '#b5d6f2', opacity: 1 },
-    tick: { color: '#ffffff', opacity: 1 },
+    tick: { color: '#000000', opacity: 1 },
   },
   violet: {
     card: { color: '#6a00ff', opacity: 0.15 },

@@ -1,3 +1,5 @@
+import { curve, reducedMotion } from './motion'
+
 /** Commit one native checkbox change, then animate its measured 200 ms visual state. */
 export function commitCheckboxChange(
   event: Event,
@@ -6,10 +8,10 @@ export function commitCheckboxChange(
   const input = event.target as HTMLInputElement
   const value = input.checked
   commit(value)
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (reducedMotion()) return
   const box = input.nextElementSibling as HTMLElement | null
   const check = box?.querySelector<SVGPathElement>('.checkbox__check')
-  const timing = { duration: 200, easing: 'cubic-bezier(.165,.84,.44,1)' }
+  const timing = { duration: 200, easing: curve('small') }
   box?.animate(
     [
       {

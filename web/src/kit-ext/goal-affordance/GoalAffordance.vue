@@ -43,7 +43,7 @@ const squareStyle = computed(() => {
     '--goal-affordance-check-color': checkColor
       ? checkColor
       : `rgba(${wash.inkRgb}, 0.65)`,
-    '--goal-affordance-hover-check-color': '#ffffff',
+    '--goal-affordance-hover-check-color': '#000000',
   }
 })
 </script>
