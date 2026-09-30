@@ -69,7 +69,8 @@ async function melt(scale: SpanScale): Promise<void> {
   dots.melted = true
   await wait(200)
   if (version !== meltVersion || !drag.id) return
-  await openSpans(scale, drag.sourceVertical ?? 'maybe', drag.sourcePeriodKey, ports!.today())
+  const corner = dotsEl?.closest('.pattern-vertical-board__column')?.getBoundingClientRect().right ?? null
+  await openSpans(scale, drag.sourceVertical ?? 'maybe', drag.sourcePeriodKey, ports!.today(), corner)
   if (version !== meltVersion) return
   dots.held = null
   afterLayout()

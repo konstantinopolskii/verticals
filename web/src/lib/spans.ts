@@ -40,6 +40,8 @@ export const spans = reactive({
   board: null as BoardResponse | null,
   first: 0,
   starts: [] as string[],
+  /** The right edge of the held column's corner, where the spans come in from (S5.P1.023). */
+  heldAt: null as number | null,
   /** Where the goal came from, to fly back to (S5.P6.006). */
   from: null as { vertical: string; periodKey: string | null } | null,
 })
@@ -62,33 +64,38 @@ export function floatingFor(scale: SpanScale, fromVertical: string): string {
   return VERTICAL_SCALES[Math.min(verticalRank(scale) + 1, VERTICAL_SCALES.length - 1)]!
 }
 
-async function load(): Promise<void> {
-  const scale = spans.vertical
-  if (!scale) return
+async function load(scale: SpanScale | null = spans.vertical): Promise<boolean> {
+  if (!scale) return false
   const first = spans.offset - 1
   const count = spans.shown + 2
-  if (spans.board && first >= spans.first && first + count <= spans.first + spans.board.columns.length) return
+  const cached = spans.board && spans.vertical === scale
+  if (cached && first >= spans.first && first + count <= spans.first + spans.board!.columns.length) return true
   const version = ++loading
   const start = stepFrom(scale, thisStart(scale, today), first)
-  const board = await fetchSpans(scale, start, count)
-  if (version !== loading || spans.vertical !== scale) return
+  const board = await fetchSpans(scale, start, count).catch(() => null)
+  if (!board || version !== loading) return false
   spans.board = board
   spans.first = first
   spans.starts = Array.from({ length: count }, (_, i) => stepFrom(scale, start, i))
+  return true
 }
 
 /** Open a vertical's spans: this period first, the goal's own column (or the next one up) floating (S5.P1.044). */
-export async function openSpans(scale: SpanScale, fromVertical: string, fromPeriodKey: string | null, day: string): Promise<void> {
+export async function openSpans(
+  scale: SpanScale, fromVertical: string, fromPeriodKey: string | null, day: string, heldAt: number | null = null,
+): Promise<void> {
   today = day
-  spans.vertical = scale
-  spans.floating = floatingFor(scale, fromVertical)
-  const floatRank = VERTICAL_SCALES.indexOf(spans.floating as VerticalScale)
-  spans.side = floatRank >= 0 && floatRank < verticalRank(scale) ? 'left' : 'right'
+  spans.heldAt = heldAt
   spans.offset = 0
   spans.shown = fitCount()
+  // The view changes once its spans are here, so they come in whole (S5.P1.051).
+  if (!await load(scale)) return
+  const floating = floatingFor(scale, fromVertical)
+  const floatRank = VERTICAL_SCALES.indexOf(floating as VerticalScale)
+  spans.side = floatRank >= 0 && floatRank < verticalRank(scale) ? 'left' : 'right'
+  spans.floating = floating
   spans.from = { vertical: fromVertical, periodKey: fromPeriodKey }
-  spans.board = null
-  await load()
+  spans.vertical = scale
 }
 
 export function closeSpans(): void {
