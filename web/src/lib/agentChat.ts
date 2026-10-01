@@ -289,8 +289,8 @@ export function newThread(goal: GoalRef | null = null): void {
 }
 
 /** Discuss with agent: the goal's latest conversation, wherever it was started in Verticals, or a new one about it
- *  (S3.P1.002, .003). */
-export async function openForGoal(goal: GoalRef): Promise<void> {
+ *  (S3.P1.002, .003). True when an earlier conversation goes on. */
+export async function openForGoal(goal: GoalRef): Promise<boolean> {
   let latest: { session: string; lastTurnAt: number } | null = null
   try {
     const { conversations } = await api<{ conversations?: { session: string; lastTurnAt: number }[] }>(`goal?id=${encodeURIComponent(goal.id)}`)
@@ -300,9 +300,10 @@ export async function openForGoal(goal: GoalRef): Promise<void> {
   }
   const local = agentChat.threads.filter((thread) => thread.goal?.id === goal.id).sort((a, b) => b.updatedAt - a.updatedAt)[0]
   const id = latest?.session ?? local?.id
-  if (!id) { newThread(goal); return }
+  if (!id) { newThread(goal); return false }
   openThread(id, goal)
   goalSince = latest?.lastTurnAt ? latest.lastTurnAt * 1000 : local?.updatedAt ?? null
+  return true
 }
 
 function record(event: ChatEvent, live = true): void {

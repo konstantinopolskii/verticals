@@ -174,7 +174,7 @@ function onDiscussGoal(event: Event): void {
   const title = row?.querySelector<HTMLElement>('.goal-card__title-text')?.innerText.trim() || 'Goal'
   openWindow({ kind: 'goal', target: id, title }, row)
   if (session) openThread(session, { id, title })
-  else goalOpening = openForGoal({ id, title }).finally(() => { goalOpening = null })
+  else goalOpening = openForGoal({ id, title }).then(() => undefined).finally(() => { goalOpening = null })
   agentChat.open = true
   agentChat.engaged = true
   // The menu that asked gives its focus back on its next tick; the field takes it after that (S3.P2.016).
@@ -193,9 +193,10 @@ async function onReplan(event: Event): Promise<void> {
   openWindow({ kind: 'goal', target: task.id, title: task.title }, from)
   agentChat.open = true
   agentChat.engaged = true
-  goalOpening = openForGoal(task).finally(() => { goalOpening = null })
-  await goalOpening
-  if (!agentChat.history.some((e) => e.t === 'user')) void send(FIRST_MESSAGE)
+  const opening = openForGoal(task)
+  goalOpening = opening.then(() => undefined).finally(() => { goalOpening = null })
+  // Our first message only opens the task's first conversation; the server knows it even where this browser doesn't.
+  if (!await opening) void send(FIRST_MESSAGE)
 }
 /* Esc, when nothing smaller takes it, sends the windows away; ⌘[ and ⌘] move one window (S3.P2.011, S3.P3.017). */
 function onWindowsKey(event: KeyboardEvent): void {

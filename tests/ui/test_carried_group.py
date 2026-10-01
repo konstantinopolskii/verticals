@@ -92,3 +92,11 @@ def test_replan_opens_the_task_as_a_window_with_our_first_message(ui_agent: UiSe
     page.locator(FIELD).fill("[context]")
     page.keyboard.press("Enter")
     expect(page.locator('[data-balloon][data-who="agent"]').last).to_contain_text("Your comment, one row per plan", timeout=10000)
+
+    # A browser that has never seen the task's conversation continues it: our first message goes only once.
+    page.evaluate("() => localStorage.clear()")
+    _goto_today(page, ui_agent.base_url)
+    page.locator(GROUP).locator('[data-role="replan"]').click()
+    expect(page.locator('[data-balloon][data-who="agent"]').last).to_contain_text("Your comment, one row per plan", timeout=10000)
+    page.wait_for_timeout(500)
+    expect(page.locator('[data-balloon][data-who="you"]', has_text=FIRST)).to_have_count(1)
