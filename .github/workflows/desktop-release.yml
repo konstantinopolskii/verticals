@@ -1,6 +1,6 @@
 name: desktop release
 
-# Run by hand: Actions → desktop release → Run workflow, or `gh workflow run desktop-release`.
+# Run by hand: Actions → desktop release → Run workflow, or `gh workflow run desktop-release.yml`.
 # Builds Verticals.app from the chosen branch and publishes release v<version> with Verticals.zip
 # (what the app downloads to update itself) and Verticals.dmg (first install).
 
