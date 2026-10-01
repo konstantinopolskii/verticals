@@ -93,6 +93,9 @@ function onClick(event: MouseEvent): void {
 }
 /* While the agent works its step bubble stands where its next balloon will (S2.P3.005): the column makes room. */
 .agent-conversation--working { --vt-conversation-lift: 46px; }
+/* The conversation rises with the tags, not ahead of them (SearchBar.vue sets the lift). */
+@property --vt-tags-lift { syntax: '<length>'; inherits: true; initial-value: 0px; }
+:root { transition: --vt-tags-lift var(--vt-dur-open) var(--vt-ease-large); }
 .agent-conversation__column {
   position: relative;
   box-sizing: border-box;
@@ -165,6 +168,7 @@ function onClick(event: MouseEvent): void {
 .agent-conversation-leave-active { transition: clip-path var(--vt-dur-fade) var(--vt-ease-large), opacity var(--vt-dur-fade) linear; }
 .agent-conversation-enter-from, .agent-conversation-leave-to { clip-path: inset(100% 0 0 0); opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
+  :root { transition: none; }
   .agent-conversation-enter-active, .agent-conversation-leave-active { transition: opacity var(--vt-crossfade) linear; }
   .agent-conversation-enter-from, .agent-conversation-leave-to { clip-path: none; }
   .agent-balloon[data-side='top'], .agent-balloon[data-side='bottom'] { filter: none; transform: none; }
