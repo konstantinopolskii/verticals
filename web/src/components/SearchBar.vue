@@ -20,7 +20,6 @@ import { backspace as pickBackspace, escape as movingEscape, tab as pickTab } fr
 import './circleField.css'
 
 defineKnobs('The field', [
-  { key: 'field.tagsWhileTyping', label: 'Tags also show while typing (1 = on)', value: 0, min: 0, max: 1, step: 1 },
   { key: 'field.maxLines', label: 'Lines before the field scrolls', value: 10, min: 1, max: 20, step: 1 },
 ])
 
@@ -98,8 +97,7 @@ const height = computed(() => {
 })
 const wide = computed(() => state.value === 'open' || state.value === 'typing' || state.value === 'answer'
   || (state.value === 'moving' && !holding.value))
-const tagsShown = computed(() => (circle.pointed && wide.value)
-  || (knob('field.tagsWhileTyping') === 1 && circle.focused))
+const tagsShown = computed(() => (circle.pointed && wide.value) || circle.focused || agentChat.open)
 
 /* Where the line stands: the mascot's at rest, your hand over the field, your caret once the field has it. */
 const lineMode = computed(() => {
