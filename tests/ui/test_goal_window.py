@@ -77,11 +77,24 @@ def test_discuss_lifts_the_goal_into_a_window_under_its_conversation(ui_agent: U
     expect(window).to_have_class(re.compile("vt-shadow--back"))
     expect(page.locator(FIELD)).to_have_attribute("aria-label", "Ask about this goal")
     # S3.P2.036: the card in full, with its name.
-    expect(window.locator(f'.goal-card[data-goal-id="{GOAL}"]')).to_have_count(1)
+    expect(window.locator(f'.pblur__live .goal-card[data-goal-id="{GOAL}"]')).to_have_count(1)
 
     # S3.P2.008: a click on the card brings it in front and sends the conversation into the circle.
     page.mouse.click(box["x"] + 20, box["y"] + box["height"] - 20)
     expect(page.locator(CONVERSATION)).to_have_count(0)
+    # S3.P2.005: the card is the window; pointed at, it doesn't lift, and it can't be dragged out of it.
+    card = window.locator(f'.pblur__live .goal-card[data-goal-id="{GOAL}"]')
+    title = card.locator("> .goal-card__row .goal-card__title-text")
+    title.hover()
+    page.wait_for_timeout(300)
+    expect(card).not_to_have_class(re.compile("goal-card--lifted"))
+    at = title.bounding_box()
+    page.mouse.move(at["x"] + 10, at["y"] + 8)
+    page.mouse.down()
+    page.mouse.move(at["x"] + 60, at["y"] + 80, steps=8)
+    page.wait_for_timeout(300)
+    expect(page.locator('[data-role="drag-overlay"]')).to_have_count(0)
+    page.mouse.up()
     # S3.P2.037: Esc brings the goal back to its row and the board into focus.
     page.keyboard.press("Escape")
     expect(page.locator(WINDOW)).to_have_count(0)

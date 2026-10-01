@@ -363,6 +363,9 @@ function renderChildren(): ChildRenderItem[] {
 }
 
 const childrenListEl = ref<HTMLElement | null>(null)
+/* A goal in a window is the window (docs/design-handoff S3.P2.005): it doesn't lift, doesn't leave by drag, and lights
+   nothing on the board out of focus behind it. Its steps carry the same column, so they open with a click and stay. */
+const inWindow = computed(() => props.columnVertical === 'window')
 /* Hover lift (KK, 27 Sep 2026): a top-level goal and its subtasks rise as one piece, `lib/cardLift.ts`. */
 const {
   lifted,
@@ -375,7 +378,7 @@ const {
 } = useCardLift({
   card: rootElement,
   list: childrenListEl,
-  enabled: () => props.depth === 0 && store.state.drag.id === null && !isPathLine.value,
+  enabled: () => props.depth === 0 && store.state.drag.id === null && !isPathLine.value && !inWindow.value,
   // its own menu or a subgoal's hangs from it
   pinned: () => {
     const id = menuGoalId.value
@@ -398,6 +401,7 @@ function onAddStep(title: string): void {
   void store.addDetailChild(title)
 }
 function onCardEnter(): void {
+  if (inWindow.value) return
   highlightFamily()
   liftEnter()
   if (inWideColumn.value) void store.ensureDetail(props.id) // flow 4: a click here moves the column from its detail
@@ -446,7 +450,7 @@ function fromControl(event: Event): boolean {
    opposed to the plain `click` a tap-and-release produces, handled below unchanged) lives in
    `lib/drag.ts`, read on the next `pointermove` `Board.vue`'s own window listener forwards. */
 function onRowPointerDown(event: PointerEvent) {
-  if (fromControl(event)) return
+  if (fromControl(event) || inWindow.value) return
   const row = event.currentTarget as HTMLElement
   row.focus({ preventScroll: true })
   // A drag starts from the board at rest, lifted or not: its row, the gap it leaves, the rows it may land on.
