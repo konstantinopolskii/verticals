@@ -4,6 +4,7 @@
     python3 desktop/macos/bundle.py              # -> desktop/dist/Verticals.app, desktop/dist/Verticals.dmg
     python3 desktop/macos/bundle.py --out DIR    # build elsewhere (e.g. while an older build runs)
     python3 desktop/macos/bundle.py --dmg-only   # repackage the existing app
+    python3 desktop/macos/bundle.py --version 0.4   # app version (CI passes the release's)
 
 Contents/Resources mirrors the repository: verticals/, desktop/ (launcher, chat, UI build) and the
 operator skill, plus a trimmed Python 3.12 with the dependencies and PostgreSQL 16 taken from
@@ -23,6 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent   # desktop/
 REPO = ROOT.parent
 DIST = Path(sys.argv[sys.argv.index("--out") + 1]).resolve() if "--out" in sys.argv else ROOT / "dist"
 APP = DIST / "Verticals.app"
+VERSION = sys.argv[sys.argv.index("--version") + 1] if "--version" in sys.argv else "0.2"
 RES = APP / "Contents" / "Resources"
 BREW = Path("/opt/homebrew")
 PG_OPT = BREW / "opt/postgresql@16"
@@ -205,7 +207,7 @@ def build_launcher():
     (APP / "Contents/MacOS").mkdir(parents=True, exist_ok=True)
     sh("swiftc", "-O", "-target", "arm64-apple-macos13.0", "-o", APP / "Contents/MacOS/Verticals",
        ROOT / "macos/Verticals.swift")
-    (APP / "Contents/Info.plist").write_text("""<?xml version="1.0" encoding="UTF-8"?>
+    (APP / "Contents/Info.plist").write_text(f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -214,8 +216,8 @@ def build_launcher():
   <key>CFBundleIdentifier</key><string>app.verticals.desktop</string>
   <key>CFBundleExecutable</key><string>Verticals</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.2</string>
-  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleShortVersionString</key><string>{VERSION}</string>
+  <key>CFBundleVersion</key><string>{VERSION}</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSArchitecturePriority</key><array><string>arm64</string></array>
   <key>NSHighResolutionCapable</key><true/>
@@ -253,6 +255,15 @@ def make_dmg():
     return dmg
 
 
+def make_zip():
+    """What the app downloads to update itself (see Verticals.swift)."""
+    log("zip")
+    archive = DIST / "Verticals.zip"
+    archive.unlink(missing_ok=True)
+    sh("ditto", "-c", "-k", "--keepParent", APP, archive)
+    return archive
+
+
 INSTALL_NOTE = """Verticals — установка
 
 1. Перетащите «Verticals» в папку «Программы».
@@ -275,6 +286,9 @@ INSTALL_NOTE = """Verticals — установка
 MCP для своих агентов, пока приложение открыто: http://127.0.0.1:8281/mcp
 (токен и готовый конфиг: ~/Library/Application Support/Verticals/mcp.json)
 
+Обновления: при запуске Verticals проверяет новую версию на GitHub и предлагает обновиться.
+Вручную: меню Verticals → Check for Updates…
+
 Требуется Mac на Apple Silicon (M1 и новее), macOS 13+.
 """
 
@@ -295,8 +309,9 @@ def main():
     sign_all()
     check_postgres(bindir)
     dmg = make_dmg()
+    archive = make_zip()
     size = lambda p: sh("du", "-sh", p).split()[0]
-    log(f"done: {APP} ({size(APP)}), {dmg} ({size(dmg)})")
+    log(f"done: {APP} {VERSION} ({size(APP)}), {dmg} ({size(dmg)}), {archive} ({size(archive)})")
 
 
 if __name__ == "__main__":

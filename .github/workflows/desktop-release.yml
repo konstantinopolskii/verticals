@@ -1,0 +1,77 @@
+name: desktop release
+
+# Run by hand: Actions → desktop release → Run workflow, or `gh workflow run desktop-release`.
+# Builds Verticals.app from the chosen branch and publishes release v<version> with Verticals.zip
+# (what the app downloads to update itself) and Verticals.dmg (first install).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, e.g. 0.4. Empty bumps the last number of the latest release.
+        required: false
+
+permissions:
+  contents: write
+
+concurrency: desktop-release
+
+jobs:
+  release:
+    runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      UV_PYTHON_PREFERENCE: only-managed
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Version
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          version="${REQUESTED#v}"
+          if [ -z "$version" ]; then
+            last=$(gh release view --json tagName --jq .tagName 2>/dev/null || echo v0.2)
+            last="${last#v}"
+            version="${last%.*}.$(( ${last##*.} + 1 ))"
+          fi
+          [[ "$version" =~ ^[0-9]+(\.[0-9]+)+$ ]] || { echo "::error::Not a version: $version"; exit 1; }
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "::error::v$version is already released"; exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Tools
+        run: |
+          brew install postgresql@16 uv
+          uv python install 3.12
+
+      - name: UI
+        run: |
+          npm ci --prefix web
+          VITE_VERTICALS_TOKEN= npm --prefix web run build -- --outDir ../desktop/build/web --emptyOutDir
+
+      - name: App
+        run: python3 desktop/macos/bundle.py --version "$VERSION"
+
+      - name: Upgrade check
+        run: |
+          if gh release view >/dev/null 2>&1; then
+            gh release download --pattern Verticals.zip --dir previous
+            ditto -x -k previous/Verticals.zip previous
+            python3 desktop/macos/upgrade_check.py previous/Verticals.app desktop/dist/Verticals.app
+          else
+            echo "::notice::No earlier release to upgrade from"
+          fi
+
+      - name: Release
+        run: |
+          gh release create "v$VERSION" desktop/dist/Verticals.zip desktop/dist/Verticals.dmg \
+            --target "$GITHUB_SHA" --title "Verticals $VERSION" --generate-notes
