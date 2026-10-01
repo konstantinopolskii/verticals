@@ -101,7 +101,7 @@ def main():
         for name in ['konstantinopolskii-design-system-2.1.1.tgz', 'konstantinopolskii-vue-2.1.1.tgz']:
             archive = ROOT / 'web/vendor' / name
             if not archive.is_file():
-                raise SystemExit(f'Missing private dependency web/vendor/{name}; see README.')
+                raise SystemExit(f'Missing vendored dependency web/vendor/{name}; see README.')
             package = 'design-system' if 'design-system' in name else 'vue'
             expected = lock['packages'][f'node_modules/@konstantinopolskii/{package}']['integrity']
             actual = 'sha512-' + base64.b64encode(hashlib.sha512(archive.read_bytes()).digest()).decode()

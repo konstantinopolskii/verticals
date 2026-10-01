@@ -64,9 +64,11 @@ tests need sanitized fixtures first.
 ## License
 
 Verticals is licensed under the GNU Affero General Public License v3.0, see `LICENSE`.
+The two packages vendored in `web/vendor/` (`@konstantinopolskii/design-system` and
+`@konstantinopolskii/vue`, version 2.1.1) are under the same license.
 Three parts keep their own terms:
 
-- `web/vendor/*.tgz`: the `@konstantinopolskii/design-system` and `@konstantinopolskii/vue`
-  packages, version 2.1.1. They are UNLICENSED: all rights stay with their author.
+- `web/vendor/konstantinopolskii-design-system-2.1.1.tgz`: the Commissioner font inside it,
+  under the SIL Open Font License 1.1 (its `OFL.txt` is in the archive).
 - `web/public/fonts/`: Inter, under the SIL Open Font License 1.1.
 - `desktop/chat/ui/assets/`: logos of other companies, which belong to their owners.

@@ -31,8 +31,8 @@ node_modules
 dist/
 .vite/
 
-# Vendored kk-agentic-ds tarballs (WP-12). @konstantinopolskii/{design-system,vue} are UNLICENSED
-# and not on a public registry (ARCHITECTURE.md R8, ACCEPTANCE.md JC-02). The Verticals copy of
+# Vendored kk-agentic-ds tarballs (WP-12). @konstantinopolskii/{design-system,vue} are AGPL-3.0
+# like the rest of Verticals and not on a public registry (ARCHITECTURE.md R8, ACCEPTANCE.md JC-02). The Verticals copy of
 # design-system deliberately omits its legacy skills, Claude plugin metadata and postinstall hook;
 # `tests/static/test_agent_skills.py` rejects a raw package that would recreate those links.
 # Regenerate the runtime assets from:
