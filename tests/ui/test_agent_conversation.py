@@ -175,6 +175,31 @@ def test_balloons_go_out_at_the_ends_and_come_back(ui_agent: UiSession) -> None:
     )
 
 
+def test_the_tags_stay_while_the_field_has_the_caret_or_the_conversation_is_open(ui_agent: UiSession) -> None:
+    """Not only under the pointer: the tags stay in while the field has the caret or the conversation is open."""
+    page = ui_agent.page
+    page.wait_for_selector(".goal-card__row")
+    page.mouse.move(100, 300)
+    tags = page.locator(".circle-tags.is-shown")
+    expect(tags).to_have_count(0)
+    page.keyboard.press("Control+k")
+    expect(tags).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(tags).to_have_count(0)
+
+    _send(page, "Hello")
+    _answered(page, "")
+    page.evaluate("() => document.activeElement?.blur()")
+    expect(page.locator(CONVERSATION)).to_be_visible()
+    expect(tags).to_have_count(1)
+    page.keyboard.press("Control+k")
+    page.keyboard.press("Escape")  # the conversation goes, the caret stays
+    expect(page.locator(CONVERSATION)).to_have_count(0)
+    expect(tags).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(tags).to_have_count(0)
+
+
 def test_no_agent_the_field_only_finds(ui_f2: UiSession) -> None:
     """S2.P1.026: the web build has no gateway: ↵ does nothing, and Discuss with agent isn't offered."""
     page = ui_f2.page
