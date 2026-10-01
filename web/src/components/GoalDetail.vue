@@ -396,7 +396,7 @@ function shortDate(iso: string | null): string {
    the column's name, where it already is. A goal too near the column's end gets room after the last card
    (`lib/columnRoom.ts`). The card and the cards above it still grow while it opens, so the target is read again every
    frame until nothing moves. The glide takes longer the farther it goes (360-600 ms), so its first frame never jumps.
-   Once per opening; closing scrolls nothing; any wheel, key or press takes over. */
+   Once per opening; closing scrolls it back (`lib/familyView.ts`); any wheel, key or press takes over. */
 const TOP_GAP = 16
 let fitted = false
 let tween = 0
