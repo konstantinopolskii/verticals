@@ -1,7 +1,7 @@
 # Verticals
 
-Private development repository: Vue UI, Python API/MCP and PostgreSQL 16.
-Initial snapshot: local revision `820a94e`, without its history.
+Verticals goal board: Vue UI, Python API/MCP and PostgreSQL 16.
+Open source under the GNU Affero General Public License v3.0, see [License](#license).
 
 ## Native local startup
 
@@ -26,11 +26,9 @@ it contains the local token. MCP is not started by the UI launcher. Docker is op
 
 ## Collaboration
 
-Use this repository's main branch as shared upstream; submit changes through PRs.
+Submit changes as pull requests against `main`.
 Edit web/src for UI, verticals/core for domain behavior, verticals/db/migrations for schema.
 Do not edit generated bundles or vendor archives. Do not commit secrets or real user data.
-The bundled private UI packages remain UNLICENSED. No public redistribution rights or
-open-source license are granted by this private snapshot.
 
 ## Agent skills
 
@@ -60,4 +58,15 @@ verify persistence. Database regression suites use the separate test database:
 or `make test-ui`. Never point those tests at personal data.
 
 Historical document gates and reference screenshots are excluded for privacy.
-The full `make test` catalogue is not certified in this snapshot; see SHARING.md.
+The full `make test` catalogue is not certified here: inherited document and visual
+tests need sanitized fixtures first.
+
+## License
+
+Verticals is licensed under the GNU Affero General Public License v3.0, see `LICENSE`.
+Three parts keep their own terms:
+
+- `web/vendor/*.tgz`: the `@konstantinopolskii/design-system` and `@konstantinopolskii/vue`
+  packages, version 2.1.1. They are UNLICENSED: all rights stay with their author.
+- `web/public/fonts/`: Inter, under the SIL Open Font License 1.1.
+- `desktop/chat/ui/assets/`: logos of other companies, which belong to their owners.
