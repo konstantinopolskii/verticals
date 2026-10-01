@@ -37,11 +37,11 @@ function paint(): void {
   for (const copy of copies.value) {
     const picture = source.cloneNode(true) as HTMLElement
     picture.removeAttribute('data-live')
-    // A picture, not a second window: nothing in it may be found as a goal, a control or a field.
+    // A picture, not a second window: nothing in it may be found as a goal, a control or a link. What styles hang on
+    // (ids, roles, an editor's off state) stays, so the picture lies exactly over the window.
     for (const el of [picture, ...picture.querySelectorAll<HTMLElement>('*')]) {
-      for (const name of ['id', 'data-goal-id', 'data-row-key', 'data-role', 'data-cap', 'data-doc', 'data-link', 'contenteditable', 'tabindex']) {
-        el.removeAttribute(name)
-      }
+      for (const name of ['data-goal-id', 'data-row-key', 'data-cap', 'data-doc', 'data-link']) el.removeAttribute(name)
+      if (el.isContentEditable || el.hasAttribute('contenteditable')) el.setAttribute('contenteditable', 'false')
     }
     picture.style.transform = `translateY(${-frame.value.top}px)`
     copy.replaceChildren(picture)
