@@ -164,7 +164,8 @@ export function spanDates(scale: SpanScale, start: string): { date: string; end:
   switch (scale) {
     case 'day': return { date: short(d), end: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]! }
     case 'week': return { date: short(d), end: short(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 6)) }
-    case 'month': return { date: MONTH_NAMES[d.getMonth()]!, end: String(d.getFullYear()) }
+    // A month's name fills the header alone; "November 2026" would not fit (S5.P1.014's 184 px).
+    case 'month': return { date: MONTH_NAMES[d.getMonth()]!, end: '' }
     case 'quarter': return { date: `Q${Math.floor(d.getMonth() / 3) + 1}`, end: String(d.getFullYear()) }
     case 'year': return { date: String(d.getFullYear()), end: '' }
     case 'decade': return { date: `${d.getFullYear()}–${d.getFullYear() + 2}`, end: '' }

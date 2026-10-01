@@ -59,7 +59,12 @@ const text = computed(() => commandFilter.text)
 const maxWidth = computed(() => Math.max(CIRCLE, Math.min(720, room.width - 32)))
 
 let measureCtx: CanvasRenderingContext2D | null = null
+/* A face loads its glyphs as they are first used (Cyrillic, say): until then words are measured in the fallback face,
+   so the field measures them again once a face has loaded, or a pasted line wraps out of sight. */
+const fontsLoaded = ref(0)
+function onFontsLoaded(): void { fontsLoaded.value += 1 }
 function textWidth(value: string): number {
+  void fontsLoaded.value
   if (!input.value) return 0
   measureCtx ??= document.createElement('canvas').getContext('2d')
   if (!measureCtx) return 0
@@ -313,6 +318,7 @@ onMounted(() => {
   if (match?.[1]) { try { commandFilter.text = decodeURIComponent(match[1]) } catch { commandFilter.text = match[1] } }
   window.addEventListener('keydown', onWindowKeyDown, true)
   window.addEventListener('resize', onResize)
+  document.fonts?.addEventListener('loadingdone', onFontsLoaded)
   stopNews = watchBoardNews()
   stopFinding = followWords(() => commandFilter.text, () => store.state.board)
   void document.fonts?.ready.then(() => void nextTick(measure))
@@ -320,6 +326,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onWindowKeyDown, true)
   window.removeEventListener('resize', onResize)
+  document.fonts?.removeEventListener('loadingdone', onFontsLoaded)
   stopNews?.()
   stopFinding?.()
   if (stillTimer) clearTimeout(stillTimer)
