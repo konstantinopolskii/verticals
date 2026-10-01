@@ -22,7 +22,7 @@
 import { computed, nextTick, watch, type ComputedRef } from 'vue'
 import type { BoardResponse } from './api'
 import { ancestorIds, findGoal, subtreeIds } from './boardIndex'
-import { columnScroller, moveFamily } from './familyMotion'
+import { columnPlace, moveFamily, scrollBack, type ColumnPlace } from './familyMotion'
 
 /** Full: the open goal and its parent. Light: one level away. Faint: two. Far: related, further away. A goal the map
  *  leaves out is turned off, so the rest of the board needs no light of its own. */
@@ -178,27 +178,29 @@ export function createFamilyView(
     return [vertical, parent ?? 'root', i, path[i]].join(':')
   }
 
-  /** Where each column stood before a goal opened in it and widened it. */
-  const restPlace = new Map<string, number>()
+  /** Where each column stood before a goal opened in it. */
+  const restPlace = new Map<string, ColumnPlace>()
+  // However its goal goes, closed or opened elsewhere, the column scrolls back there.
+  watch(() => state.openGoalVertical, (now, was) => {
+    const place = was === null || now === was ? undefined : restPlace.get(was)
+    if (!place || was === null) return
+    restPlace.delete(was)
+    scrollBack(place)
+  }, { flush: 'post' })
 
   /** Open `path` in `vertical`'s column: the column widens, the last goal is the card, the ones before it are the lines
    *  above it. Deeper than two levels in, nothing opens. A goal opens in its own column; the column that had the open
    *  goal narrows and goes back to where it stood before (KK, 29 Sep 2026: "It opens where it's are. Your current
-   *  opened column collapses and goes back to the regular state"): its scroll from the wide layout means nothing once
-   *  its cards are narrow again. */
+   *  opened column collapses and goes back to the regular state"). */
   function openFamily(path: string[], vertical: string): Promise<void> {
     if (!path.length || path.length > DEEPEST) return Promise.resolve()
-    const left = state.openGoalId !== null && state.openGoalVertical !== vertical && state.expandedVertical === state.openGoalVertical
-      ? state.openGoalVertical : null
-    if (vertical !== state.expandedVertical) restPlace.set(vertical, columnScroller(vertical)?.scrollTop ?? 0)
+    if (state.openGoalId === null || state.openGoalVertical !== vertical) {
+      const place = columnPlace(vertical)
+      if (place) restPlace.set(vertical, place)
+    }
     const open = () => {
       if (vertical !== 'maybe') state.expandedVertical = vertical
       void deps.openGoal(path[path.length - 1], vertical, hostKey(vertical, path, path.length - 1), path)
-      const back = left === null ? undefined : restPlace.get(left)
-      if (left !== null && back !== undefined) {
-        restPlace.delete(left)
-        void nextTick(() => { const scroller = columnScroller(left); if (scroller) scroller.scrollTop = back })
-      }
     }
     // A change inside the wide column moves it (lib/familyMotion.ts); a column that widens has its own opening. The move
     // reads where everything ends up once the card's notes are laid out: they fold after a few ticks, never a frame.

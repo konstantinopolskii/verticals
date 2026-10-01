@@ -208,9 +208,43 @@ export function pinRow(row: HTMLElement): () => void {
 }
 
 /** The element that scrolls `vertical`'s column: its current period's slide. */
-export function columnScroller(vertical: string): HTMLElement | null {
+function columnScroller(vertical: string): HTMLElement | null {
   return typeof document === 'undefined' ? null
     : document.querySelector<HTMLElement>(`.pattern-vertical-board__column[data-vertical="${vertical}"] .period-slide:not([data-state="outgoing"])`)
+}
+
+/** Where a column stands: the rows in its window from the top edge down, each with its place there, and its scroll. */
+export interface ColumnPlace { scroller: HTMLElement; rows: { key: string; offset: number }[]; scrollTop: number }
+
+/** Where `row` starts in `scroller`'s content, as laid out: a lift or a glide doesn't count. */
+function contentTop(row: HTMLElement, scroller: HTMLElement): number {
+  let y = 0
+  for (let e: HTMLElement | null = row; e && e !== scroller; e = e.offsetParent as HTMLElement | null) y += e.offsetTop
+  return y
+}
+
+export function columnPlace(vertical: string): ColumnPlace | null {
+  const scroller = columnScroller(vertical)
+  if (!scroller) return null
+  const rows: ColumnPlace['rows'] = []
+  for (const row of scroller.querySelectorAll<HTMLElement>('.goal-card[data-row-key]')) {
+    const offset = contentTop(row, scroller) - scroller.scrollTop
+    if (offset + row.offsetHeight > 0 && offset < scroller.clientHeight) rows.push({ key: row.dataset.rowKey!, offset })
+  }
+  return { scroller, rows, scrollTop: scroller.scrollTop }
+}
+
+/** Scroll the column back to `place`: the row nearest its top edge where it stood, even when the cards changed size
+ *  with the column's width; the next one if it is gone; the old scroll if all are. */
+export function scrollBack(place: ColumnPlace): void {
+  const { scroller } = place
+  if (!scroller.isConnected) return
+  if (place.scrollTop === 0) { scroller.scrollTop = 0; return }
+  for (const { key, offset } of place.rows) {
+    const row = scroller.querySelector<HTMLElement>(`.goal-card[data-row-key="${CSS.escape(key)}"]`)
+    if (row) { scroller.scrollTop = contentTop(row, scroller) - offset; return }
+  }
+  scroller.scrollTop = place.scrollTop
 }
 
 /** Run `change` (a change of the open family in the wide column `vertical`) and move the column from how it looked to
