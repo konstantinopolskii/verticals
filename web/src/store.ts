@@ -11,8 +11,6 @@ import {
   deleteGoal,
   reparentGoal as apiReparentGoal,
   parkGoal as apiParkGoal,
-  dueAckGoal as apiDueAckGoal,
-  ApiError,
   type BoardResponse,
   type GoalCard,
   type GoalDetail,
@@ -27,10 +25,12 @@ import {
 } from './lib/boardIndex'
 import * as viewState from './lib/boardViewState'
 import { createDetailSurface } from './lib/detailSurface'
+import { createFamilyView } from './lib/familyView'
+import { createGoalDelete } from './lib/goalDelete'
 import { createDocsView, createInitialDocsState, type DocsState } from './lib/docsView'
 import { createCommentsPanel, createInitialCommentsState, type CommentsState } from './lib/comments'
 import { isoDate, localDate } from './lib/schedule'
-import { scheduleOrdering, type DragState } from './lib/drag'
+import { recaptureRowRects, scheduleOrdering, type DragState } from './lib/drag'
 import { createDragActions } from './lib/dragActions'
 import { toColumnData } from './lib/boardProjection'
 import { createDayRollover } from './lib/dayRollover'
@@ -49,8 +49,12 @@ import {
 } from './lib/scheduleView'
 import { createLiveBoard } from './lib/liveBoard'
 import { bump as bumpBoardEpoch, current as currentBoardEpoch } from './lib/boardEpoch'
-import type { VerticalScale } from './lib/periods'
+import { verticalRank, type VerticalScale } from './lib/periods'
 import type { BoardColumnData } from './types'
+import { carryOver } from './lib/replan'
+import { captureRows, slideIntoGroups } from './lib/rollSlide'
+import { spanAnchor, spanGoal, withSpans } from './lib/spans'
+import { afterRelease, beforeRelease, bindSpansDrag, onDragMove } from './lib/spansDrag'
 
 /** Today, as the client reads it. Plain `new Date()` — the `ui` suite pins this transparently via
  *  `page.clock.setFixedTime` (`docs/E2E.md` §1 instrumentation entry 3); production reads the real
@@ -75,6 +79,9 @@ interface State {
   openGoalVertical: string | null
   /** Stable rendered-card host. Internal breadcrumb/subgoal navigation reuses this host. */
   openGoalHostKey: string | null
+  /** Flow 4: the levels stepped through, the open goal last; its light moves fast while it swaps under the pointer. */
+  openPath: string[]
+  lightFast: boolean
   goalDetail: GoalDetail | null
   goalDetailLoading: boolean
   activeView: 'verticals' | 'inbox' | 'docs'
@@ -113,6 +120,8 @@ const state = reactive<State>({
   openGoalId: null,
   openGoalVertical: null,
   openGoalHostKey: null,
+  openPath: [],
+  lightFast: false,
   goalDetail: null,
   goalDetailLoading: false,
   hasOpenedGoal: false,
@@ -192,7 +201,14 @@ const dayRollover = createDayRollover({
   today: todayIso,
   anchorDate: () => state.board?.anchor_date ?? null,
   busy: () => Boolean(state.drag.id || state.drag.settling),
-  load: loadBoard,
+  // The day turned: the carry-over first, so the board it loads holds the day's Replan task (S4.P1.017); the plans left
+  // over slide into their groups (S4.P1.013).
+  load: async (date) => {
+    await carryOver(date)
+    const before = captureRows()
+    await loadBoard(date)
+    await slideIntoGroups(before)
+  },
 })
 const checkDayRollover = dayRollover.check
 const startDayRollover = dayRollover.start
@@ -232,7 +248,7 @@ function sameVerticalParentId(id: string): string | null {
 // deliberately different shapes (field names, nesting) — this section is the one place that
 // reconciles them, so every component downstream renders from the same projection.
 
-const columns: ComputedRef<BoardColumnData[]> = computed(() => {
+const projectedColumns: ComputedRef<BoardColumnData[]> = computed(() => {
   if (!state.board) return []
   const today = new Date()
   const board = state.board
@@ -241,8 +257,15 @@ const columns: ComputedRef<BoardColumnData[]> = computed(() => {
   // board is currently ON (owner report 2026-08-10). `anchor_date` is always present on a loaded
   // board; the fallback only covers the type, never a real payload.
   const anchor = localDate(board.anchor_date ?? isoDate(today))
-  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags, state.expandedVertical))
+  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags))
 })
+/** Which column is wide is laid over the projection, not built into it: widening a column keeps every card's data as it
+ *  was, so the cards don't all draw themselves again (flow 4: the first opening's redrawing went from 20.7 to 13.2 ms in a
+ *  profile, 29 Sep 2026). */
+const columns: ComputedRef<BoardColumnData[]> = computed(() => projectedColumns.value.map((c) => {
+  const active = c.vertical !== 'maybe' && c.vertical === state.expandedVertical
+  return active === c.active ? c : { ...c, active }
+}))
 
 // --- compact board view state (COMPACT_BOARD_HANDOFF.md §3, §5 — KK rulings 2026-08-17) --------
 // Behaviour lives in `lib/boardViewState.ts` (lifted for S-90a); the store binds it to `state`.
@@ -329,6 +352,11 @@ async function createGoalOn(verticalBucket: string, title: string): Promise<void
  *  wants (`{vertical, anchor_date}`, never a computed `period_key`, AC-010). Popover scheduling
  *  retains its broad reload. Drag scheduling already names a visible destination, so it moves the
  *  local row before the request and reconciles from the returned card without a board refetch. */
+/** A period's start day for the schedule write: a span's own, or the schedule grid's (docs/design-handoff S5.P6.003). */
+function anchorFor(scale: VerticalScale, periodKey: string): string {
+  return spanAnchor(scale, periodKey) ?? scheduleGrid.value.anchorDate(scale, periodKey)
+}
+
 async function scheduleGoalTo(
   id: string,
   scale: VerticalScale,
@@ -336,12 +364,13 @@ async function scheduleGoalTo(
   optimisticDrag = false,
   insertBeforeId: string | null = null,
 ): Promise<void> {
-  const anchor = scheduleGrid.value.anchorDate(scale, periodKey)
+  const anchor = anchorFor(scale, periodKey)
+  const board = withSpans(state.board)
   const ordering = optimisticDrag
-    ? scheduleOrdering(state.board, id, { insertBeforeId, vertical: scale, periodKey })
+    ? scheduleOrdering(board, id, { insertBeforeId, vertical: scale, periodKey })
     : null
   const placement = optimisticDrag
-    ? schedulePlacement(state.board, id, { vertical: scale, periodKey }, anchor, insertBeforeId)
+    ? schedulePlacement(board, id, { vertical: scale, periodKey }, anchor, insertBeforeId)
     : null
   try {
     const updated = await scheduleGoal(id, scale, anchor, ordering ?? undefined)
@@ -360,8 +389,8 @@ async function scheduleGoalTo(
 }
 
 /** Card-menu schedule: commit before transport and settle from response without a board GET. */
-async function scheduleGoalQuick(id: string, scale: VerticalScale, periodKey: string): Promise<void> {
-  const anchor = scheduleGrid.value.anchorDate(scale, periodKey)
+async function scheduleGoalQuick(id: string, scale: VerticalScale, periodKey: string, day?: string): Promise<void> {
+  const anchor = day ?? scheduleGrid.value.anchorDate(scale, periodKey)
   const placement = schedulePlacement(state.board, id, { vertical: scale, periodKey }, anchor)
   try {
     const updated = await scheduleGoal(id, scale, anchor)
@@ -408,27 +437,6 @@ async function parkGoal(id: string): Promise<void> {
     placement?.reconcile()
   } catch (err) {
     placement?.rollback()
-    toast(messageForError(err))
-  }
-}
-
-async function ignoreGhost(id: string, until: string): Promise<void> {
-  try {
-    await patchGoal(id, { carryover_ignored_until: until })
-    await reloadBoard()
-  } catch (err) {
-    toast(messageForError(err))
-  }
-}
-
-/** 011: acknowledge a ghost's dueness with a verdict. Either verdict removes the ghost from the
- *  board (the server's ghost branch excludes acknowledged periods); 'done_on_time' also
- *  completes the goal server-side, so the reload reflects both effects at once. */
-async function dueAckGhost(id: string, verdict: 'overdue' | 'done_on_time'): Promise<void> {
-  try {
-    await apiDueAckGoal(id, verdict)
-    await reloadBoard()
-  } catch (err) {
     toast(messageForError(err))
   }
 }
@@ -509,9 +517,20 @@ async function reparent(id: string, parentId: string | null, optimisticDrag = fa
  *  it appends like every other non-drag schedule write) — no reload on success; a failed write
  *  rolls its placement back and toasts, matching the drag-commit paths in `lib/dragActions.ts`. */
 async function combineInto(id: string, targetId: string): Promise<void> {
+  const parent = findGoalById(targetId) ?? spanGoal(targetId)
+  const child = findGoalById(id) ?? spanGoal(id)
+  // Let go on a smaller vertical's goal, the held goal takes that goal's period first, then becomes its step (S5.P6.002).
+  if (parent?.vertical && child?.vertical && verticalRank(child.vertical as VerticalScale) > verticalRank(parent.vertical as VerticalScale)) {
+    try {
+      await scheduleGoal(id, parent.vertical as VerticalScale, parent.anchor_date)
+    } catch (err) {
+      toast(messageForError(err))
+      return
+    }
+    await reparent(id, targetId)
+    return
+  }
   await reparent(id, targetId, true)
-  const parent = findGoalById(targetId)
-  const child = findGoalById(id)
   if (!parent || !child) return
   if (child.vertical === parent.vertical && child.anchor_date === parent.anchor_date) return
   const placement = schedulePlacement(
@@ -551,55 +570,31 @@ const {
   autoScrollDrag,
   pointerUpDrag,
 } = createDragActions({
-  state,
-  findGoalById,
+  // While spans are open the drag reads their goals beside the board's (docs/design-handoff S5.P1).
+  state: { drag: state.drag, get board() { return withSpans(state.board) } },
+  findGoalById: (id) => findGoalById(id) ?? spanGoal(id),
   sameVerticalParentId,
   combineInto,
   scheduleGoalTo,
-  anchorDate: (scale, periodKey) => scheduleGrid.value.anchorDate(scale, periodKey),
+  anchorDate: anchorFor,
+  onMove: onDragMove,
+  onRelease: afterRelease,
+  beforeRelease,
   quietReload,
   expandedVertical: () => state.expandedVertical,
   expandColumn,
+  openFamily: (path, vertical) => family.openFamily(path, vertical), // bound late: the family view is made below
+})
+
+bindSpansDrag({
+  drag: state.drag, today: todayIso, reload: reloadBoard,
+  expanded: () => state.expandedVertical, setExpanded: (vertical) => { state.expandedVertical = vertical },
+  retarget: () => { recaptureRowRects(); pointerMoveDrag(state.drag.x, state.drag.y) },
 })
 
 // --- delete --------------------------------------------------------------------------------------
 
-/** `DELETE /api/goals/{id}`, no confirmation dialog — the same shape `removeSample` already ships
- *  and the same reason (§10-D12; a confirm dialog is also a `role="dialog"` node every "this
- *  happened without a modal" assertion in the suite would then see).
- *
- *  A goal with children is `core.goals.delete`'s own `HasChildren` (409), and this does **not**
- *  silently retry with `?cascade=true`: destroying a subtree nobody asked about is a different act
- *  from deleting the row that was clicked. The 409 surfaces as a toast whose action performs the
- *  cascading delete, so the second, larger write is always a second, deliberate click. */
-async function removeGoal(id: string): Promise<void> {
-  const placement = removePlacement(state.board, id)
-  try {
-    await deleteGoal(id)
-    placement?.reconcile()
-  } catch (err) {
-    placement?.rollback()
-    if (err instanceof ApiError && err.status === 409) {
-      toast('This goal has subgoals.', {
-        action: 'Delete all',
-        onAction: () => void removeGoalCascade(id),
-      })
-      return
-    }
-    toast(messageForError(err))
-  }
-}
-
-async function removeGoalCascade(id: string): Promise<void> {
-  const placement = removePlacement(state.board, id, true)
-  try {
-    await deleteGoal(id, true)
-    placement?.reconcile()
-  } catch (err) {
-    placement?.rollback()
-    toast(messageForError(err))
-  }
-}
+const { removeGoal } = createGoalDelete(state) // `lib/goalDelete.ts`
 
 // --- goal detail (S-104, D226) ----------------------------------------------------------------
 //
@@ -615,6 +610,7 @@ const detail = createDetailSurface(state, {
 })
 const {
   fetchGoalDetail,
+  ensureDetail,
   schedulePrefetchBoardDetails,
   openGoal,
   openBoardGoal,
@@ -623,6 +619,7 @@ const {
   addDetailChild,
   closeGoal,
 } = detail
+const family = createFamilyView(state, { openGoal, closeGoal, ensureDetail })
 
 /** Opening a board card expands its column (KK ruling 2026-08-17: card click = expand + open in
  *  one gesture). Central here so direct-URL opens and swapped-face clicks get the same behavior:
@@ -706,8 +703,6 @@ export const store = {
   moveGoalToInbox,
   setValueFilter,
   parkGoal,
-  ignoreGhost,
-  dueAckGhost,
   removeSample,
   parentVertical,
   boardGoalHost,
@@ -717,6 +712,7 @@ export const store = {
   reparentTargets,
   reparent,
   reparentQuick,
+  combineInto,
   pointerDownCard,
   pointerMoveDrag,
   setDragPreviewSize,
@@ -728,6 +724,7 @@ export const store = {
   toggleDetailChild,
   addDetailChild,
   openGoal,
+  ensureDetail,
   openBoardGoal: openBoardGoalExpanded,
   navigateToGoal,
   closeGoal,
@@ -735,6 +732,7 @@ export const store = {
   expandColumn,
   setHoverChain,
   hoverChain,
+  ...family,
   runSearch,
   loadRecentSearch,
   filterByTag,

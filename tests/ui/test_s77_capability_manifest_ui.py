@@ -8,7 +8,10 @@ issues the row's `(http_method, http_path)`. Required by AC-104/AC-195. Serves L
 E2E.md §11 finding 13 and this scenario's own text: every UI-backed row resolves — except
 `bulk_update`, which carries `ui_selector: null` since the owner's 2026-08-09 click-opens ruling
 removed the selection gesture (see `_selector_of`'s doc comment) and whose selector's *absence*
-is asserted instead. Sets, never counts. `capture_maybe`
+is asserted instead. `filter_value` took the same shape when the bottom bar became one field
+(3bc40f9): a value is an area token in "Find, filter or ask", and the field narrows the loaded
+board in the browser, so no control in the page issues the filtered board GET any more; the
+route stays on HTTP and MCP. Sets, never counts. `capture_maybe`
 resolves by column plus cap (`ui_column` + `ui_selector`, `_selector_of` below) rather than by a
 `data-cap` value of its own — rows 108/116(b), the ruling that a capability is a gesture and the
 manifest may name a control by where it sits.
@@ -28,7 +31,7 @@ import json
 import re
 import time
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
@@ -38,6 +41,7 @@ import psycopg
 from verticals.core import goals as core_goals
 from tests.harness.report import gate
 from tests.ui.conftest import UiSession, activate_column
+from tests.ui.views import switch_view
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "tests" / "fixtures" / "capabilities.json"
@@ -149,12 +153,12 @@ def _activate_row(
 
 def _seed_live_ghost(session: UiSession, title: str):
     """R10 revised (KK ruling 2026-08-16): ghosts exist only on the wall-clock current period,
-    so the pinned 2026-08-08 board carries none — `due_ack` (ghost-gated, D230) can only be
-    resolved on `/h/<real today>` against a row overdue RELATIVE TO RUNTIME TODAY."""
+    so the pinned 2026-08-08 board carries none; a year's plan from last year stays in Year's
+    group whatever day the suite runs on (docs/design-handoff S4.P1.007)."""
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
         return core_goals.create(
-            conn, owner="t1", title=title, vertical="week",
-            anchor_date=date.today() - timedelta(days=7),
+            conn, owner="t1", title=title, vertical="year",
+            anchor_date=date(date.today().year - 1, 6, 15),
         ).goal
 
 
@@ -166,8 +170,24 @@ def _open_card_menu(page, vertical: str, goal_id: str) -> None:
 
 def _open_reparent_menu(page, vertical: str, goal_id: str) -> None:
     _open_card_menu(page, vertical, goal_id)
-    page.click('#dropdownPortal [data-action="reparent"] > button')
-    page.wait_for_selector('[data-role="goal-actions-reparent"]', timeout=5000)
+    page.click('#dropdownPortal [data-move="under"]')
+    page.wait_for_selector('[data-role="move-step"][data-step="under"]', timeout=5000)
+
+
+def _open_tags(page, goal_id: str) -> None:
+    """An open goal's tags are in its "..." menu, "Tags..." (the opened-card cleanup, KK 27-28 Sep 2026): the inline
+    card has no icon row, so the Tags button this scenario used to click is gone."""
+    page.click(f'[data-goal-id="{goal_id}"].goal-card--detail-open [data-role="goal-actions-trigger"]')
+    page.click('[data-role="goal-actions-menu"] [data-action="tags"] button')
+    page.wait_for_selector('#dropdownPortal [data-role="tag-chips"]', timeout=5000)
+
+
+def _close_tags(page) -> None:
+    """Escape closes one level per press: the Tags submenu, then the "..." menu. The open card stays open."""
+    page.keyboard.press("Escape")
+    page.wait_for_selector('[data-role="tag-chips"]', state="hidden", timeout=5000)
+    page.keyboard.press("Escape")
+    page.wait_for_selector('[data-role="goal-context-menu"]', state="hidden", timeout=5000)
 
 
 def _prepare_inline_add(page, selector: str, title: str) -> str:
@@ -221,10 +241,12 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         f"F5 must hold 29 rows (20 + D250's four doc capabilities + D254's link/unlink + WP-A's "
         f"three comment capabilities), found {len(rows)}"
     )
+    # "Remove from vertical" left the goal's menu with its systematic order (docs/design-handoff S5.P5.007): park is
+    # HTTP/MCP only now.
     park_rows = [row for row in rows if row["cap"] == "park"]
     assert park_rows == [{
         "cap": "park",
-        "ui_selector": "[data-cap=park]",
+        "ui_selector": None,
         "http_method": "POST",
         "http_path": "/api/goals/{id}/park",
         "mcp_tool": "park",
@@ -263,7 +285,7 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     # 2026-08-09 click-opens ruling removed the selection gesture and the bulk bar, so there is no
     # element for this row to resolve against and nothing to click. Its absence from the DOM is
     # asserted below — a `[data-cap=bulk]` element reappearing would mean the ruling regressed.
-    gesture_caps = {"park", "set_tags", "list_tags", "due_ack"}
+    gesture_caps = {"set_tags", "list_tags"}
     board_rows = [
         row
         for row in rows
@@ -273,13 +295,11 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     unresolved = [row for row in board_rows if page.locator(_selector_of(row)).count() == 0]
 
     tags_rows = [row for row in rows if row["cap"] in {"set_tags", "list_tags"}]
-    page.get_by_role("button", name="Tags", exact=True).click()
-    page.wait_for_selector("[data-role=tag-chips]", timeout=5000)
+    _open_tags(page, "SYNSUB01")
     unresolved.extend(
         row for row in tags_rows if page.locator(_selector_of(row)).count() == 0
     )
-    page.keyboard.press("Escape")
-    page.wait_for_selector("[data-role=tag-chips]", state="hidden", timeout=5000)
+    _close_tags(page)
 
     # `set_color` joined `bulk_update` in the `null`-selector shape: D203 removed the colour
     # picker from goal detail (card colour still renders from stored data; the capability stays
@@ -290,6 +310,14 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         "the detail surface (set_color stays HTTP/MCP-only, `ui_selector: null`)"
     )
 
+    # `filter_value` is the third `null` row: the D238 nav links that carried `[data-cap=value-filter]` went with the
+    # bottom bar (3bc40f9). A value is an area token in the field now, and the field filters in the browser.
+    assert page.locator("[data-cap=value-filter]").count() == 0, (
+        "`[data-cap=value-filter]` must not exist anywhere — the value links left with the bottom bar (3bc40f9); "
+        "a value is an area token in the field, which filters in the browser (filter_value stays HTTP/MCP-only, "
+        "`ui_selector: null`)"
+    )
+
     assert page.locator("[data-cap=bulk]").count() == 0, (
         "`[data-cap=bulk]` must not exist anywhere — the owner's 2026-08-09 ruling removed the "
         "selection gesture and the bulk bar (bulk stays HTTP/MCP-only, `ui_selector: null`); an "
@@ -298,38 +326,35 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
 
     capture_maybe_row = next(row for row in rows if row["cap"] == "capture_maybe")
     # The inline detail opened above (`SYNSUB01`) still owns the card row until a real close.
-    # Escape is the same close path S-66/S-104 exercise, not a new gesture invented here.
+    # Escape is the same close path S-66/S-104 exercise, not a new gesture invented here. SYNSUB01 is drawn under
+    # SYNDAY01: the first Escape goes up to SYNDAY01 (flow 4, as in S-68), the second closes.
+    page.keyboard.press("Escape")
+    page.wait_for_selector('.goal-card--detail-open[data-goal-id="SYNDAY01"]', timeout=5000)
     page.keyboard.press("Escape")
     page.wait_for_selector('#goal-detail[data-role="inline-detail"]', state="detached", timeout=5000)
 
-    park_row = next(row for row in rows if row["cap"] == "park")
+    move_group = '[data-role="goal-context-menu"] [data-menu-section="move"]'
     activate_column(page, "day")
     page.click('[data-goal-id="SYNDAY01"] [data-role=goal-actions-trigger]')
-    page.wait_for_selector(_selector_of(park_row), timeout=5000)
-    if page.locator(_selector_of(park_row)).count() == 0:
-        unresolved.append(park_row)
+    page.wait_for_selector(move_group, timeout=5000)
+    assert page.locator("[data-cap=park]").count() == 0
     page.keyboard.press("Escape")
-    page.wait_for_selector(_selector_of(park_row), state="hidden", timeout=5000)
+    page.wait_for_selector(move_group, state="hidden", timeout=5000)
 
-    # `due_ack` (D230) is ghost-only, the same gate as Ignore: it resolves inside a CARRY-OVER
-    # card's menu sheet and nowhere else. R10 revised: only the real today's board shows a
-    # ghost, so resolve this row there against a freshly seeded overdue week row, then return
-    # to the pinned board for the rest of the sweep.
-    due_ack_row = next(row for row in rows if row["cap"] == "due_ack")
-    live_ghost = _seed_live_ghost(session, "SYN s77 due-ack ghost")
+    # `due_ack` left the card's menu with the roll (docs/design-handoff S4.P1.020): its row is
+    # HTTP/MCP only now (`ui_selector: null`), and a carried plan's menu must not offer it.
+    live_ghost = _seed_live_ghost(session, "SYN s77 carried plan")
     page.goto(f"{session.base_url}/h/{date.today().isoformat()}")
     page.wait_for_selector(f'[data-goal-id="{live_ghost.id}"]', timeout=5000)
-    activate_column(page, "week")
+    activate_column(page, "year")
     page.click(f'[data-goal-id="{live_ghost.id}"] [data-role=goal-actions-trigger]')
-    page.wait_for_selector(_selector_of(due_ack_row), timeout=5000)
-    if page.locator(_selector_of(due_ack_row)).count() == 0:
-        unresolved.append(due_ack_row)
+    page.wait_for_selector(move_group, timeout=5000)
+    assert page.locator("[data-cap=due-ack]").count() == 0
     page.keyboard.press("Escape")
-    page.wait_for_selector(_selector_of(due_ack_row), state="hidden", timeout=5000)
     page.goto(session.base_url)
     page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=5000)
 
-    page.click('[data-nav-item="inbox"]')
+    switch_view(page, "inbox")
     page.wait_for_selector('[data-cap="inbox"]')
     if page.locator(_selector_of(capture_maybe_row)).count() == 0:
         unresolved.append(capture_maybe_row)
@@ -364,7 +389,7 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
 
     # The sweep above left the app on Inbox, and the URL now carries the view (`#inbox`), so a
     # reload would restore Inbox rather than the board every block below is written against.
-    page.click('[data-nav-item="verticals"]')
+    switch_view(page, "verticals")
     page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
 
     by_cap = {row["cap"]: row for row in rows}
@@ -377,22 +402,13 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     _activate_row(session, by_cap["list_tags"], page.reload, observed)
     page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
 
-    # `filter_value` (D233/D238) is the second display capability: its gesture is a value link
-    # in the app nav and its declared route is the filtered board GET. "Verticals" doubles as All
-    # (D238), and it is clicked right after so every later block sees the unfiltered board it
-    # was written against.
-    _activate_row(
-        session,
-        by_cap["filter_value"],
-        lambda: page.click('[data-cap=value-filter] [data-value-id="SYNLIF01"]'),
-        observed,
-    )
-    page.click('[data-cap=value-filter] [data-nav-item="verticals"]')
-    page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
+    # `filter_value` has no activation here: its value is an area token in the field, which narrows the loaded board in
+    # the browser (3bc40f9, tests/ui/test_value_bar.py), so the row carries `ui_selector: null` and its filtered board
+    # GET is HTTP/MCP-only, like `bulk_update` and `set_color`.
 
     # Capture in Inbox and ordinary create on the board share one control implementation but
     # carry distinct manifest rows. Enter is the committing gesture in both surfaces.
-    page.click('[data-nav-item="inbox"]')
+    switch_view(page, "inbox")
     page.wait_for_selector('[data-cap="inbox"]')
     maybe_add = _selector_of(by_cap["capture_maybe"])
     maybe_editor = _prepare_inline_add(page, maybe_add, "Manifest inbox capture")
@@ -403,7 +419,7 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         observed,
     )
 
-    page.click('[data-nav-item="verticals"]')
+    switch_view(page, "verticals")
     page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
     activate_column(page, "day")
     day_add = '[data-vertical="day"] [data-cap=create-goal]'
@@ -438,7 +454,7 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     )
 
     # Detail editor: real card-row click, then title/body/tags/colour controls. Body persists on
-    # blur; clicking Tags supplies that blur and opens the next real surface in one user action.
+    # blur; pressing the open card's "..." supplies that blur on the way to its Tags submenu.
     activate_column(page, "day")
     page.click('[data-goal-id="SYNCOL06"] > [data-cap=reorder]')
     # D187: the opened card's own compact row is the editor's identity rail — `edit-title` sits
@@ -461,10 +477,11 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     _activate_row(
         session,
         by_cap["edit_body"],
-        lambda: page.get_by_role("button", name="Tags", exact=True).click(),
+        lambda: page.click('[data-goal-id="SYNCOL06"].goal-card--detail-open [data-role="goal-actions-trigger"]'),
         observed,
     )
-    page.wait_for_selector('[data-role="tag-chips"]', timeout=5000)
+    page.click('[data-role="goal-actions-menu"] [data-action="tags"] button')
+    page.wait_for_selector('#dropdownPortal [data-role="tag-chips"]', timeout=5000)
 
     tag_input = '#dropdownPortal [data-role="tag-chips"] [data-cap="set-tags"]'
     page.fill(tag_input, "manifest-tag")
@@ -474,15 +491,15 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         lambda: page.press(tag_input, "Enter"),
         observed,
     )
-    page.keyboard.press("Escape")
-    page.wait_for_selector('[data-role="tag-chips"]', state="hidden", timeout=5000)
+    _close_tags(page)
 
     # `set_color` has no activation here: D203 removed the colour picker, the row carries
     # `ui_selector: null`, and null rows are HTTP/MCP-only by the manifest's own shape.
 
-    # Pick Tomorrow from the detail schedule surface. Clearing schedule lives in the card menu's
+    # Pick Tomorrow from the detail schedule surface: the open goal's date, the first fact under its title (GoalFacts.vue,
+    # the opened-card cleanup, KK 27-28 Sep 2026). Clearing schedule lives in the card menu's
     # `Move to Inbox` action; it is the same PUT route in the manifest's null state.
-    page.click('#goal-detail [data-cap="schedule"]')
+    page.click('[data-goal-id="SYNCOL06"].goal-card--detail-open .goal-facts [data-cap="schedule"]')
     page.wait_for_selector('[data-role="schedule-footer"]', timeout=5000)
     _activate_row(
         session,
@@ -505,44 +522,19 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         observed,
     )
 
-    # Park is mounted only inside this same menu sheet.
-    _open_card_menu(page, "day", "SYNCOL04")
-    _activate_row(
-        session,
-        by_cap["park"],
-        lambda: page.click('#dropdownPortal [data-cap="park"]'),
-        observed,
-    )
-
-    # due_ack lives only in a GHOST card's menu (D230); R10 revised means only the real
-    # today's board can show one — seed an overdue row in the previous real ISO week,
-    # activate the row there, then return to the pinned board.
-    live_ghost = _seed_live_ghost(session, "SYN s77 due-ack activation ghost")
-    page.goto(f"{session.base_url}/h/{date.today().isoformat()}")
-    page.wait_for_selector(f'[data-goal-id="{live_ghost.id}"]', timeout=5000)
-    _open_card_menu(page, "week", live_ghost.id)
-    _activate_row(
-        session,
-        by_cap["due_ack"],
-        lambda: page.click('#dropdownPortal [data-cap="due-ack"]'),
-        observed,
-    )
-    page.goto(session.base_url)
-    page.wait_for_selector('[data-goal-id="SYNORD03"]', timeout=5000)
-
-    # Reparent and detach are two states of the nested Move-to surface.
+    # Reparent and detach are two rows of the menu's Under step (docs/design-handoff S5.P5.012).
     _open_reparent_menu(page, "week", "SYNORD03")
     _activate_row(
         session,
         by_cap["reparent"],
-        lambda: page.click('[data-role="goal-actions-reparent"] [data-parent-id="SYNSCH01"]'),
+        lambda: page.click('[data-role="move-step"] [data-parent-id="SYNSCH01"]'),
         observed,
     )
     _open_reparent_menu(page, "week", "SYNORD03")
     _activate_row(
         session,
         by_cap["detach"],
-        lambda: page.click('[data-role="goal-actions-reparent"] [data-parent-id=""]'),
+        lambda: page.click('[data-role="move-step"] [data-parent-id=""]'),
         observed,
     )
 
@@ -582,10 +574,13 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         for request in session.request_log[activation_start:]
         if request["method"] in MUTATING_METHODS
     ]
+    # The app's own daily carry-over (docs/design-handoff S4.P1.017) runs on every page load; it
+    # is housekeeping, not a capability, the same carve-out as `tests/mcp/test_cross_transport.py`.
     off_manifest = [
         _route_shape(request)
         for request in writes
         if not any(_request_matches(row, request) for row in rows)
+        and urlsplit(request["url"]).path != "/api/replan"
     ]
     assert off_manifest == [], f"unmanifested mutating route shape(s): {off_manifest}"
 

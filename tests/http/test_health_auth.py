@@ -55,6 +55,10 @@ EXPECTED_OPERATIONS = {
     ("POST", "/api/comments"),
     ("POST", "/api/comments/{thread_id}/messages"),
     ("POST", "/api/comments/{thread_id}/resolve"),
+    # The roll (docs/design-handoff S4.P1.017): the app's daily carry-over into the Replan task.
+    ("POST", "/api/replan"),
+    # Moving a goal (docs/design-handoff S5.P1.030): one vertical's periods in a row.
+    ("GET", "/api/spans"),
 }
 
 # J7's negative space: none of these ever appear in a path string, in either direction of the

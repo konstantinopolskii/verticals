@@ -105,9 +105,10 @@ def test_s01_migrations_apply_from_zero_to_head(fresh_db: str) -> None:
 
     Fixture: F0 on an empty database. Steps: CREATE DATABASE, `runner up`.
     Assert: exit 0 (no MigrationError raised); max(schema_version.version) equals the
-    highest-numbered migration file; exactly 11 tables (D250/WP-1 added `docs`, `doc_revisions`,
-    `goal_doc_links`; WP-A/015_comments.sql added `comment_threads`, `comment_messages`); both
-    enums carry 7 and 3 labels.
+    highest-numbered migration file; exactly 12 tables (D250/WP-1 added `docs`, `doc_revisions`,
+    `goal_doc_links`; WP-A/015_comments.sql added `comment_threads`, `comment_messages`;
+    016_replan.sql added `carryover_runs`); the enums carry 7 and 4 labels (016 added the app as
+    an author).
     """
     highest = max(m.version for m in runner.discover_migrations(MIGRATIONS_DIR))
 
@@ -123,10 +124,10 @@ def test_s01_migrations_apply_from_zero_to_head(fresh_db: str) -> None:
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"
         )
         (table_count,) = cur.fetchone()
-        assert table_count == 11, (
+        assert table_count == 12, (
             "expected goals, schema_version, idempotency, goal_evidence, tag_meta, "
             "due_acknowledgements, docs, doc_revisions, goal_doc_links, comment_threads, "
-            "comment_messages"
+            "comment_messages, carryover_runs"
         )
 
         cur.execute(
@@ -155,7 +156,7 @@ def test_s01_migrations_apply_from_zero_to_head(fresh_db: str) -> None:
 
     counts = _enum_label_counts(fresh_db)
     assert counts.get("vertical_scale") == 7
-    assert counts.get("goal_origin") == 3
+    assert counts.get("goal_origin") == 4
 
 
 def test_s02_migrations_are_idempotent_and_forward_only(fresh_db: str) -> None:

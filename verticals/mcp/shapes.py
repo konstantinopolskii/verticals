@@ -106,8 +106,10 @@ def board_dict(b: Board) -> dict[str, Any]:
                 "goals": [
                     {
                         **goal_dict(g),
-                        "ghost": g.id in b.ghosts,
-                        "ghost_until": b.ghosts[g.id].isoformat() if g.id in b.ghosts else None,
+                        "ghost": (is_ghost := g.id in b.ghosts and not (
+                            g.vertical == c.vertical and g.period_key == c.period_key
+                        )),
+                        "ghost_until": b.ghosts[g.id].isoformat() if is_ghost else None,
                     }
                     for g in c.goals
                 ],

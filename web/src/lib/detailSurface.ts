@@ -11,7 +11,7 @@
 // nav's own `closeGoal + setView` pair cannot disagree about what the address bar should say.
 
 import { createGoal, getGoal, patchGoal, type BoardResponse, type GoalDetail } from './api'
-import { boardGoalHost, findGoal } from './boardIndex'
+import { ancestorIds, boardGoalHost, findGoal } from './boardIndex'
 import { asOneHistoryStep } from './urlState'
 import type { DragState } from './drag'
 
@@ -26,6 +26,8 @@ interface DetailState {
   openGoalId: string | null
   openGoalVertical: string | null
   openGoalHostKey: string | null
+  /** Flow 4: the levels stepped through, the first goal opened first and the open goal last (`lib/familyView.ts`). */
+  openPath: string[]
   goalDetail: GoalDetail | null
   goalDetailLoading: boolean
   hasOpenedGoal: boolean
@@ -122,7 +124,9 @@ export function createDetailSurface(
     id: string,
     sourceVertical: string | null = state.openGoalVertical,
     hostKey: string | null = state.openGoalHostKey,
+    path: string[] = [id],
   ): Promise<void> {
+    state.openPath = path
     state.openGoalId = id
     state.openGoalVertical = sourceVertical
     state.openGoalHostKey = hostKey
@@ -146,7 +150,10 @@ export function createDetailSurface(
    * host key: doing so leaves the parent's compact title above the child's fetched body. */
   function openBoardGoal(id: string): Promise<void> {
     const host = boardGoalHost(state.board, id)
-    return openGoal(id, host?.columnVertical ?? state.openGoalVertical, host?.hostKey ?? null)
+    // Flow 4: a goal drawn under its parent in its column is opened one level in from that parent, so the parent is the
+    // line above it, the same as when it is clicked there.
+    const chain = host ? ancestorIds(state.board, id).slice(0, host.depth).reverse() : []
+    return openGoal(id, host?.columnVertical ?? state.openGoalVertical, host?.hostKey ?? null, [...chain, id])
   }
 
   // --- subgoal list in the detail surface (owner ruling 2026-08-09) ---------------------------
@@ -168,12 +175,16 @@ export function createDetailSurface(
     }
   }
 
+  /** The new step lives where its parent does, so it shows on the board at once. Without a vertical the server kept it
+   *  as an unscheduled idea, which the board doesn't draw: an added step vanished (found 27 Sep 2026). */
   async function addDetailChild(title: string): Promise<void> {
     const openId = state.openGoalId
     const trimmed = title.trim()
     if (!openId || !trimmed) return
+    const parent = state.goalDetail?.id === openId ? state.goalDetail : null
+    const place = parent?.vertical && parent.anchor_date ? { vertical: parent.vertical, anchor_date: parent.anchor_date } : {}
     try {
-      await createGoal({ title: trimmed, parent_id: openId })
+      await createGoal({ title: trimmed, parent_id: openId, ...place })
       state.goalDetail = await fetchGoalDetail(openId)
       await deps.reloadBoard()
     } catch (err) {
@@ -224,14 +235,11 @@ export function createDetailSurface(
 
     if (detail.vertical === null) {
       state.activeView = 'inbox'
-      // Root Maybe items (`parent_id IS NULL`) are depth 0 under the Inbox column's own "maybe"
-      // host, matching `GoalCard.vue`'s `detailHostKey` for that card exactly. A goal that is a
-      // pure subgoal (`vertical IS NULL` but parented) is not itself a Maybe-bucket row — best
-      // effort keys it by its real parent and ancestor-chain depth.
-      const hostKey = detail.parent_id === null
-        ? ['maybe', 'root', 0, id].join(':')
-        : ['maybe', detail.parent_id, detail.ancestors.length, id].join(':')
-      await openGoal(id, 'maybe', hostKey)
+      // Parked goals and parented ideas are absent from the Inbox projection. The shell
+      // renders the same GoalCard/detail surface for this explicit host instead of opening
+      // a key with no corresponding card.
+      const inInbox = state.board?.columns.find(column => column.vertical === null)?.goals.some(goal => goal.id === id)
+      await openGoal(id, inInbox ? 'maybe' : 'search', [inInbox ? 'maybe' : 'search', 'root', 0, id].join(':'))
       return
     }
 
@@ -242,9 +250,8 @@ export function createDetailSurface(
 
     await deps.loadBoard(detail.anchor_date)
     if (!boardGoalHost(state.board, id)) {
-      deps.reportError(
-        new Error(`navigateToGoal: goal ${id} not found on its board after loading anchor date ${detail.anchor_date}`),
-      )
+      state.activeView = 'verticals'
+      await openGoal(id, 'search', ['search', 'root', 0, id].join(':'))
       return
     }
     await openViaBoardHost(id)
@@ -262,13 +269,22 @@ export function createDetailSurface(
   function closeGoal(): void {
     if (state.openGoalId === null) return
     state.openGoalId = null
+    state.openPath = []
     state.openGoalVertical = null
     state.openGoalHostKey = null
     state.goalDetail = null
   }
 
+  /** Flow 4: a family move reads the card's final size before it moves, so the card's detail is there first (a hover
+   *  fetches it ahead; the board's idle sweep usually has). */
+  function ensureDetail(id: string): Promise<void> {
+    if (detailCache.has(id)) return Promise.resolve()
+    return fetchGoalDetail(id, true).then(() => undefined, () => undefined)
+  }
+
   return {
     fetchGoalDetail,
+    ensureDetail,
     schedulePrefetchBoardDetails,
     openGoal,
     openBoardGoal,

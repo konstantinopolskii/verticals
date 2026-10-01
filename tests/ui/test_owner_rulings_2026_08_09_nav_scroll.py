@@ -25,6 +25,7 @@ from __future__ import annotations
 import httpx
 
 from tests.ui.conftest import UiSession
+from tests.ui.views import show_tags, switch_view
 
 
 def _create_day_overflow(session: UiSession) -> None:
@@ -48,42 +49,33 @@ def _create_day_overflow(session: UiSession) -> None:
 
 def test_owner_ruling2_nav_items_trimmed(ui_f2: UiSession) -> None:
     session = ui_f2
-    session.page.wait_for_selector("[data-goal-id]")
+    page = session.page
+    page.wait_for_selector("[data-goal-id]")
 
-    # D111: compact navigation trimmed the vertical tabs; 3 years lives on the board. D250 adds
-    # exactly one item back on purpose — Docs, the third resident view. The pinned set/order is
-    # now Inbox, Verticals, Docs and nothing else.
-    links = session.page.locator("[data-nav-item]")
-    assert links.count() == 3, f"expected 3 nav items, found {links.count()}"
-    found_keys = [links.nth(i).get_attribute("data-nav-item") for i in range(3)]
-    assert found_keys == ["inbox", "verticals", "docs"], (
-        f"nav items out of the specified set/order: {found_keys}"
-    )
-    for removed in ("days", "weeks", "months", "quarters", "years"):
-        assert session.page.locator(f'[data-nav-item="{removed}"]').count() == 0, (
-            f"ruling 2 (owner, 2026-08-09): [data-nav-item={removed}] must not exist"
-        )
+    # D111 trimmed the vertical tabs and D250 added Docs. No nav links remain: the views open from the circle's tags
+    # (docs/design-handoff S2.P2), exactly Docs and Inbox, and the board is where you are with neither chosen.
+    assert page.locator("[data-nav-item]").count() == 0, "the D10/D111 nav links are gone"
+    show_tags(page)
+    views = page.locator(".circle-tag[data-tag]").evaluate_all("els => els.map(el => el.dataset.tag)")
+    assert views == ["docs", "inbox"], f"the circle's view tags out of the specified set/order: {views}"
 
-    # --- the two wired items still work: Verticals shows the board, Inbox shows the Maybe pile -------
-    session.page.click('[data-nav-item="inbox"]')
-    session.page.wait_for_selector('[data-cap="inbox"]')
-    assert session.page.locator('[data-role="column-strip"]').count() == 0, (
+    # --- the two views work: Inbox shows the Maybe pile, and taking it away shows the board -------------
+    switch_view(page, "inbox")
+    assert page.locator('[data-role="column-strip"]').count() == 0, (
         "Inbox must not render the board's own column strip"
     )
-    assert session.page.locator('[data-vertical="maybe"] [data-goal-id]').count() > 0, (
+    assert page.locator('[data-vertical="maybe"] [data-goal-id]').count() > 0, (
         "Inbox must render the unverticaled (Maybe) goals F2 seeds"
     )
 
-    session.page.click('[data-nav-item="verticals"]')
-    session.page.wait_for_selector('[data-role="column-strip"]')
-    assert session.page.locator('[data-cap="inbox"]').count() == 0, (
+    switch_view(page, "verticals")
+    page.wait_for_selector('[data-role="column-strip"]')
+    assert page.locator('[data-cap="inbox"]').count() == 0, (
         "Verticals must not render the Inbox view once switched back"
     )
-    assert session.page.locator('[data-vertical]').count() == 7, (
+    assert page.locator("[data-vertical]").count() == 7, (
         "the board must draw its seven dated columns after switching back from Inbox"
     )
-
-    assert session.page.locator('[data-nav-item="decades"]').count() == 0
 
 
 def test_owner_ruling3_columns_scroll_without_visible_scrollbar(ui_f2: UiSession) -> None:

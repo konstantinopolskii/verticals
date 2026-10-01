@@ -18,6 +18,7 @@ import httpx
 from playwright.sync_api import Page, expect
 
 from tests.ui.conftest import UiSession, activate_column
+from tests.ui.views import expect_view, switch_view
 
 # conftest.py's PINNED_CLOCK_ISO date: the board `/` renders.
 ANCHOR_ISO = "2026-08-08"
@@ -66,7 +67,7 @@ def _open_board_goal(page: Page, goal_id: str) -> None:
 
 
 def _nav_current(page: Page, item: str) -> None:
-    expect(page.locator(f'[data-nav-item="{item}"]')).to_have_attribute("aria-current", "page")
+    expect_view(page, item)
 
 
 # --- UH-1 ---------------------------------------------------------------------------------------
@@ -149,7 +150,7 @@ def test_uh4_inbox_goal_survives_a_round_trip_through_the_board(ui_f2: UiSession
     g_id = _create_maybe(ui_f2, "SYN UH4 inbox target")
     page.reload()
 
-    page.locator('[data-nav-item="inbox"]').click()
+    switch_view(page, "inbox")
     _nav_current(page, "inbox")
     assert _path_and_fragment(page) == ("/", "inbox")
 
@@ -157,7 +158,7 @@ def test_uh4_inbox_goal_survives_a_round_trip_through_the_board(ui_f2: UiSession
     expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
     assert _path_and_fragment(page) == ("/", f"goal/{g_id}")
 
-    page.locator('[data-nav-item="verticals"]').click()
+    switch_view(page, "verticals")
     _nav_current(page, "verticals")
     assert _path_and_fragment(page) == ("/", "")
 
@@ -204,7 +205,7 @@ def test_uh6_docs_view_and_open_doc_are_entries(ui_f2: UiSession) -> None:
     doc_id = _post(ui_f2, "/api/docs", {"path": "syn-uh6.md", "title": "SYN UH6 doc", "body": ""})
     page.reload()
 
-    page.locator('[data-nav-item="docs"]').click()
+    switch_view(page, "docs")
     _nav_current(page, "docs")
     assert _path_and_fragment(page) == ("/", "docs")
 
@@ -276,7 +277,7 @@ def test_uh8_doc_to_off_board_goal_is_one_entry_and_forward_reopens_it(ui_f2: Ui
     g_id, doc_id = _doc_linking_goal(ui_f2, "UH8")
     page.reload()
 
-    page.locator('[data-nav-item="docs"]').click()
+    switch_view(page, "docs")
     page.locator(".docs-tree-folder__doc", has_text="SYN UH8 doc").click()
     expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
     length_doc = page.evaluate("history.length")
@@ -308,7 +309,9 @@ def test_uh9_goal_to_doc_chip_back_reopens_goal(ui_f2: UiSession) -> None:
     page.goto(f"{session.base_url}/h/{OFF_BOARD_ISO}#goal/{g_id}")
     expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
 
-    page.locator(f'[data-role="goal-doc-chip"][data-doc-id="{doc_id}"]').click()
+    # The document links the goal: the open goal lists it under "Mentioned in 1 document" (the opened-card cleanup).
+    page.locator(f'{_open_host(g_id)} + .goal-card__children--open [data-role="goal-mentions"]').click()
+    page.locator(f'[data-role="goal-mentions-list"] button[data-doc="{doc_id}"]').click()
     _nav_current(page, "docs")
     expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
     assert _path_and_fragment(page) == (f"/h/{OFF_BOARD_ISO}", f"doc/{doc_id}")

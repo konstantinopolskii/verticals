@@ -27,6 +27,7 @@ from playwright.sync_api import expect
 from verticals.core import docs as core_docs
 from tests.harness.report import artifact
 from tests.ui.conftest import ARTIFACTS_ROOT, REPO_ROOT, UiSession
+from tests.ui.views import switch_view
 
 TODAY_ISO = "2026-08-08"
 TODAY_PATH = f"inbox/{TODAY_ISO}.md"
@@ -39,7 +40,7 @@ MAYBE_EDITOR = f'{MAYBE_ADD} [data-role="column-add-editor"]'
 
 
 def _open_inbox(session: UiSession) -> None:
-    session.page.click('[data-nav-item="inbox"]')
+    switch_view(session.page, "inbox")
     session.page.wait_for_selector('[data-cap="inbox"]', timeout=5000)
 
 
@@ -117,14 +118,14 @@ def test_typing_commits_into_shared_day_doc_and_maybe_list_still_works(ui_f2: Ui
     assert note_text in full["body"], f"committed body missing the typed note: {full['body']!r}"
 
     # Same doc, no copy: the Docs view opens the identical row for the identical path.
-    page.click('[data-nav-item="docs"]')
+    switch_view(page, "docs")
     page.wait_for_selector('[data-cap="docs"]', timeout=5000)
     page.click(f'[data-doc-id="{saved["id"]}"]')
     expect(page.locator('[data-role="doc-path"]')).to_have_text(TODAY_PATH, timeout=10000)
     expect(page.locator('[data-role="doc-body"]')).to_contain_text(note_text, timeout=10000)
 
     # --- Maybe list is untouched: still renders, still accepts an added card ---------------------
-    page.click('[data-nav-item="inbox"]')
+    switch_view(page, "inbox")
     page.wait_for_selector('[data-cap="inbox"]', timeout=5000)
     maybe_add = page.locator(MAYBE_ADD)
     expect(maybe_add).to_be_visible(timeout=5000)
@@ -187,7 +188,7 @@ def test_empty_day_creates_no_doc(ui_f2: UiSession) -> None:
     assert _find_today_doc(session) is None, "an empty day must never create an empty doc row"
 
     # Leaving the view and coming back must not have created one either (no create-on-mount).
-    page.click('[data-nav-item="docs"]')
+    switch_view(page, "docs")
     page.wait_for_selector('[data-cap="docs"]', timeout=5000)
     _open_inbox(session)
     page.wait_for_timeout(300)

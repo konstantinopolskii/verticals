@@ -227,8 +227,8 @@ def test_path_well_formed_fires_on_bad_shapes_and_stays_silent_on_good_ones(fres
 
 
 def test_catalogue_five_tables_and_enum_labels(fresh_db: str) -> None:
-    """WP-03's own done-when, updated by WP-33, D250/WP-1 and again by WP-A
-    (`015_comments.sql`): "the catalogue reports eleven tables and enums of 7 and 3 labels."
+    """WP-03's own done-when, updated by WP-33, D250/WP-1, WP-A (`015_comments.sql`) and the
+    roll (`016_replan.sql`): "the catalogue reports twelve tables and enums of 7 and 4 labels."
     Mirrors test_migrations.py's S-01 assertion so this file's own claim to be done does not
     depend on another suite file staying green.
     """
@@ -237,10 +237,10 @@ def test_catalogue_five_tables_and_enum_labels(fresh_db: str) -> None:
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"
         )
         (table_count,) = cur.fetchone()
-        assert table_count == 11, (
+        assert table_count == 12, (
             "expected goals, schema_version, idempotency, goal_evidence, tag_meta, "
             "due_acknowledgements, docs, doc_revisions, goal_doc_links, comment_threads, "
-            "comment_messages"
+            "comment_messages, carryover_runs"
         )
 
         cur.execute(
@@ -253,7 +253,7 @@ def test_catalogue_five_tables_and_enum_labels(fresh_db: str) -> None:
         )
         counts = dict(cur.fetchall())
         assert counts.get("vertical_scale") == 7
-        assert counts.get("goal_origin") == 3
+        assert counts.get("goal_origin") == 4
 
 
 def test_f2_fixture_loads_49_rows_self_consistent(f2_db: str) -> None:

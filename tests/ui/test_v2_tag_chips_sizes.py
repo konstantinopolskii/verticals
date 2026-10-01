@@ -17,9 +17,11 @@ def test_r11_project_tag_chip_is_distinct(ui_f2: UiSession) -> None:
     assert card.locator('[data-role="tag-chips"], [data-role="tag-chip"], [data-role="project-tag-chip"]').count() == 0
     activate_column(session.page, "week")
     card.locator('.goal-card__title').click()
-    tags_button = session.page.locator('#goal-detail button[aria-label="Tags"]')
-    tags_button.click()
-    panel = session.page.locator('#dropdownPortal .goal-detail__tags-panel')
+    # An open goal's tags are in its "..." menu, "Tags..." (the opened-card cleanup, KK 27-28 Sep 2026).
+    session.gestures.click('[data-goal-id="SYNORD01"].goal-card--detail-open [data-role="goal-actions-trigger"]')
+    session.gestures.click('[data-role="goal-actions-menu"] [data-action="tags"] button')
+    panel = session.page.locator('#dropdownPortal [data-role="tag-chips"]')
+    panel.wait_for(state="visible")
     # Tabler round: the chip's remove affordance is an IconX svg now, not a text "×" —
     # match the tag text and require the icon inside the same chip.
     for tag in ("SYNTAG1", "plain"):

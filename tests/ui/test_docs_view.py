@@ -23,6 +23,7 @@ from playwright.sync_api import expect
 
 from verticals.core import docs as core_docs, goals as core_goals
 from tests.ui.conftest import UiSession, activate_column
+from tests.ui.views import expect_view, switch_view
 
 ANCHOR = date(2026, 8, 8)
 TOAST_TEXT = ".toast-stack .toast .toast__text"
@@ -64,8 +65,7 @@ def _assert_no_dialog(page) -> None:
 
 
 def _open_docs(session: UiSession) -> None:
-    session.page.click('[data-nav-item="docs"]')
-    session.page.wait_for_selector('[data-cap="docs"]', timeout=5000)
+    switch_view(session.page, "docs")
 
 
 # --- create in a subfolder, collapsible tree ----------------------------------------------------
@@ -240,7 +240,7 @@ def test_goal_doc_chip_navigates_to_docs_view(ui_f2: UiSession) -> None:
     session = ui_f2
     page = session.page
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
-        doc_id = _create_doc(conn, "syn-linked/target.md", title="SYN Target Doc")
+        _create_doc(conn, "syn-linked/target.md", title="SYN Target Doc")
         goal_id = _create_goal(conn, "SYN goal with a doc link", vertical="day")
         # `core.docs.rewrite_goal_links` is called from inside `core.goals.update()` only (its own
         # module docstring: "only when a body was actually written") — `create()` never indexes an
@@ -255,14 +255,16 @@ def test_goal_doc_chip_navigates_to_docs_view(ui_f2: UiSession) -> None:
     card_row.click()
     expect(page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open')).to_be_visible()
 
-    chip = page.locator(f'[data-role="goal-doc-chip"][data-doc-id="{doc_id}"]')
-    expect(chip).to_be_visible(timeout=10000)
-    expect(chip).to_have_text("SYN Target Doc")
-    chip.click()
+    # A line that is one link to a document is a linked document: a row of the goal's links under its notes
+    # (docs/design-handoff S3.P1.007).
+    links = page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open + .goal-card__children--open [data-role="goal-links"]')
+    item = links.locator('button[data-doc="syn-linked/target.md"]')
+    expect(item).to_contain_text("SYN Target Doc", timeout=10000)
+    item.click()
 
     expect(page.locator('[data-cap="docs"]')).to_be_visible(timeout=10000)
     expect(page.locator('[data-role="doc-path"]')).to_have_text("syn-linked/target.md", timeout=10000)
-    assert page.locator('[data-nav-item="docs"]').get_attribute("aria-current") == "page"
+    expect_view(page, "docs")
 
 
 # --- doc -> goal chip: DocDetail navigates to the board, opens the card in place, no dialog -------
@@ -288,9 +290,9 @@ def test_doc_goal_chip_navigates_to_board_and_opens_card_in_place(ui_f2: UiSessi
 
     host = page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open')
     expect(host).to_be_visible(timeout=10000)
-    expect(host.locator(".goal-detail-inline")).to_be_visible()
+    expect(host.locator("xpath=following-sibling::*[1]").locator(".goal-detail-inline")).to_be_visible()
     _assert_no_dialog(page)
-    assert page.locator('[data-nav-item="verticals"]').get_attribute("aria-current") == "page"
+    expect_view(page, "verticals")
 
 
 # --- #doc/<id> boot fragment ----------------------------------------------------------------------
@@ -308,8 +310,8 @@ def test_inherited_doc_chip_is_ghosted_and_navigates(ui_f2: UiSession) -> None:
     session = ui_f2
     page = session.page
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
-        inherited_doc_id = _create_doc(conn, "syn-inherit/parent-linked.md", title="SYN Parent Doc")
-        own_doc_id = _create_doc(conn, "syn-inherit/child-linked.md", title="SYN Child Own Doc")
+        _create_doc(conn, "syn-inherit/parent-linked.md", title="SYN Parent Doc")
+        _create_doc(conn, "syn-inherit/child-linked.md", title="SYN Child Own Doc")
         core_goals.update(conn, owner="t1", id="SYNDAY01", body="[p](doc:syn-inherit/parent-linked.md)")
         core_goals.update(conn, owner="t1", id="SYNSUB01", body="[c](doc:syn-inherit/child-linked.md)")
 
@@ -332,20 +334,32 @@ def test_inherited_doc_chip_is_ghosted_and_navigates(ui_f2: UiSession) -> None:
     card_row.click()
     expect(page.locator('[data-goal-id="SYNSUB01"].goal-card--detail-open')).to_be_visible()
 
-    own_chip = page.locator(f'[data-role="goal-doc-chip"][data-doc-id="{own_doc_id}"]')
-    inherited_chip = page.locator(f'[data-role="goal-doc-chip"][data-doc-id="{inherited_doc_id}"]')
-    expect(own_chip).to_be_visible(timeout=10000)
-    expect(inherited_chip).to_be_visible(timeout=10000)
+    # The goal's links list its documents under the notes (docs/design-handoff S3.P1.007); a step keeps its parent's
+    # documents after its own, greyed, with the parent's name (KK picked it on 29 Sep 2026).
+    parent_title = httpx.get(
+        f"{session.backend.base_url}/api/goals/SYNDAY01",
+        headers={"Authorization": f"Bearer {session.backend.token}"},
+        timeout=10,
+    ).json()["title"]
+    listed = page.locator(
+        '[data-goal-id="SYNSUB01"].goal-card--detail-open + .goal-card__children--open [data-role="goal-links"]'
+    )
+    expect(listed).to_be_visible(timeout=10000)
+    own_item = listed.locator('button[data-doc="syn-inherit/child-linked.md"]')
+    inherited_item = listed.locator('button[data-doc="syn-inherit/parent-linked.md"]')
+    expect(own_item).to_be_visible(timeout=10000)
+    expect(inherited_item).to_be_visible(timeout=10000)
 
-    # the child's own chip is never ghosted...
-    assert own_chip.get_attribute("data-inherited") is None
-    # ...the inherited one always is, and it is visibly muted, not just tagged
-    assert inherited_chip.get_attribute("data-inherited") == "true"
-    own_color = own_chip.evaluate("el => getComputedStyle(el).color")
-    inherited_color = inherited_chip.evaluate("el => getComputedStyle(el).color")
-    assert inherited_color != own_color, "a ghosted chip must read as visually muted, not identical"
+    # the child's own document is never marked...
+    assert own_item.get_attribute("data-inherited") is None
+    # ...its parent's always is, under the parent's name, and it is visibly muted, not just tagged
+    assert inherited_item.get_attribute("data-inherited") == "true"
+    expect(inherited_item.locator(".goal-links__note")).to_have_text(f"from {parent_title}")
+    own_color = own_item.evaluate("el => getComputedStyle(el).color")
+    inherited_color = inherited_item.evaluate("el => getComputedStyle(el).color")
+    assert inherited_color != own_color, "a parent's document must read as visually muted, not identical"
 
-    inherited_chip.click()
+    inherited_item.click()
     expect(page.locator('[data-cap="docs"]')).to_be_visible(timeout=10000)
     expect(page.locator('[data-role="doc-path"]')).to_have_text(
         "syn-inherit/parent-linked.md", timeout=10000
@@ -365,7 +379,7 @@ def test_doc_hash_fragment_opens_the_doc_on_boot(ui_f2: UiSession) -> None:
 
     expect(session.page.locator('[data-cap="docs"]')).to_be_visible(timeout=10000)
     expect(session.page.locator('[data-role="doc-title"]')).to_have_text("SYN Boot Target", timeout=10000)
-    assert session.page.locator('[data-nav-item="docs"]').get_attribute("aria-current") == "page"
+    expect_view(session.page, "docs")
     assert session.page.url.endswith(f"#doc/{doc_id}")
     _assert_no_dialog(session.page)
 
@@ -406,10 +420,10 @@ def test_doc_body_goal_link_renders_as_anchor_and_navigates_to_board(ui_f2: UiSe
     link.click()
     host = page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open')
     expect(host).to_be_visible(timeout=10000)
-    expect(host.locator(".goal-detail-inline")).to_be_visible()
+    expect(host.locator("xpath=following-sibling::*[1]").locator(".goal-detail-inline")).to_be_visible()
     _assert_no_dialog(page)
     assert page.url.startswith(session.base_url), "an in-app link must never navigate the browser itself"
-    assert page.locator('[data-nav-item="verticals"]').get_attribute("aria-current") == "page"
+    expect_view(page, "verticals")
 
 
 def test_doc_body_doc_link_opens_the_target_doc(ui_f2: UiSession) -> None:
@@ -454,13 +468,16 @@ def test_goal_body_doc_link_opens_docs_view(ui_f2: UiSession) -> None:
     host = page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open')
     expect(host).to_be_visible()
 
-    link = host.locator('.goal-detail__body a[data-link-kind="doc"][data-link-target="syn-bodylink/notes.md"]')
+    # The notes end the open goal's piece, in the list right after its card (the opened-card cleanup, KK 27-28 Sep 2026).
+    link = host.locator("xpath=following-sibling::*[1]").locator(
+        '.goal-detail__body a[data-link-kind="doc"][data-link-target="syn-bodylink/notes.md"]'
+    )
     expect(link).to_have_text("here", timeout=10000)
     link.click()
 
     expect(page.locator('[data-cap="docs"]')).to_be_visible(timeout=10000)
     expect(page.locator('[data-role="doc-path"]')).to_have_text("syn-bodylink/notes.md", timeout=10000)
-    assert page.locator('[data-nav-item="docs"]').get_attribute("aria-current") == "page"
+    expect_view(page, "docs")
 
 
 def test_editing_a_doc_body_keeps_its_in_app_links(ui_f2: UiSession) -> None:

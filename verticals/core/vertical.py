@@ -129,6 +129,10 @@ VERTICALS: tuple[VerticalDescriptor, ...] = (
     VerticalDescriptor("life", "Life", "Life", partial(period_key, "life"), _bounds_life, False),
 )
 
+# The roll (docs/design-handoff S4.P1, KK E086-E090, E246): a missed plan moves on in its own scale until the next larger
+# scale turns, then falls into it, one scale per turn, up to Year. Scales past the ladder move on in their own column.
+ROLL_LADDER: tuple[str, ...] = tuple(h.key for h in VERTICALS[:5])
+
 # Lets a caller validate "is this a real scale" by membership test instead of enumerating —
 # or reimplementing — the seven values itself.
 SCALE_KEYS: frozenset[str] = frozenset(h.key for h in VERTICALS)
@@ -167,6 +171,26 @@ def map_label(scale: str, d: date) -> str:
         return d.isoformat()
     if scale == "month":
         return f"{d:%B}"
+    return menu_label(scale)
+
+
+def planned_label(scale: str, d: date) -> str:
+    """A plan's own period as the board says it beside a carried plan (docs/design-handoff S4.P1.015, the web's
+    `plannedPeriodLabel`): "Fri 25 Sep", "21–27 Sep" or "28 Sep – 4 Oct", "August", "Q3", "2025", "2026–2028"."""
+    if scale == "day":
+        return f"{d:%a} {d.day} {d:%b}"
+    if scale == "week":
+        start, end = _bounds_week(d)
+        return f"{start.day}–{end.day} {end:%b}" if start.month == end.month else f"{start.day} {start:%b} – {end.day} {end:%b}"
+    if scale == "month":
+        return f"{d:%B}"
+    if scale == "quarter":
+        return f"Q{(d.month - 1) // 3 + 1}"
+    if scale == "year":
+        return str(d.year)
+    if scale == "decade":
+        start_year = _triennium_start_year(d.year)
+        return f"{start_year}–{start_year + 2}"
     return menu_label(scale)
 
 

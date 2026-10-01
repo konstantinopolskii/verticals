@@ -10,6 +10,11 @@ rendered ancestor/descendant card across verticals (`goal-card--open-related`), 
 siblings stay neutral. That highlight — on the ancestors' own cards, in their own columns — is
 the ancestor chain made visible, and it is what this scenario asserts now.
 
+Reshaped again by flow 4 (KK agreed it on 28-29 Sep 2026): the open goal's family keeps its light wherever it sits,
+one step less for every level further away and never none (`data-light`, full to far), while the rest of the board
+turns off. That light is the D195 cue now; `goal-card--open-related` stays the cue where no family light is drawn.
+Escape goes up the family one level at a time, then closes.
+
 Steps: schedule `SYNSUB01` onto the day board, open it inline. Assert: every fixture ancestor
 that renders a board card carries the D195 highlight class; a neutral sibling does not;
 `page.url()` changed by hash/param only; Escape returns to the board with the same scroll
@@ -48,8 +53,10 @@ def _url_parts(url: str) -> tuple[str, str, str, str]:
 
 
 def _has_related_class(page, goal_id: str) -> bool:
-    classes = page.locator(f'[data-goal-id="{goal_id}"]').first.get_attribute("class") or ""
-    return RELATED_CLASS in classes.split()
+    """The D195 cue on a goal's card: the open family's light (flow 4), or the related class where none is drawn."""
+    card = page.locator(f'[data-goal-id="{goal_id}"]').first
+    classes = card.get_attribute("class") or ""
+    return card.get_attribute("data-light") is not None or RELATED_CLASS in classes.split()
 
 
 def test_s68_ancestor_chain_visible(ui_f2: UiSession) -> None:
@@ -123,6 +130,9 @@ def test_s68_ancestor_chain_visible(ui_f2: UiSession) -> None:
     )
 
     # --- Escape returns to the board at the same scroll position (+-4 px) ---------------------------
+    # SYNSUB01 opened under SYNDAY01, where it is drawn: the first Escape goes up to SYNDAY01 (flow 4), the second closes.
+    page.keyboard.press("Escape")
+    page.wait_for_selector('.goal-card--detail-open[data-goal-id="SYNDAY01"]', timeout=5000)
     page.keyboard.press("Escape")
     page.wait_for_selector(INLINE_DETAIL, state="detached", timeout=5000)
 

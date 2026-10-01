@@ -40,7 +40,7 @@ export function idsInColumn(
   const wireVertical = vertical === 'maybe' ? null : vertical
   return board?.columns.find(
     (column) => column.vertical === wireVertical && column.period_key === periodKey,
-  )?.goals.map((goal) => goal.id) ?? []
+  )?.goals.filter((goal) => !goal.ghost).map((goal) => goal.id) ?? []
 }
 
 /** D241's own nesting predicate (`boardProjection.ts::toColumnData`'s dedup filter), read the

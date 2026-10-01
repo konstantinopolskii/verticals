@@ -97,15 +97,15 @@ def test_drag_parent_week_to_day_cascades_subtree_and_toasts(ui_f2: UiSession) -
     expect(toast).to_have_text("2 subgoals moved to Today with it", timeout=15000)
     day_parent = session.page.locator(f'[data-vertical="day"] [data-goal-id="{parent.id}"]')
     expect(day_parent).to_be_visible(timeout=15000)
-    # D244: the cascaded subtree folds into the compact day stack; unfold to assert its shape.
+    # D244: the cascaded subtree folds into the compact day stack; unfold to assert its shape. The board draws two
+    # levels (KK, 27 Sep 2026, 7e9e791, overriding D253): the child under the parent; the grandchild moved with them
+    # (the database check below) and shows once its parent is the one open.
     activate_column(session.page, "day")
     day_child = session.page.locator(
         f'[data-goal-id="{parent.id}"] + .goal-card__children [data-goal-id="{child.id}"]'
     )
     expect(day_child).to_be_visible()
-    expect(session.page.locator(
-        f'[data-goal-id="{child.id}"] + .goal-card__children [data-goal-id="{grandchild.id}"]'
-    )).to_be_visible()
+    expect(session.page.locator(f'[data-goal-id="{grandchild.id}"]')).to_have_count(0)
 
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
         rows = conn.execute(
@@ -366,7 +366,8 @@ def test_child_title_click_transfers_inline_detail_host(ui_f2: UiSession) -> Non
         f'[data-goal-id="{child.id}"].goal-card--detail-open'
     )
     expect(child_host).to_be_visible(timeout=10000)
-    expect(child_host.locator('#goal-detail [aria-label="Edit body"]')).to_contain_text(
+    # The notes end the open goal's piece, in the list right after its card (the opened-card cleanup, KK 27-28 Sep 2026).
+    expect(child_host.locator('xpath=following-sibling::*[1]').locator('#goal-detail [aria-label="Edit body"]')).to_contain_text(
         "SYN child body only"
     )
     assert session.page.locator(

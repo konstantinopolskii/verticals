@@ -18,12 +18,12 @@ from tests.mcp.conftest import TEST_TOKEN, open_mcp_stdio
 OVERDUE_ID = "SYNORD01"  # week 2026-W32, undone — overdue on any real date after 2026-08-16
 
 
-def _week_card(board_result, goal_id: str):
+def _ghost_card(board_result, goal_id: str):
+    """The carried copy of `goal_id`, in whichever column it lands: a carried plan goes to the first
+    eligible window (KK, 26 Sep 2026), which depends on the real date, not always to Week."""
     for column in board_result.structured_content["columns"]:
-        if column["vertical"] != "week":
-            continue
         for card in column["goals"]:
-            if card["id"] == goal_id:
+            if card["id"] == goal_id and card["ghost"]:
                 return card
     return None
 
@@ -62,8 +62,8 @@ def test_due_ack_verdict_removes_ghost_and_lands_in_goal_history(
         _full_story, f2_dsn, tmp_path
     )
 
-    card = _week_card(before, OVERDUE_ID)
-    assert card is not None and card["ghost"] is True, "fixture premise: SYNORD01 ghosts today"
+    card = _ghost_card(before, OVERDUE_ID)
+    assert card is not None, "fixture premise: SYNORD01 ghosts today"
 
     assert ack.is_error is False, ack.content[0].text if ack.content else ack
     stored = ack.structured_content["acknowledgement"]
@@ -73,7 +73,7 @@ def test_due_ack_verdict_removes_ghost_and_lands_in_goal_history(
     assert stored["period_key"] == "2026-W32"
     assert stored["note"] == "seen and accepted"
 
-    assert _week_card(after, OVERDUE_ID) is None, "acknowledged ghost must leave the board"
+    assert _ghost_card(after, OVERDUE_ID) is None, "acknowledged ghost must leave the board"
 
     assert detail.is_error is False
     history = detail.structured_content["due_history"]

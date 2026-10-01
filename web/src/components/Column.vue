@@ -5,10 +5,15 @@ import AppIcon from './AppIcon.vue'
 import ColumnHeader from './ColumnHeader.vue'
 import GoalCard from './GoalCard.vue'
 import InlineAdd from './InlineAdd.vue'
+import FindingSections from './FindingSections.vue'
+import CarriedGroup from './CarriedGroup.vue'
+import ColumnDots from './ColumnDots.vue'
+import type { SpanScale } from '../lib/spans'
 import { store } from '../store'
 import { playSound } from '../lib/sound'
 import type { PeriodDirection } from '../lib/periodNavigation'
 import type { GoalCardData } from '../types'
+import { filterActive } from '../lib/commandFilter'
 
 const props = withDefaults(
   defineProps<{
@@ -23,10 +28,14 @@ const props = withDefaults(
     periodKey?: string | null
     periodDirection?: PeriodDirection
     periodSwapId?: number
+    /** One period of the spans while a goal moves (docs/design-handoff S5.P1): its header names how far away it is. */
+    span?: boolean
+    /** The span's end, small and light after its date (S5.P1.008-.014). */
+    end?: string
   }>(),
   {
     subLabel: '', active: false, deckActive: false, deckMain: false, addPlaceholder: 'Add…', periodKey: null,
-    periodDirection: 1, periodSwapId: 0,
+    periodDirection: 1, periodSwapId: 0, span: false, end: '',
   },
 )
 
@@ -51,8 +60,10 @@ function onAdd(title: string) {
 // fold affordance anywhere" (KK, verbatim: "let's show all sub-task by default now").
 
 function onHeaderClick(): void {
-  store.toggleExpandedColumn(props.vertical)
+  if (!props.span) store.toggleExpandedColumn(props.vertical)
 }
+/* While a goal is dragged the dots take the period controls' place; a span has neither (S5.P2.017, .019). */
+const dragging = computed(() => store.state.drag.id !== null)
 
 /** One props bag per top-level card, forwarded straight through — no face substitution, no
  *  children truncation. The D244 §5 chain-hover wash (`goal-card--ancestor-hover`, GoalCard.vue's
@@ -70,7 +81,6 @@ function cardProps(goal: GoalCardData) {
     columnVertical: props.vertical,
     foil: goal.foil,
     ghost: goal.ghost,
-    ghostUntil: goal.ghostUntil,
     progress: goal.progress,
     subgoalCount: goal.subgoalCount,
     repeat: goal.repeat,
@@ -144,7 +154,7 @@ function snapshot(state: SlideState): PeriodSlide {
 }
 
 function renderItems(slide: PeriodSlide): RenderItem[] {
-  const items: RenderItem[] = slide.goals.map((goal) => ({ kind: 'goal', key: goal.id, goal }))
+  const items: RenderItem[] = slide.goals.filter(goal => !goal.ghost).map((goal) => ({ kind: 'goal', key: goal.id, goal }))
   if (slide.state === 'outgoing' || !isTopLevelReorderHere.value) return items
   const beforeId = dragSlot.value?.insertBeforeId ?? null
   const found = beforeId === null
@@ -156,6 +166,14 @@ function renderItems(slide: PeriodSlide): RenderItem[] {
     settling: store.state.drag.settling !== null,
   })
   return items
+}
+
+function carriedGoals(slide: PeriodSlide): GoalCardData[] {
+  return slide.goals.filter(goal => goal.ghost)
+}
+/* "Replan" opens the Inbox task that holds the carried plans (S4.P2.038, S4.P4). */
+function onReplan(from: Element): void {
+  window.dispatchEvent(new CustomEvent('verticals:replan', { detail: { from } }))
 }
 
 const columnRoot = ref<HTMLElement | null>(null)
@@ -264,7 +282,8 @@ onBeforeUnmount(() => swapAnimation?.cancel())
     :data-vertical="vertical"
     :data-period-key="periodKey ?? ''"
   >
-    <div v-if="vertical !== 'life'" class="column-period-controls" data-cap="period-nav">
+    <ColumnDots v-if="dragging && vertical !== 'life' && vertical !== 'maybe' && !span" :vertical="vertical as SpanScale" />
+    <div v-else-if="vertical !== 'life' && !span" class="column-period-controls" data-cap="period-nav">
       <button
         class="column-period-controls__arrow"
         type="button"
@@ -306,11 +325,13 @@ onBeforeUnmount(() => swapAnimation?.cancel())
         <ColumnHeader
           :title="slide.title"
           :sub-label="slide.subLabel"
-          data-cap="column-expand"
+          :end="end"
+          :data-cap="span ? undefined : 'column-expand'"
           @click="onHeaderClick"
         />
         <div class="pattern-vertical-board__body">
-          <KCardStack dense>
+          <CarriedGroup v-if="carriedGoals(slide).length" :vertical="vertical" :goals="carriedGoals(slide)" @replan="onReplan" />
+          <KCardStack dense data-section="planned">
             <template v-for="item in renderItems(slide)" :key="item.key">
               <div
                 v-if="item.kind === 'slot'"
@@ -334,8 +355,9 @@ onBeforeUnmount(() => swapAnimation?.cancel())
                 v-bind="cardProps(item.goal)"
               />
             </template>
-            <InlineAdd :placeholder="addPlaceholder" data-cap="create-goal" @add="onAdd" />
+            <InlineAdd v-if="!filterActive" :placeholder="addPlaceholder" data-cap="create-goal" @add="onAdd" />
           </KCardStack>
+          <FindingSections v-if="filterActive && slide.state !== 'outgoing'" :vertical="vertical" :period-key="slide.periodKey" :shown="slide.goals" />
         </div>
       </section>
     </div>
@@ -359,7 +381,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
 }
 .column-period-controls {
   position: absolute;
-  z-index: 2;
+  z-index: 3; /* over the column's name, which stands over flow 4's veil at 2 (goalCard.css) and took every click here */
   top: 6px;
   right: 12px;
   display: flex;
@@ -462,13 +484,47 @@ onBeforeUnmount(() => swapAnimation?.cancel())
   padding: 4px 12px 0 14px;
 }
 .period-slide > .pattern-vertical-board__body {
-  padding: 88px 2px 64px;
+  padding: 88px 2px 80px;
 }
 .period-track--swapping > .period-slide {
   flex: 0 0 50%;
 }
 .period-slide[data-state='outgoing'] {
   pointer-events: none;
+}
+/* Room for a lifted card (KK, 27 Sep 2026: "u still cut the scaled tasks on the left and right of each vertical column,
+   because they have this overflow hidden param"). The slide scrolls up and down, so it must clip sideways too: at rest
+   it reaches 8 px past its column on each side with its content where it was, and the column shows those 8 px. It
+   takes no pointer itself, so its margin never covers the neighbour's cards. While two periods swap, the tight clip
+   stays, so the next period never shows beside the column. The column of a lifted card sits above its neighbours. */
+.pattern-vertical-board.pattern-vertical-board.pattern-vertical-board--flat > .pattern-vertical-board__column {
+  overflow: visible;
+  clip-path: inset(0 -8px);
+}
+.pattern-vertical-board.pattern-vertical-board.pattern-vertical-board--flat > .pattern-vertical-board__column:has(> .period-track--swapping) {
+  clip-path: inset(0);
+}
+.pattern-vertical-board--flat > .pattern-vertical-board__column:has(.goal-card--lifted) { z-index: 1; }
+.pattern-vertical-board--flat .period-track:not(.period-track--swapping) > .period-slide {
+  width: calc(100% + 16px);
+  margin-inline: -8px;
+  padding-inline: 8px;
+  pointer-events: none;
+}
+.pattern-vertical-board--flat .period-track:not(.period-track--swapping) > .period-slide > * { pointer-events: auto; }
+.pattern-vertical-board--flat .period-track:not(.period-track--swapping) > .period-slide > .pattern-vertical-board__header {
+  left: 8px;
+  right: 8px;
+}
+/* The last column has no neighbour on its right, only the window's edge, which cuts a lifted card there anyway. Room past
+   it only widened the board, and the board scrolled 8 px sideways (D244: the board never overflows horizontally). */
+.pattern-vertical-board--flat > .pattern-vertical-board__column:last-child .period-track:not(.period-track--swapping) > .period-slide {
+  width: calc(100% + 8px);
+  margin-right: 0;
+  padding-right: 0;
+}
+.pattern-vertical-board--flat > .pattern-vertical-board__column:last-child .period-track:not(.period-track--swapping) > .period-slide > .pattern-vertical-board__header {
+  right: 0;
 }
 .pattern-vertical-board__drop-indicator {
   position: relative;

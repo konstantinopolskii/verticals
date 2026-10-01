@@ -34,6 +34,7 @@ import psycopg
 from playwright.sync_api import Page, expect
 
 from tests.ui.conftest import EXPANDED_COLUMN_CLASS, UiSession, activate_column
+from tests.ui.views import FIELD, switch_view
 
 # conftest.py's own PINNED_CLOCK_ISO date — matches test_hand_drag.py's ANCHOR_ISO exactly, so a
 # goal anchored here lands in whichever column the pinned clock renders as "current" for its
@@ -461,7 +462,8 @@ def test_od4_hash_open_on_default_board(ui_f2: UiSession) -> None:
     week = session.page.locator('.pattern-vertical-board__column[data-vertical="week"]')
     host = session.page.locator(f'{_card(g_id)}.goal-card--detail-open')
     expect(host).to_be_visible(timeout=10000)
-    expect(host.locator(".goal-detail-inline")).to_be_visible()
+    # The notes end the open goal's piece, in the list right after its card (the opened-card cleanup, KK 27-28 Sep 2026).
+    expect(host.locator("xpath=following-sibling::*[1]").locator(".goal-detail-inline")).to_be_visible()
     assert _has_class(week, EXPANDED_COLUMN_CLASS), "the goal's own column must expand on hash-open"
     _assert_no_dialog(session.page)
     assert session.page.url.endswith(f"#goal/{g_id}")
@@ -483,18 +485,18 @@ def test_od5_search_navigates_across_a_period_boundary_and_opens_in_place(ui_f2:
         "seed check: the target must NOT already be on the initially-loaded (August) board"
     )
 
-    session.page.locator('[data-cap="search-trigger"]').click()
-    session.page.locator('[data-cap="search-modal"]').wait_for(state="visible", timeout=5000)
-    search_input = session.page.locator('[data-cap="search-input"] input')
-    search_input.wait_for(state="visible", timeout=5000)
-    search_input.fill("SYN OD5 search target")
-    result = session.page.locator(f'[data-cap="search-results"] [data-goal-id="{g_id}"]')
+    # Finding shows a goal of another period under its period's headline in its own column (docs/design-handoff S1.P3),
+    # and a click on it moves the board to it ("Search simply moves u to vertical").
+    field = session.page.locator(FIELD)
+    session.page.keyboard.press("Control+k")
+    field.fill("SYN OD5 search target")
+    result = session.page.locator(f'[data-role="finding"] [data-goal-id="{g_id}"] > .goal-card__row')
     result.wait_for(state="visible", timeout=10_000)
-    result.locator(".goal-card__title").click()
+    result.click()
 
     host = session.page.locator(f'{_card(g_id)}.goal-card--detail-open')
     expect(host).to_be_visible(timeout=10000)
-    expect(host.locator(".goal-detail-inline")).to_be_visible()
+    expect(host.locator("xpath=following-sibling::*[1]").locator(".goal-detail-inline")).to_be_visible()
     month = session.page.locator('.pattern-vertical-board__column[data-vertical="month"]')
     assert _has_class(month, EXPANDED_COLUMN_CLASS)
     _assert_no_dialog(session.page)
@@ -513,39 +515,31 @@ def test_od6_inbox_goal_expands_in_place(ui_f2: UiSession) -> None:
     g_id = _create_maybe(session, "SYN OD6 inbox target")
 
     session.page.reload()
-    session.page.locator('[data-nav-item="inbox"]').click()
+    switch_view(session.page, "inbox")
     title = session.page.locator(f'{_card(g_id)} > .goal-card__row .goal-card__title')
     expect(title).to_be_visible()
     title.click()
 
     host = session.page.locator(f'{_card(g_id)}.goal-card--detail-open')
     expect(host).to_be_visible(timeout=10000)
-    expect(host.locator(".goal-detail-inline")).to_be_visible()
+    expect(host.locator("xpath=following-sibling::*[1]").locator(".goal-detail-inline")).to_be_visible()
     _assert_no_dialog(session.page)
 
 
 # --- OD-7: WP-D flagged corner ------------------------------------------------------------------
 
 
-def test_od7_nested_maybe_subgoal_navigate_is_inert_not_a_crash(ui_f2: UiSession) -> None:
-    """The WP-D flagged corner, named directly in this suite's brief: `store.navigateToGoal` for
-    a NESTED Maybe subgoal (vertical IS NULL, parent_id SET — NOT `core/board.py`'s
-    `MAYBE_PREDICATE` top-level bucket, which additionally requires parent_id IS NULL) is
-    best-effort. `InboxView.vue` renders only the flat top-level Maybe column
-    (`store.columns.value.find(c => c.vertical === 'maybe')`), so the host key `navigateToGoal`
-    computes for a nested subgoal (`['maybe', parent_id, ancestors.length, id]`) never matches any
-    rendered card. This is accepted, documented behaviour, not a bug to fix here — the bar this
-    scenario holds is narrower and absolute: inert must stay inert. It must never crash (the
-    session's own zero-console/page-error teardown gate covers that unconditionally) and must
-    never resurrect a modal or dialog. The fuller version of this same corner, against a real
-    depth-6 F3 chain, lives in `tests/uidiff/test_s104_breadcrumb_chain.py`; this is the cheap,
-    directly-seeded companion the task brief asked be added here alongside it.
-
-    Tripwire: if a future change makes `openGoal`'s inline mount render for a host key nothing
-    else matches (rather than the store simply holding open state nobody renders), the
-    `[data-goal-id="{nested_id}"]` absence check below starts failing — which is the correct
-    signal that this corner has become renderable and this scenario should be replaced with one
-    that asserts the chain is actually readable, not one that asserts it stays inert.
+def test_od7_nested_maybe_subgoal_opens_readable_on_its_own(ui_f2: UiSession) -> None:
+    """The WP-D corner, named directly in this suite's brief: `store.navigateToGoal` for a NESTED
+    Maybe subgoal (vertical IS NULL, parent_id SET — outside `core/board.py`'s `MAYBE_PREDICATE`
+    top-level bucket, which additionally requires parent_id IS NULL). `InboxView.vue` lists only
+    the flat top-level Maybe column, so the goal has no card there. `lib/detailSurface.ts`'s
+    `walkToGoal` step (b) now opens a goal the Inbox doesn't list on a host of its own
+    (`search`) instead of holding open state nobody renders, and this scenario's old tripwire
+    fired exactly as it said it would ("this corner has become renderable ... assert the chain is
+    actually readable"). So it asserts that: the goal is open and its notes are on screen, no modal
+    or dialog, the address unchanged. The session's own zero-console/page-error teardown gate
+    still covers "never a crash".
 
     `page.goto` to a URL differing only in fragment does not reload an already-booted SPA, and
     fires no `popstate` (see OD-4's own note) — the `about:blank` hop forces a genuine boot so
@@ -557,17 +551,8 @@ def test_od7_nested_maybe_subgoal_navigate_is_inert_not_a_crash(ui_f2: UiSession
     session.page.goto("about:blank")
     session.page.goto(f"{session.base_url}/#goal/{nested_id}")
 
-    session.page.wait_for_function(
-        "() => document.querySelector('[data-nav-item=\"inbox\"]')"
-        "?.getAttribute('aria-current') === 'page'",
-        timeout=10000,
-    )
-    assert session.page.locator('[data-cap="inbox"]').count() == 1, "Inbox view did not mount"
-    assert session.page.locator(f'[data-goal-id="{nested_id}"]').count() == 0, (
-        "WP-D: a nested Maybe subgoal has no rendered host anywhere on this page"
-    )
-    assert session.page.locator(f'[data-goal-id="{top_id}"]').count() == 1, (
-        "the TOP-LEVEL Maybe capture is exactly what InboxView's flat column does render"
-    )
+    host = session.page.locator(f'{_card(nested_id)}.goal-card--detail-open')
+    expect(host).to_be_visible(timeout=10000)
+    expect(host.locator("xpath=following-sibling::*[1]").locator(".goal-detail-inline")).to_be_visible()
     _assert_no_dialog(session.page)
     assert session.page.url.endswith(f"#goal/{nested_id}")

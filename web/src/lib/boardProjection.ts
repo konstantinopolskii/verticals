@@ -16,16 +16,8 @@ function completedLast(goals: GoalCard[]): GoalCard[] {
   return [...goals].sort((left, right) => Number(left.done_at !== null) - Number(right.done_at !== null))
 }
 
-function goalById(board: BoardResponse, id: string): GoalCard | undefined {
-  for (const column of board.columns) {
-    const found = column.goals.find((goal) => goal.id === id)
-    if (found) return found
-  }
-  for (const children of Object.values(board.children)) {
-    const found = children.find((goal) => goal.id === id)
-    if (found) return found
-  }
-  return undefined
+function carriedOrder(left: GoalCard, right: GoalCard): number {
+  return (right.anchor_date ?? '').localeCompare(left.anchor_date ?? '') || left.position - right.position
 }
 
 export function toCardData(
@@ -33,6 +25,7 @@ export function toCardData(
   board: BoardResponse,
   projectTags: ReadonlySet<string> = new Set(),
   columnIds: ReadonlySet<string> = new Set(),
+  columnCards: ReadonlyMap<string, GoalCard> = new Map(),
 ): GoalCardData {
   const kids = board.children[g.id] ?? []
   // R7: the wire lists every direct child. A child nests under this card EXACTLY when
@@ -46,11 +39,20 @@ export function toCardData(
   // DOM"). Lower-vertical children keep only their own column card; vertical-NULL children are
   // ideas and render in detail surfaces only. `subgoalCount` stays the unfiltered database
   // count because it describes the family, not the visible inline subset.
-  const sameVerticalKids = completedLast(
-    kids.filter(
-      (k) => k.vertical !== null && k.vertical === g.vertical && columnIds.has(k.id),
-    ),
-  )
+  // Canonical decorations belong to this column instance. A historical period and the
+  // current carried section can contain the same id with different ghost/done metadata.
+  // In the family's order: `board.children` is the list a drop's placement reorders at once (`boardPlacement.ts`), so a
+  // card dropped among new siblings shows in its slot at release. Drawn in the column's order, it showed after its new
+  // sibling and jumped into place when the write came back (test_drag_adopt).
+  const familyOrder = new Map(kids.map((child, index) => [child.id, index]))
+  const childCards = (columnCards.size
+    ? [...columnCards.values()].filter(child => child.parent_id === g.id)
+    : [...kids]
+  ).sort((a, b) => (familyOrder.get(a.id) ?? kids.length) - (familyOrder.get(b.id) ?? kids.length))
+  const visibleKids = childCards.filter(child => child.vertical !== null
+    && child.vertical === g.vertical && columnIds.has(child.id)
+    && !!child.ghost === !!g.ghost && !(child.ghost && child.done_at !== null))
+  const sameVerticalKids = g.ghost ? visibleKids.sort(carriedOrder) : completedLast(visibleKids)
   // D231: `g.color` arrives DERIVED from the server (the value root's colour, or null for a
   // tree with no life-vertical root) — the old client-side `valueColorFor` walk is gone with it.
   return {
@@ -66,6 +68,7 @@ export function toCardData(
     foil: g.foil,
     ghost: g.ghost ?? false,
     ghostUntil: g.ghost_until ?? null,
+    anchorDate: g.anchor_date,
     // S-70/AC-033: `done/total` over descendants, computed server-side in the same board query.
     // A leaf has no entry and renders no label, which is AC-033's "leaves report no progress".
     progress: board.progress[g.id],
@@ -76,7 +79,7 @@ export function toCardData(
     // count for both levels. `?? kids.length` is the fallback for a response predating the
     // field, not a second source of truth.
     subgoalCount: board.child_counts?.[g.id] ?? kids.length,
-    children: sameVerticalKids.map((k) => toCardData(k, board, projectTags, columnIds)),
+    children: sameVerticalKids.map((k) => toCardData(k, board, projectTags, columnIds, columnCards)),
   }
 }
 
@@ -104,7 +107,17 @@ export function toColumnData(
   expandedVertical: string | null = null,
 ): BoardColumnData {
   const verticalKey = col.vertical ?? 'maybe'
-  const cardIds = new Set(col.goals.map((goal) => goal.id))
+  // Optimistic completion must remove a carried row before the next server refresh.
+  const columnCards = new Map(col.goals.filter(goal => !(goal.ghost && goal.done_at !== null)).map(goal => [goal.id, goal]))
+  const cardIds = new Set(columnCards.keys())
+  const roots = [...columnCards.values()].filter(goal => {
+    const parent = goal.parent_id ? columnCards.get(goal.parent_id) : undefined
+    return !parent || parent.vertical !== goal.vertical || !!parent.ghost !== !!goal.ghost
+  })
+  const orderedRoots = [
+    ...completedLast(roots.filter(goal => !goal.ghost)),
+    ...roots.filter(goal => goal.ghost).sort(carriedOrder),
+  ]
   const addLabel: Record<string, string> = {
     maybe: 'Idea…',
     day: 'Focus…',
@@ -125,16 +138,7 @@ export function toColumnData(
     // gets no special width any more (KK ruling 2026-08-17).
     active: verticalKey !== 'maybe' && verticalKey === expandedVertical,
     addPlaceholder: addLabel[verticalKey] ?? 'Add…',
-    goals: completedLast(col.goals.filter((goal) => {
-      if (!goal.parent_id) return true
-      const parent = goalById(board, goal.parent_id)
-      // R7 dedupes only when the parent is another card in this exact column. A same-vertical
-      // parent can be outside the visible period; in that case the child remains a top-level
-      // card because there is no parent card here to render it recursively. `cardIds` passed
-      // into toCardData is the OTHER half of the same predicate: exactly the ids dropped here
-      // are the ids toCardData nests, so no row can fall through the gap between the two.
-      return !parent || parent.vertical !== goal.vertical || !cardIds.has(parent.id)
-    })).map((g) => toCardData(g, board, projectTags, cardIds)),
+    goals: orderedRoots.map(goal => toCardData(goal, board, projectTags, cardIds, columnCards)),
     // `types.ts::BoardColumnData.periodKey`'s own doc comment: the same field `columnTitle` above
     // just read to build `title`, carried through unchanged for `dropOnColumn` below.
     periodKey: col.period_key,

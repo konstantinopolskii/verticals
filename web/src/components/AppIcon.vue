@@ -10,6 +10,7 @@ import '../lib/devIcons'
 import {
   IconArrowLeft,
   IconArrowRight,
+  IconArrowUpRight,
   IconCalendar,
   IconChevronDown,
   IconChevronLeft,
@@ -19,6 +20,7 @@ import {
   IconFolder,
   IconHierarchy,
   IconHistory,
+  IconInbox,
   IconListDetails,
   IconMessageCircle,
   IconPlus,
@@ -27,12 +29,15 @@ import {
   IconSearch,
   IconTag,
   IconTrash,
+  IconWorld,
   IconX,
+  IconCircleXFilled,
 } from '@tabler/icons-vue'
 
 const REGISTRY = {
   'arrow-left': IconArrowLeft,
   'arrow-right': IconArrowRight,
+  'arrow-up-right': IconArrowUpRight,
   calendar: IconCalendar,
   comment: IconMessageCircle,
   'chevron-down': IconChevronDown,
@@ -44,13 +49,16 @@ const REGISTRY = {
   folder: IconFolder,
   hierarchy: IconHierarchy,
   history: IconHistory,
+  inbox: IconInbox,
   plus: IconPlus,
   repeat: IconRotateClockwise,
   search: IconSearch,
   subtask: IconListDetails,
   tag: IconTag,
   trash: IconTrash,
+  world: IconWorld,
   x: IconX,
+  'x-circle': IconCircleXFilled,
 } as const
 
 const props = withDefaults(defineProps<{
@@ -67,10 +75,10 @@ const props = withDefaults(defineProps<{
 
 const icon = computed(() => REGISTRY[props.name])
 const BASE_NAMES = new Set<keyof typeof REGISTRY>([
-  'calendar', 'comment', 'file', 'folder', 'hierarchy', 'history', 'plus', 'repeat', 'subtask', 'tag', 'trash',
+  'calendar', 'comment', 'file', 'folder', 'hierarchy', 'history', 'inbox', 'plus', 'repeat', 'subtask', 'tag', 'trash',
 ])
 const ARROW_NAMES = new Set<keyof typeof REGISTRY>([
-  'arrow-left', 'arrow-right', 'chevron-down', 'chevron-left', 'chevron-right', 'today',
+  'arrow-left', 'arrow-right', 'arrow-up-right', 'chevron-down', 'chevron-left', 'chevron-right', 'today',
 ])
 const tuningClass = computed(() => {
   if (BASE_NAMES.has(props.name)) return 'app-icon--base'

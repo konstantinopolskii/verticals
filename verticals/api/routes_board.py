@@ -1,6 +1,7 @@
-"""`GET /api/board` — the whole board, one call (S-33, IR-07). The one route in this file on
-purpose: `core/board.py` is a single frozen function with no write half, so there is nothing
-else for this module to front.
+"""`GET /api/board` — the whole board, one call (S-33, IR-07) — and `POST /api/replan`, the
+roll's one write (docs/design-handoff S4.P1): `core/board.py` is a single frozen function with
+no write half, so the carry-over task has its own writer, `core/replan.py`, fronted here beside
+the board it reads like.
 
 `owner` is never taken from the request — read from `request.app.state.config.owner` on every
 call, matching `verticals/config.py`'s own docstring ("this module only carries it for whichever
@@ -18,6 +19,8 @@ from fastapi import APIRouter, Depends, Request, Response
 from verticals.api.deps import get_conn, verify_bearer_token
 from verticals.api.schemas import board_to_json
 from verticals.core import board as core_board
+from verticals.core import replan as core_replan
+from verticals.core import spans as core_spans
 
 router = APIRouter(dependencies=[Depends(verify_bearer_token)])
 
@@ -41,3 +44,31 @@ def get_board(
         result = core_board.board(conn, owner=owner, date=date, value=value)
         response.headers["X-Query-Count"] = str(conn.query_count)
     return board_to_json(result)
+
+
+@router.get("/api/spans")
+def get_spans(
+    request: Request, response: Response, vertical: str, date: _date, count: int = 7, value: str | None = None,
+) -> dict:
+    """One vertical's periods in a row, from the one holding `date`, in the board's own payload
+    (docs/design-handoff S5.P1.030): the board a moved goal opens over a column's dots."""
+    owner = request.app.state.config.owner
+    with get_conn(request) as conn:
+        result = core_spans.spans(conn, owner=owner, scale=vertical, start=date, count=count, value=value)
+        response.headers["X-Query-Count"] = str(conn.query_count)
+    return board_to_json(result)
+
+
+@router.post("/api/replan")
+def post_replan(request: Request, date: _date) -> dict:
+    """The day's carry-over into the "Replan carried-over plans" task (S4.P1.017): the app asks
+    on start and when its day turns, and the server does it once a day however often it is
+    asked. `date` is the owner's today, as the board's own `date`; a day more than one away from
+    the server's own is not run, so a wrong clock can neither mark days that have not come nor
+    gather plans against a day long gone."""
+    if abs((date - _date.today()).days) > 1:
+        return {"task_id": None}
+    owner = request.app.state.config.owner
+    with get_conn(request) as conn:
+        task_id = core_replan.run(conn, owner=owner, today=date)
+    return {"task_id": task_id}

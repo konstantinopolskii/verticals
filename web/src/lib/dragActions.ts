@@ -28,6 +28,7 @@ import {
   type DragState,
 } from './drag'
 import { createDragHover, type DragHoverController } from './dragHover'
+import { pinRow } from './familyMotion'
 import { reorderPlacement, reparentPlacement } from './boardPlacement'
 import { messageForError } from './scheduleFeedback'
 import { playSound } from './sound'
@@ -60,6 +61,13 @@ export interface DragActionDeps {
    *  under an armed drag. */
   expandedVertical: () => string | null
   expandColumn: (vertical: string) => void
+  /** Flow 4: open the chain a held-over goal is drawn under plus itself, in its column (`lib/familyView.ts`). */
+  openFamily: (path: string[], vertical: string) => Promise<void>
+  /** Moving a goal (docs/design-handoff S5): every armed move, and the end of the gesture with its flight's length. */
+  onMove?: (x: number, y: number) => void
+  onRelease?: (settleMs: number, parked: boolean) => void
+  /** Before a release: true when the goal is let go somewhere that keeps it (the field, S5.P3.037). */
+  beforeRelease?: (cancelled: boolean) => boolean
 }
 
 /** D246: wait for the DOM to catch up with a hover-driven layout change before trusting row
@@ -106,10 +114,19 @@ export function createDragActions(deps: DragActionDeps) {
   const { state } = deps
 
   const dragHover: DragHoverController = createDragHover({
-    onExpandColumn: (vertical) => {
+    onExpandColumn: (vertical, held) => {
       if (vertical === deps.expandedVertical()) return
+      // flow 4: the goal the hand holds over stays under it while its column widens, so the hold opens what is there
+      const keep = held?.isConnected ? pinRow(held) : null
       deps.expandColumn(vertical)
+      if (keep) void nextTick(keep)
       scheduleRecapture()
+    },
+    onHoldGoal: (row) => {
+      const vertical = row.closest<HTMLElement>('[data-vertical]')?.dataset.vertical
+      const path = (row.dataset.rowKey ?? '').replace(/~$/, '').split('/').filter(Boolean)
+      if (!vertical || vertical === 'maybe' || !path.length || path.includes(state.drag.id ?? '')) return
+      void deps.openFamily(path, vertical).then(scheduleRecapture)
     },
   })
 
@@ -131,7 +148,10 @@ export function createDragActions(deps: DragActionDeps) {
     const hit = trackPointerMove(state.drag, state.board, clientX, clientY, altKey)
     // D246: only while actually armed (`hit` is null before the threshold arms the drag) — the
     // dwell timer is meaningless during the pre-arm hold.
-    if (hit) dragHover.onMove(hit.columnVertical)
+    if (!hit) return
+    const target = state.drag.target
+    dragHover.onMove(hit.columnVertical, clientX, clientY, target?.kind === 'combine' ? target.targetId : null)
+    deps.onMove?.(clientX, clientY)
   }
   function setDragPreviewSize(width: number, height: number): void {
     if (!state.drag.id || width <= 0 || height <= 0) return
@@ -158,8 +178,12 @@ export function createDragActions(deps: DragActionDeps) {
    *  vertical right before the write, matching D244's "card click expands + opens" rule without
    *  any drag-scoped state of its own. */
   function pointerUpDrag(cancelled = false): void {
-    const released = releasePointerDrag(state.drag, cancelled)
+    const parked = deps.beforeRelease?.(cancelled) ?? false
+    const released = releasePointerDrag(state.drag, cancelled || parked)
+    // A goal kept above the field is there already: no flight back to its row.
+    if (parked) state.drag.settling = null
     dragHover.reset()
+    deps.onRelease?.(state.drag.settling?.duration ?? 0, parked)
     if (!released?.target) return
     const { id, target } = released
     const goal = deps.findGoalById(id)

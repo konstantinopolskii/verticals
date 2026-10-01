@@ -16,6 +16,7 @@ The assertion is deliberately the rendered box, not a class name: what the owner
 from __future__ import annotations
 
 from tests.ui.conftest import UiSession
+from tests.ui.views import switch_view
 
 MAYBE_GOAL = "SYNMAY01"  # F2's Maybe row — same goal S-66 schedules
 HOLD_MS = 400  # comfortably past lib/drag.ts::DESKTOP_HOLD_MS (200), the promotion threshold
@@ -24,7 +25,7 @@ SETTLE_DEADLINE_MS = 3000  # >> SETTLE_FALLBACK_MS (250) + SETTLE_GRACE_MS (50);
 
 def test_owner_inbox_press_and_hold_releases_and_leaves_the_card_visible(ui_f2: UiSession) -> None:
     session = ui_f2
-    session.page.click('[data-nav-item="inbox"]')
+    switch_view(session.page, "inbox")
     card = session.page.locator(f'[data-goal-id="{MAYBE_GOAL}"]')
     card.wait_for(state="visible")
 
@@ -59,8 +60,8 @@ def test_owner_inbox_press_and_hold_releases_and_leaves_the_card_visible(ui_f2: 
     # And it must survive the round trip: the stuck state was global, not a stale node in this
     # view's DOM, so it outlived every remount. (An unverticaled goal has no board column of its
     # own — S-66's own note — so Inbox is where it is looked at again.)
-    session.page.click('[data-nav-item="verticals"]')
-    session.page.click('[data-nav-item="inbox"]')
+    switch_view(session.page, "verticals")
+    switch_view(session.page, "inbox")
     returned = session.page.locator(f'[data-goal-id="{MAYBE_GOAL}"]')
     returned.wait_for(state="visible", timeout=5000)
     returned_box = returned.bounding_box()

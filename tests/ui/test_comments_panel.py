@@ -29,6 +29,7 @@ from playwright.sync_api import Page, expect
 
 from verticals.core import comments as core_comments, docs as core_docs, goals as core_goals
 from tests.ui.conftest import UiSession
+from tests.ui.views import switch_view
 
 ANCHOR = date(2026, 8, 8)  # the pinned clock date (tests/ui/conftest.py PINNED_CLOCK_ISO)
 
@@ -79,7 +80,7 @@ def _open_goal(page: Page, goal_id: str) -> None:
 
 def _open_docs_and_doc(session: UiSession, doc_id: str) -> None:
     page = session.page
-    page.click('[data-nav-item="docs"]')
+    switch_view(page, "docs")
     page.wait_for_selector('[data-cap="docs"]', timeout=5000)
     page.click(f'[data-doc-id="{doc_id}"]')
     expect(page.locator('[data-role="doc-path"]')).to_be_visible(timeout=10000)
@@ -166,11 +167,15 @@ def test_open_comments_panel_from_icon(ui_f2: UiSession) -> None:
     page = session.page
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
         goal_id = _create_goal(conn, "SYN comments icon goal")
+        # The opened card has no icon row: its open comments are a fact under the title, "1 comment", which opens the
+        # panel (GoalFacts.vue, the opened-card cleanup, KK 27-28 Sep 2026), so the goal needs one to show it.
+        _seed_thread(conn, goal_id=goal_id, body="SYN seeded note")
 
     page.reload()
     _open_goal(page, goal_id)
 
     icon = page.locator(f'[data-goal-id="{goal_id}"] [data-cap="open-comments"]')
+    expect(icon).to_have_text("1 comment", timeout=10000)
     expect(icon).to_be_visible(timeout=10000)
     assert icon.get_attribute("aria-expanded") == "false"
     expect(page.locator('[data-role="comments-panel"]')).to_have_count(0)
@@ -198,7 +203,10 @@ def test_whole_card_comment_round_trip(ui_f2: UiSession) -> None:
 
     page.reload()
     _open_goal(page, goal_id)
-    page.locator(f'[data-goal-id="{goal_id}"] [data-cap="open-comments"]').click()
+    # A goal with no comments shows none on its card: the first one starts from its menu (KK, 29 Sep 2026).
+    assert page.locator(f'[data-goal-id="{goal_id}"] [data-cap="open-comments"]').count() == 0
+    page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open [data-role="goal-actions-trigger"]').click()
+    page.locator('[data-role="goal-context-menu"] [data-menu-item="comment"]').click()
 
     panel = page.locator('[data-role="comments-panel"]')
     expect(panel).to_be_visible(timeout=10000)
@@ -215,8 +223,8 @@ def test_whole_card_comment_round_trip(ui_f2: UiSession) -> None:
     expect(row.locator('.comment-msg')).to_have_text("SYN whole-card note")
     expect(panel.locator('[data-role="comments-empty"]')).to_have_count(0)
 
-    badge = page.locator(f'[data-goal-id="{goal_id}"] [data-role="comments-badge"]')
-    expect(badge).to_have_text("1")
+    # ...and from then on its facts line counts it, under the title.
+    expect(page.locator(f'[data-goal-id="{goal_id}"] [data-cap="open-comments"]')).to_have_text("1 comment")
 
     server = _api_goal_comments(session, goal_id)
     assert len(server["threads"]) == 1
@@ -239,7 +247,8 @@ def test_anchored_comment_shows_highlight_and_click_through(ui_f2: UiSession) ->
 
     page.reload()
     _open_goal(page, goal_id)
-    body_selector = f'[data-goal-id="{goal_id}"] [data-cap="edit-body"]'
+    # The notes end the open goal's piece, in the list under its card (the opened-card cleanup, KK 27-28 Sep 2026).
+    body_selector = f'.goal-card--detail-open[data-goal-id="{goal_id}"] + .goal-card__children--open [data-cap="edit-body"]'
     expect(page.locator(body_selector)).to_contain_text(quote, timeout=10000)
 
     _select_phrase(page, body_selector, quote)

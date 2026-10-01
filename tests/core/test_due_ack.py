@@ -36,6 +36,10 @@ def _week_ids(result) -> set[str]:
     return {goal.id for goal in column.goals}
 
 
+def _columns_of(result, goal_id: str) -> list[str]:
+    return [column.vertical for column in result.columns if any(goal.id == goal_id for goal in column.goals)]
+
+
 def _board_today(conn: psycopg.Connection):
     return board.board(conn, owner=OWNER, date=date.today())
 
@@ -43,7 +47,8 @@ def _board_today(conn: psycopg.Connection):
 def test_overdue_verdict_removes_ghost_and_lands_in_history(db: psycopg.Connection) -> None:
     goal = _create(db, "SYN long overdue", PAST_ANCHOR)
     before = _board_today(db)
-    assert goal.id in _week_ids(before)
+    # The roll (docs/design-handoff S4.P1.006): a plan from 2020 has fallen all the way to Year, the ladder's top.
+    assert _columns_of(before, goal.id) == ["year"]
     assert goal.id in before.ghosts
 
     ack = due_ack.acknowledge(db, owner=OWNER, id=goal.id, verdict="overdue")
@@ -54,7 +59,7 @@ def test_overdue_verdict_removes_ghost_and_lands_in_history(db: psycopg.Connecti
     assert ack.note is None
 
     after = _board_today(db)
-    assert goal.id not in _week_ids(after)
+    assert _columns_of(after, goal.id) == []
     assert goal.id not in after.ghosts
     # The goal itself is untouched: still open, still anchored where it was.
     stored = goals.goal(db, owner=OWNER, id=goal.id).goal

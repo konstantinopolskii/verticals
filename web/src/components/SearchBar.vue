@@ -1,543 +1,424 @@
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { KCheckbox } from '@konstantinopolskii/vue'
-import TagChip from './TagChip.vue'
-import { store, todayIso } from '../store'
-import { stateUrl } from '../lib/urlState'
+// The circle and the field (docs/design-handoff S1.P1, S1.P2): one black shape. At rest a circle with the mascot's line;
+// pointed at, focused or holding words, a field whose line is your cursor, then your caret. Enter sends the words
+// (`submit`); the board follows every letter through `commandFilter`.
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { store } from '../store'
+import { commandFilter } from '../lib/commandFilter'
+import { circle, circleCaption, circleState, circleWords } from '../lib/circle'
+import { agentChat, decide, openAsk, stop } from '../lib/agentChat'
+import { plainWords } from '../lib/chatMarkdown'
+import { closeWindows, windows } from '../lib/windows'
+import { mascot, useMascot, watchBoardNews } from '../lib/mascot'
+import { followWords } from '../lib/finding'
+import { curve } from '../lib/motion'
+import { anyMenuOpen } from '../lib/cardLift'
+import { defineKnobs, knob } from '../lib/tuning'
+import CircleTags from './CircleTags.vue'
+import MovingStack from './MovingStack.vue'
+import { backspace as pickBackspace, escape as movingEscape, tab as pickTab } from '../lib/moving'
+import './circleField.css'
 
-const SEARCH_DEBOUNCE_MS = 300
-const SEARCH_PATH_RE = /^\/search(?:\/(.*))?\/?$/
+defineKnobs('The field', [
+  { key: 'field.tagsWhileTyping', label: 'Tags also show while typing (1 = on)', value: 0, min: 0, max: 1, step: 1 },
+  { key: 'field.maxLines', label: 'Lines before the field scrolls', value: 10, min: 1, max: 20, step: 1 },
+])
 
-const inputValue = ref('')
-const surfaceOpen = ref(false)
-const showRecent = ref(false)
-const pending = ref(false)
-const preSearchPath = ref('/')
-const trigger = ref<HTMLButtonElement | null>(null)
-const input = ref<HTMLInputElement | null>(null)
+defineProps<{ agentAvailable: boolean }>()
+const emit = defineEmits<{ submit: [text: string] }>()
 
-let debounceTimer: number | undefined
-let previousBodyOverflow: string | null = null
+const ANSWER_MEASURE = 376
+const ANSWER_PAD = 44
+const PAD_LEFT = 32
+const PAD_RIGHT = 84
+const PAD_Y = 24
+const LINE = 36
+const CIRCLE = 84
 
-function clearTimer() {
-  if (debounceTimer !== undefined) window.clearTimeout(debounceTimer)
-  debounceTimer = undefined
+const body = ref<HTMLElement | null>(null)
+const shape = ref<HTMLElement | null>(null)
+const surface = ref<HTMLElement | null>(null)
+const line = ref<HTMLElement | null>(null)
+const input = ref<HTMLTextAreaElement | null>(null)
+const mirror = ref<HTMLElement | null>(null)
+const pivot = ref<HTMLElement | null>(null)
+const answerMeasure = ref<HTMLElement | null>(null)
+const answerLines = ref(1)
+const answerWidth = ref(0)
+
+const hand = ref<{ x: number; y: number } | null>(null)
+const onTags = ref(false)
+const caret = ref<{ x: number; y: number }>({ x: 0, y: 0 })
+const selecting = ref(false)
+const still = ref(true)
+const lines = ref(1)
+const room = reactive({ width: typeof innerWidth === 'number' ? innerWidth : 1440 })
+
+const state = circleState
+const text = computed(() => commandFilter.text)
+const maxWidth = computed(() => Math.max(CIRCLE, Math.min(720, room.width - 32)))
+
+let measureCtx: CanvasRenderingContext2D | null = null
+/* A face loads its glyphs as they are first used (Cyrillic, say): until then words are measured in the fallback face,
+   so the field measures them again once a face has loaded, or a pasted line wraps out of sight. */
+const fontsLoaded = ref(0)
+function onFontsLoaded(): void { fontsLoaded.value += 1 }
+function textWidth(value: string): number {
+  void fontsLoaded.value
+  if (!input.value) return 0
+  measureCtx ??= document.createElement('canvas').getContext('2d')
+  if (!measureCtx) return 0
+  const style = getComputedStyle(input.value)
+  measureCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+  return Math.max(0, ...value.split('\n').map((part) => measureCtx!.measureText(part).width))
 }
 
-/** What the address bar should say with the search surface shut — read off the state, not off a
- *  URL snapshot taken when the surface opened: Back/Forward can move the app underneath an open
- *  surface, and a stale snapshot would put the wrong page back. Only the path is remembered, so a
- *  hand-typed `/h/<today>` comes back spelled the way it was. */
-function underlyingUrl(): string {
-  return stateUrl(store.state, todayIso, preSearchPath.value)
-}
+const answerText = computed(() => (circleWords.value ? plainWords(circleWords.value.text) : ''))
+const stopping = computed(() => state.value === 'working' && circle.pointed)
+/* Holding a goal over the spans, the field is a pill with the mascot; let go over it, it widens to hold what stands above
+   it (S5.P3.002, .007, .039). */
+const holding = computed(() => state.value === 'moving' && store.state.drag.id !== null)
 
-function replaceSearchUrl(query: string) {
-  // Keep whatever `lib/urlState.ts` stored on this entry: the search surface borrows the address
-  // bar, it does not replace the entry the app is standing on.
-  history.replaceState(history.state, '', query ? `/search/${encodeURIComponent(query)}` : '/search/')
-}
-
-function schedule(search: () => void) {
-  clearTimer()
-  debounceTimer = window.setTimeout(() => {
-    debounceTimer = undefined
-    search()
-  }, SEARCH_DEBOUNCE_MS)
-}
-
-function lockPageScroll() {
-  if (previousBodyOverflow !== null) return
-  previousBodyOverflow = document.body.style.overflow
-  document.body.style.overflow = 'hidden'
-}
-
-function unlockPageScroll() {
-  if (previousBodyOverflow === null) return
-  document.body.style.overflow = previousBodyOverflow
-  previousBodyOverflow = null
-}
-
-async function focusInput() {
-  await nextTick()
-  input.value?.focus()
-}
-
-async function loadRecent() {
-  try {
-    await store.loadRecentSearch()
-  } finally {
-    pending.value = false
+const width = computed(() => {
+  if (state.value === 'answer') return Math.max(CIRCLE, Math.min(answerWidth.value + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))
+  if (stopping.value) return 132
+  if (state.value === 'typing') {
+    return Math.min(maxWidth.value, Math.max(300, Math.ceil(PAD_LEFT + PAD_RIGHT + textWidth(text.value) + 5)))
   }
+  if (state.value === 'open') return Math.min(300, maxWidth.value)
+  if (holding.value) return 120
+  if (state.value === 'moving') return Math.min(circle.pointed ? 434 : 300, maxWidth.value)
+  return mascot.pong ? 132 : CIRCLE
+})
+const shownLines = computed(() => Math.min(lines.value, knob('field.maxLines')))
+const height = computed(() => {
+  if (state.value === 'typing') return PAD_Y * 2 + shownLines.value * LINE
+  if (state.value === 'answer') return Math.max(CIRCLE, PAD_Y * 2 + answerLines.value * 22 + (circleWords.value?.kind === 'ask' ? 44 : 0))
+  return CIRCLE
+})
+const wide = computed(() => state.value === 'open' || state.value === 'typing' || state.value === 'answer'
+  || (state.value === 'moving' && !holding.value))
+const tagsShown = computed(() => (circle.pointed && wide.value)
+  || (knob('field.tagsWhileTyping') === 1 && circle.focused))
+
+/* Where the line stands: the mascot's at rest, your hand over the field, your caret once the field has it. */
+const lineMode = computed(() => {
+  if (state.value === 'answer') return 'hidden'
+  if (!wide.value) return 'mascot'
+  if (circle.focused) return selecting.value ? 'hidden' : 'caret'
+  if (hand.value && !onTags.value) return 'hand'
+  return state.value === 'typing' ? 'caret' : 'home'
+})
+
+const { mover } = useMascot({
+  line, surface, body,
+  center: () => {
+    const box = shape.value?.getBoundingClientRect()
+    return box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null
+  },
+}, () => !wide.value)
+
+let lastMode = 'mascot'
+watch([lineMode, hand, caret, width, height], () => {
+  const m = mover()
+  if (!m) return
+  const mode = lineMode.value
+  if (mode === 'hand' && hand.value) m.set({ x: hand.value.x, y: hand.value.y, r: 0, sy: 1 })
+  else if (mode === 'caret') {
+    const slide = lastMode !== 'caret' && lastMode !== 'hidden'
+    if (slide) void m.to({ ...caret.value, r: 0, sy: 1 }, 140, curve('large'))
+    else m.set({ ...caret.value, r: 0, sy: 1 })
+  } else if (mode === 'home' && lastMode !== 'home') void m.to({ x: 0, y: 0, r: 0, sy: 1 }, 160, curve('large'))
+  else if (mode === 'mascot' && lastMode !== 'mascot') void m.to({ x: 0, y: 0, r: 0, sy: 1 }, 160, curve('large'))
+  lastMode = mode
+}, { flush: 'post' })
+
+function measure(): void {
+  const el = input.value
+  const copy = mirror.value
+  if (!el || !copy) return
+  const set = el.style.height
+  el.style.height = '0px'
+  lines.value = Math.max(1, Math.round(el.scrollHeight / LINE))
+  el.style.height = set
+  const at = el.selectionStart ?? el.value.length
+  selecting.value = el.selectionStart !== el.selectionEnd
+  copy.textContent = el.value.slice(0, at)
+  const mark = document.createElement('span')
+  mark.textContent = '​'
+  copy.appendChild(mark)
+  const x = el.value ? mark.offsetLeft + 2 : -4
+  const y = mark.offsetTop - el.scrollTop
+  caret.value = { x: PAD_LEFT + x + 1.5 - width.value / 2, y: PAD_Y + y + LINE / 2 - height.value / 2 }
+}
+let stillTimer: ReturnType<typeof setTimeout> | null = null
+function moved(): void {
+  still.value = false
+  if (stillTimer) clearTimeout(stillTimer)
+  stillTimer = setTimeout(() => { still.value = true }, 500)
+  void nextTick(measure)
+}
+watch([text, width, height], () => void nextTick(measure))
+
+/* The answer's shape hugs its words: one line as wide as they are, more at the 376 px measure, three at most (S2.P4.040). */
+watch(answerText, async () => {
+  await nextTick()
+  const el = answerMeasure.value
+  if (!el) return
+  answerLines.value = Math.min(3, Math.max(1, Math.round(el.getBoundingClientRect().height / 22)))
+  // The blinking line after the words takes its 5 px on the last line.
+  answerWidth.value = answerLines.value > 1 ? ANSWER_MEASURE : Math.min(ANSWER_MEASURE, Math.ceil(el.scrollWidth) + 6)
+}, { immediate: true, flush: 'post' })
+
+/* The conversation measures itself against the field (S2.P1.009), and moves up when the tags come in (S2.P2.013). */
+watch(height, (value) => document.documentElement.style.setProperty('--vt-field-height', `${value}px`), { immediate: true })
+watch(tagsShown, (shown) => document.documentElement.style.setProperty('--vt-tags-lift', shown ? '44px' : '0px'), { immediate: true })
+watch(width, (value) => document.documentElement.style.setProperty('--moving-field-width', `${value}px`), { immediate: true })
+/* Pointed at in the moving mode, the tags take the stack's left end and the stack moves right by their width and 8 px
+   (S5.P3.010, .012). */
+watch(tagsShown, async (shown) => {
+  await nextTick()
+  const tags = shown ? document.querySelector<HTMLElement>('.circle-tags')?.offsetWidth ?? 0 : 0
+  document.documentElement.style.setProperty('--moving-tags-shift', `${tags ? tags + 8 : 0}px`)
+}, { immediate: true })
+
+/* While the agent works the line turns; when it answers it ends upright (S2.P3.003). */
+watch(() => state.value === 'working', (working, was) => {
+  const el = pivot.value
+  if (!el || working || !was) return
+  const from = getComputedStyle(el).transform
+  if (from && from !== 'none') el.animate([{ transform: from }, { transform: 'none' }], { duration: 165, easing: curve('large') })
+})
+
+/* The answer goes up into the conversation as its last balloon, and the field takes the caret (S2.P4.003). */
+function reply(): void {
+  agentChat.answer = null
+  agentChat.open = true
+  agentChat.engaged = true
+  focusField()
 }
 
-function scheduleRecent() {
-  pending.value = true
-  schedule(() => {
-    if (surfaceOpen.value && inputValue.value.trim() === '' && store.state.searchTag === null) {
-      void loadRecent()
-    } else {
-      pending.value = false
+function onInput(event: Event): void {
+  commandFilter.text = (event.target as HTMLTextAreaElement).value
+  moved()
+}
+function focusField(): void {
+  const el = input.value
+  if (!el) return
+  // Typing, or a click on the field, brings the conversation back; over a window, always (S2.P1.011, .018).
+  if (windows.list.length && agentChat.available) agentChat.engaged = true
+  if (agentChat.engaged && !agentChat.open) agentChat.open = true
+  el.focus({ preventScroll: true })
+  const end = el.value.length
+  el.setSelectionRange(end, end)
+  moved()
+}
+function clear(): void {
+  commandFilter.text = ''
+  moved()
+}
+function send(): void {
+  const words = commandFilter.text.trim()
+  if (!words) return
+  emit('submit', words)
+}
+function onKeyDown(event: KeyboardEvent): void {
+  if (event.isComposing) return
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    send()
+    return
+  }
+  // On an empty field in the moving mode, Backspace and Tab pick up what stands above it (S5.P4.002, .003).
+  if (!commandFilter.text && circle.moving && ((event.key === 'Backspace' && pickBackspace()) || (event.key === 'Tab' && pickTab()))) {
+    event.preventDefault()
+    return
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    if (commandFilter.text) clear()
+    else if (movingEscape()) return
+    else if (agentChat.open) agentChat.open = false
+    else if (windows.list.length) closeWindows()
+    else {
+      agentChat.engaged = false
+      input.value?.blur()
     }
-  })
-}
-
-function openSurface() {
-  if (surfaceOpen.value) return
-  preSearchPath.value = location.pathname
-  surfaceOpen.value = true
-  showRecent.value = inputValue.value.trim() === ''
-  replaceSearchUrl(inputValue.value.trim())
-  lockPageScroll()
-  if (showRecent.value) scheduleRecent()
-  void focusInput()
-}
-
-async function closeSurface(restoreFocus = true) {
-  clearTimer()
-  pending.value = false
-  inputValue.value = ''
-  surfaceOpen.value = false
-  showRecent.value = false
-  store.clearSearch()
-  history.replaceState(history.state, '', underlyingUrl())
-  unlockPageScroll()
-  await nextTick()
-  if (restoreFocus) trigger.value?.focus()
-}
-
-const recognizedTag = computed(() => {
-  const match = /^#(\S+)/.exec(inputValue.value.trim())
-  return match ? match[1] : null
-})
-
-async function runTextSearch(query: string) {
-  try {
-    await store.runSearch(query)
-  } finally {
-    pending.value = false
-  }
-}
-
-function onInput(event: Event) {
-  clearTimer()
-  const value = (event.target as HTMLInputElement).value
-  inputValue.value = value
-  replaceSearchUrl(value.trim())
-
-  if (recognizedTag.value) {
-    pending.value = false
-    showRecent.value = false
-    store.clearSearch()
     return
   }
-
-  const trimmed = value.trim()
-  if (trimmed.length < 3) {
-    pending.value = false
-    store.clearSearch()
-    showRecent.value = trimmed.length === 0
-    if (showRecent.value) scheduleRecent()
+  if (event.key === 'Tab' && !event.shiftKey && !commandFilter.text) {
+    // The tags are reached with Tab from the open field, in their order (S2.P2.020).
+    const first = document.querySelector<HTMLElement>('.circle-tags .circle-tag')
+    if (first) { event.preventDefault(); first.focus() }
     return
   }
-
-  showRecent.value = false
-  pending.value = true
-  store.clearSearch()
-  schedule(() => void runTextSearch(trimmed))
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) moved()
 }
 
-async function onPickTag(tag: string) {
-  clearTimer()
-  pending.value = true
-  try {
-    await store.filterByTag(tag)
-  } finally {
-    pending.value = false
+function fromCentre(event: PointerEvent): { x: number; y: number } | null {
+  const box = shape.value?.getBoundingClientRect()
+  if (!box) return null
+  const half = Math.max(0, width.value / 2 - 20)
+  const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v))
+  return { x: clamp(event.clientX - box.left - box.width / 2, half), y: clamp(event.clientY - box.top - box.height / 2, 24) }
+}
+function onShapeMove(event: PointerEvent): void {
+  if (event.pointerType === 'touch') return
+  circle.pointed = true
+  onTags.value = false
+  hand.value = fromCentre(event)
+}
+function onTagsEnter(): void { onTags.value = true }
+function onLeave(): void {
+  circle.pointed = false
+  hand.value = null
+  onTags.value = false
+}
+
+/* Any printable key on the board is the field's first letter; ⌘K opens it from anywhere (S1.P2.012, .024). */
+function onWindowKeyDown(event: KeyboardEvent): void {
+  if (event.defaultPrevented || event.isComposing) return
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    focusField()
+    return
   }
+  if ((event.metaKey || event.ctrlKey) && event.key === '.' && agentChat.running) {
+    event.preventDefault()
+    void stop()
+    return
+  }
+  if (event.key === 'Escape' && circleWords.value?.kind === 'answer') {
+    agentChat.answer = null
+    return
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey || event.key.length !== 1 || event.key === ' ') return
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if (target?.closest('input, textarea, select, button, [contenteditable="true"], [role="dialog"], [role="menu"]')) return
+  if (anyMenuOpen() || store.state.drag.id || store.state.drag.pending) return
+  event.preventDefault()
+  if (circleWords.value?.kind === 'answer') reply()
+  commandFilter.text += event.key
+  focusField()
 }
-
-function searchPeriod(goal: { vertical: string | null; anchor_date: string | null }): string {
-  return goal.vertical && goal.anchor_date ? `${goal.vertical} · ${goal.anchor_date}` : ''
+function onShapeClick(): void {
+  if (circleWords.value?.kind === 'answer') reply()
+  else if (!circleWords.value) focusField()
 }
+function onResize(): void { room.width = innerWidth }
 
-function onToggle(id: string, value: boolean) {
-  void store.completeGoal(id, value)
-}
+defineExpose({ focusField })
 
-function openGoal(id: string) {
-  void closeSurface(false).then(() => store.navigateToGoal(id))
-}
-
-const hasQuery = computed(() => store.state.searchQuery.trim().length >= 3)
-const showResults = computed(
-  () => showRecent.value || store.state.searchTag !== null || (!recognizedTag.value && hasQuery.value),
-)
-const noMatches = computed(
-  () => showResults.value && !pending.value && store.state.searchResults.length === 0,
-)
-
+let stopNews: (() => void) | null = null
+let stopFinding: (() => void) | null = null
 onMounted(() => {
-  const match = SEARCH_PATH_RE.exec(location.pathname)
-  if (!match) return
-
-  let query = ''
-  try {
-    query = decodeURIComponent(match[1] ?? '')
-  } catch {
-    query = match[1] ?? ''
-  }
-
-  surfaceOpen.value = true
-  inputValue.value = query
-  lockPageScroll()
-  void focusInput()
-
-  if (query.trim().length >= 3 && !/^#\S+/.test(query.trim())) {
-    pending.value = true
-    schedule(() => void runTextSearch(query.trim()))
-  } else if (query.trim() === '') {
-    showRecent.value = true
-    scheduleRecent()
-  }
+  const match = /^\/search\/(.*)/.exec(location.pathname)
+  if (match?.[1]) { try { commandFilter.text = decodeURIComponent(match[1]) } catch { commandFilter.text = match[1] } }
+  window.addEventListener('keydown', onWindowKeyDown, true)
+  window.addEventListener('resize', onResize)
+  document.fonts?.addEventListener('loadingdone', onFontsLoaded)
+  stopNews = watchBoardNews()
+  stopFinding = followWords(() => commandFilter.text, () => store.state.board)
+  void document.fonts?.ready.then(() => void nextTick(measure))
 })
-
 onBeforeUnmount(() => {
-  clearTimer()
-  unlockPageScroll()
+  window.removeEventListener('keydown', onWindowKeyDown, true)
+  window.removeEventListener('resize', onResize)
+  document.fonts?.removeEventListener('loadingdone', onFontsLoaded)
+  stopNews?.()
+  stopFinding?.()
+  if (stillTimer) clearTimeout(stillTimer)
 })
 </script>
 
 <template>
-  <div class="search-bar" data-cap="search">
-    <button
-      ref="trigger"
-      type="button"
-      class="search-bar__trigger"
-      data-cap="search-trigger"
-      aria-label="Search"
-      @click="openSurface"
-    >
-      <AppIcon
-        name="search"
-        class="search-bar__trigger-icon"
-        :class="{ 'search-bar__trigger-icon--return': surfaceOpen }"
-        data-role="search-icon"
-      />
-    </button>
-
-    <Teleport to="body">
+  <div
+    class="circle-field"
+    data-cap="search"
+    :data-state="state"
+    :data-pong="mascot.pong ? '' : undefined"
+    :data-focused="circle.focused ? '' : undefined"
+    :data-holding="holding ? '' : undefined"
+    @pointerleave="onLeave"
+  >
+    <div class="circle-field__above">
+      <slot name="above" />
+      <MovingStack />
+      <CircleTags :shown="tagsShown" @pointerenter="onTagsEnter">
+        <template #agent><slot name="agent-tag" /></template>
+      </CircleTags>
+      <div class="circle-field__bridge" :class="{ 'is-shown': tagsShown }" aria-hidden="true"></div>
+    </div>
+    <div ref="body" class="circle-field__body">
       <div
-        v-if="surfaceOpen"
-        class="search-backdrop"
-        data-cap="search-backdrop"
-        @pointerup.self="() => void closeSurface()"
+        ref="shape"
+        class="circle-field__shape"
+        :style="{ width: `${width}px`, height: `${height}px` }"
+        @pointerenter="onShapeMove"
+        @pointermove="onShapeMove"
+        @click="onShapeClick"
       >
-        <section class="search-modal" data-cap="search-modal">
-          <div class="search-modal__input" data-cap="search-input">
-            <span class="search-modal__input-slot" aria-hidden="true">
-              <svg
-                v-if="pending"
-                class="search-modal__spinner"
-                data-role="search-spinner"
-                viewBox="0 0 20 20"
-              >
-                <circle cx="10" cy="10" r="8" />
-              </svg>
-              <AppIcon
-                v-else
-                name="search"
-                class="search-modal__input-icon"
-                data-role="search-input-icon"
-              />
-            </span>
-            <input
-              ref="input"
-              :value="inputValue"
-              type="text"
-              placeholder="Search"
-              autocomplete="off"
-              @input="onInput"
-              @keydown.esc="() => void closeSurface()"
-            >
+        <div ref="surface" class="circle-field__surface" aria-hidden="true"></div>
+        <div class="circle-field__words" data-cap="search-input">
+          <textarea
+            ref="input"
+            :value="commandFilter.text"
+            rows="1"
+            :aria-label="circleCaption"
+            autocomplete="off"
+            spellcheck="false"
+            :style="{ height: `${shownLines * LINE}px`, overflowY: lines > shownLines ? 'auto' : 'hidden' }"
+            @input="onInput"
+            @keydown="onKeyDown"
+            @keyup="moved"
+            @pointerup="moved"
+            @select="moved"
+            @scroll="measure"
+            @focus="circle.focused = true; moved()"
+            @blur="circle.focused = false"
+          ></textarea>
+          <div ref="mirror" class="circle-field__mirror" aria-hidden="true"></div>
+          <span v-if="!commandFilter.text" class="circle-field__caption" aria-hidden="true">{{ circleCaption }}</span>
+        </div>
+        <button
+          type="button"
+          class="circle-field__send"
+          :class="{ 'is-shown': !!commandFilter.text }"
+          aria-label="Send to the agent"
+          :tabindex="commandFilter.text ? 0 : -1"
+          @click.stop="send"
+        >
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+            <path d="M12 21.5V3M12 3 5 10M12 3l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <div v-if="circleWords" class="circle-field__answer" :class="`circle-field__answer--${circleWords.kind}`" data-role="circle-answer"
+          :aria-label="circleWords.kind === 'answer' ? `${answerText}. Press any key to reply` : undefined">
+          <p class="circle-field__answer-words">{{ answerText }}<span v-if="circleWords.kind === 'answer'" class="circle-field__answer-caret" aria-hidden="true"></span></p>
+          <div v-if="circleWords.kind === 'ask' && openAsk" class="circle-field__answer-choices">
+            <button v-for="option in openAsk.options" :key="option.value" type="button" class="circle-field__answer-choice"
+              @click.stop="decide(openAsk.requestId, option.value)">{{ option.label }}</button>
           </div>
-
-          <div class="search-modal__results" data-cap="search-results">
-            <div v-if="recognizedTag" class="search-modal__tag">
-              <TagChip
-                :tag="recognizedTag"
-                :pressed="store.state.searchTag === recognizedTag"
-                @select="onPickTag"
-              />
-            </div>
-            <p v-if="store.state.searchTruncated" class="search-modal__truncated">
-              Showing the first results only.
-            </p>
-            <p v-if="noMatches" class="search-modal__empty" data-role="search-empty">
-              No results matched your search
-            </p>
-            <ul v-else-if="showResults && store.state.searchResults.length" class="search-modal__list">
-              <li
-                v-for="goal in store.state.searchResults"
-                :key="goal.id"
-                class="search-result"
-                :data-goal-id="goal.id"
-                @click="openGoal(goal.id)"
-              >
-                <KCheckbox
-                  size="xl"
-                  data-cap="complete"
-                  :model-value="goal.done_at !== null"
-                  @click.stop
-                  @update:model-value="value => onToggle(goal.id, value)"
-                />
-                <div class="search-result__content">
-                  <p
-                    class="goal-card__title"
-                    :class="{ 'search-result__title--done': goal.done_at !== null }"
-                  >{{ goal.title }}</p>
-                  <p data-role="search-period">{{ searchPeriod(goal) }}</p>
-                </div>
-                <button
-                  type="button"
-                  class="search-result__open"
-                  data-role="search-open"
-                  :aria-label="`Open ${goal.title}`"
-                  @click.stop="openGoal(goal.id)"
-                >
-                  <AppIcon name="chevron-right" :size="16" />
-                </button>
-              </li>
-            </ul>
-          </div>
-        </section>
+        </div>
+        <p ref="answerMeasure" class="circle-field__answer-measure" aria-hidden="true">{{ answerText }}</p>
+        <button v-if="stopping" type="button" class="circle-field__stop" aria-label="Stop the agent" @click.stop="stop()">
+          <span aria-hidden="true"></span>
+        </button>
+        <span ref="pivot" class="circle-field__pivot" :class="{ 'is-turning': state === 'working' && !openAsk, 'is-stopping': stopping }">
+        <span
+          ref="line"
+          class="circle-field__line"
+          :class="{ 'is-blinking': lineMode === 'caret' && circle.focused && still, 'is-hidden': lineMode === 'hidden' }"
+          aria-hidden="true"
+        ></span>
+        </span>
+        <template v-if="mascot.pong">
+          <span class="circle-field__line circle-field__line--second" aria-hidden="true"></span>
+          <span class="circle-field__ball-run" aria-hidden="true"><span class="circle-field__ball"></span></span>
+        </template>
       </div>
-    </Teleport>
+    </div>
   </div>
 </template>
-
-<style>
-.search-bar {
-  position: relative;
-}
-
-.search-bar__trigger {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 25px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: rgb(45, 48, 54);
-  cursor: pointer;
-}
-.search-bar__trigger:focus-visible {
-  outline: 2px solid rgba(45, 48, 54, 0.3);
-  outline-offset: 2px;
-}
-.search-bar__trigger-icon {
-  position: relative;
-  top: -4px;
-  display: block;
-  width: 24px;
-  height: 25px;
-  opacity: 0.3;
-  transition: opacity 250ms cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-.search-bar__trigger:hover .search-bar__trigger-icon,
-.search-bar__trigger:active .search-bar__trigger-icon {
-  opacity: 1;
-}
-.search-bar__trigger-icon--return {
-  animation: search-trigger-icon-return 250ms cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-@keyframes search-trigger-icon-return {
-  from { opacity: 1; }
-  to { opacity: 0.3; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .search-bar__trigger-icon--return { animation: none; }
-}
-
-.search-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  overflow: scroll;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: none;
-}
-.search-modal {
-  box-sizing: border-box;
-  width: min(100vw, 824px);
-  max-width: 824px;
-  margin: 50px auto 0;
-  padding: 0;
-  overflow: hidden;
-  background: #ffffff;
-  border: 0;
-  border-radius: 12px;
-  box-shadow: none;
-  font-family: 'Inter', sans-serif;
-  opacity: 1;
-  transform: none;
-}
-.search-modal__input {
-  position: relative;
-  width: 100%;
-}
-.search-modal__input input {
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  height: 65.891px;
-  margin: 0;
-  padding: 16px 16px 16px 44px;
-  color: rgb(45, 48, 54);
-  background: #ffffff;
-  border: 2px solid rgb(255, 255, 255);
-  border-radius: 8px;
-  outline: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 26px;
-  font-weight: 400;
-  line-height: 29.9px;
-}
-.search-modal__input-slot {
-  box-sizing: border-box;
-  position: absolute;
-  inset: 0 auto 0 0;
-  z-index: 1;
-  display: flex;
-  width: 48px;
-  padding: 0 14px;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.search-modal__spinner,
-.search-modal__input-icon {
-  display: block;
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
-}
-.search-modal__input-icon {
-  opacity: 0.6;
-  cursor: default;
-}
-.search-modal__spinner {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2px;
-  stroke-linecap: round;
-  stroke-dasharray: 36 16;
-  animation: search-spinner-rotation 700ms linear infinite;
-}
-@keyframes search-spinner-rotation {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.search-modal__results {
-  box-sizing: border-box;
-  width: 100%;
-  max-height: 450px;
-  padding: 0 0 15px;
-  overflow: scroll;
-}
-.search-modal__list {
-  display: block;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.search-result {
-  box-sizing: border-box;
-  display: flex;
-  min-height: 37px;
-  padding: 8px 18px;
-  align-items: center;
-  gap: 14px;
-  background: transparent;
-  border-bottom: 1px solid rgba(45, 48, 54, 0.1);
-  cursor: pointer;
-  transition: background-color 300ms cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-.search-result:hover {
-  background: #ecedef;
-}
-.search-result__content {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  align-items: baseline;
-  gap: 8px;
-}
-.search-result .goal-card__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  color: rgb(45, 48, 54);
-  font-family: 'Inter', sans-serif;
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 20px;
-  cursor: pointer;
-}
-.search-result .search-result__title--done {
-  color: rgba(45, 48, 54, 0.3);
-}
-.search-result [data-role='search-period'] {
-  flex: 0 0 auto;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  opacity: 0.5;
-  white-space: nowrap;
-}
-.search-result__open {
-  box-sizing: border-box;
-  display: block;
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: rgb(45, 48, 54);
-  opacity: 0.5;
-  cursor: pointer;
-}
-.search-result__open svg {
-  display: block;
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.search-modal__empty {
-  margin: 30px 0;
-  text-align: center;
-  font-family: 'Inter', sans-serif;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 18.4px;
-}
-.search-modal__tag {
-  padding: 8px 18px;
-}
-.search-modal__truncated {
-  margin: 8px 18px;
-  font-size: 14px;
-  line-height: 20px;
-}
-</style>

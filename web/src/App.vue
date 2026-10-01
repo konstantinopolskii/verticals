@@ -1,37 +1,9 @@
 <script setup lang="ts">
-/* The application shell: full-viewport content with a compact fixed nav, replacing main.ts's old direct
-   `h(SearchBar), h(Board)` mount. Geometry was `docs/UI_MEASURED.md` §1, re-probed live against
-   the committed reference fixtures (`tests/uidiff/reference/{board,inbox,search}.html`) rather
-   than trusted blind — all three surfaces shared one shell (`.App [0,0,1458,739]`, nav
-   `[0,0,310,739]`, content pane `[310,0,1148,739]`).
-
-   Nav is now 240px wide, items starting 10px from the window's left edge, not the measured 310px
-   (70px empty rail + 240px panel) above — owner ruling (2026-08-09): "from the items we have
-   extra space that is not needed make the space simple 10px from the left side." The rail carried
-   no content and nothing since the original measurement ever claimed it, so it is gone outright
-   rather than kept and hidden; content pane width follows the nav's own `flex: 1 1 auto`
-   automatically and needed no number of its own changed. See `.app-nav`'s own style comment below
-   for the exact before/after.
-
-   Hand-rolled, not `KApp`/`KSidebar`/`KNavGroup` — a deliberate, documented deviation from using
-   a kit *component* here (the kit's own CSS tokens/classes are still used throughout: --space-*,
-   --color-border, KField via SearchBar). Each kit component was checked against the target shape
-   and did not fit:
-     - `KApp`: a 3-pane doc-site grid (sidebar/.book/inspector) with a max-width-capped reading
-       column and a forced inspector pane — wrong shape for a 2-pane product shell.
-     - `KSidebar`: single-band padding, no rail concept, no explicit width — this shell needs a
-       310px = 70px rail + 240px bordered panel split the kit has no equivalent for.
-     - `KSidebarNav`: a scroll-spy TOC generator over `.book__section` headings
-       (IntersectionObserver-driven) — irrelevant to a static, three-item menu (ruling 2, owner,
-       2026-08-09, trimmed this from eight — see `NAV_ITEMS`'s own comment below).
-     - `KNavGroup`: always renders a heading element (`nav-group__head` link or `<h4>`) — this
-       menu has no heading at all (`SubMenu-block` in the reference is a bare link list). A real
-       kit gap for a headingless flat menu, not worked around by force-fitting it here.
-   Revert path: this file and `InboxView.vue` are net-new (delete them), plus the four `store.ts`
-   lines marked "nav (app shell)" and `main.ts`'s one changed import/mount call — nothing here
-   edits kit source or overrides a kit CSS rule, so there is nothing upstream to unwind. */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+/* Issue 1: navigation, search, areas and agent access share one solid bottom surface.
+   Supersedes D10/D111's floating bottom-left navigation and D238's permanent area buttons. */
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Board from './components/Board.vue'
+import GoalCard from './components/GoalCard.vue'
 import InboxView from './components/InboxView.vue'
 import DocsView from './components/DocsView.vue'
 import SearchBar from './components/SearchBar.vue'
@@ -40,8 +12,22 @@ import DevColorPanel from './components/DevColorPanel.vue'
 import DevDeckPanel from './components/DevDeckPanel.vue'
 import DevIconPanel from './components/DevIconPanel.vue'
 import DevGoalLayoutPanel from './components/DevGoalLayoutPanel.vue'
+import DevTuningPanel from './components/DevTuningPanel.vue'
+import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
-import { store } from './store'
+import { store, todayIso } from './store'
+import { commandFilter } from './lib/commandFilter'
+import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
+import { circle } from './lib/circle'
+import { endMove, moveContext } from './lib/moving'
+import { findGoal } from './lib/boardIndex'
+import { spanGoal } from './lib/spans'
+import { carryOver, FIRST_MESSAGE, replanTask } from './lib/replan'
+import { closeWindows, frontWindow, openWindow, outOfFocus, stepWindow, windows } from './lib/windows'
+import WindowStack from './components/WindowStack.vue'
+import AgentConversation from './components/AgentConversation.vue'
+import AgentStep from './components/AgentStep.vue'
+import AgentTag from './components/AgentTag.vue'
 
 /* The shell, not `Board.vue`, owns the day-rollover watcher: it is mounted for the whole life of
    the tab, while `Board` unmounts every time Inbox is active — a planner left on Inbox overnight
@@ -49,6 +35,7 @@ import { store } from './store'
 let stopDayRollover: (() => void) | null = null
 let stopLiveBoard: (() => void) | null = null
 const devPanelsVisible = ref(false)
+const searchBar = ref<InstanceType<typeof SearchBar> | null>(null)
 
 /* And, by the same argument, the shell owns the DRAG lifecycle (D90). `GoalCard.vue`'s row fires
    `pointerdown` wherever it is rendered, and `InboxView` renders the same card as `Board` does, so
@@ -128,127 +115,130 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onWindowKeyUp)
 })
 
-/** `NavItem` shape per the kit's own `index.d.ts` (`{ label, href, current? }`) is not used
- *  verbatim: there is no `vue-router` in this app (dependency cap, `docs/DEPENDENCIES.md`) and no
- *  page navigation happens here at all — every item is an in-place content-pane swap or (for the
- *  one remaining unwired item) a no-op, never a URL. `href` would be a value nothing reads, so
- *  `key`/`wired` replace it; `label` is carried over unchanged since it is the one field this menu
- *  actually needs from that shape. `current` becomes the `store.state.activeView` comparison below
- *  instead of a per-item boolean, since exactly one of two (not three) views is ever active.
- *
- *  Ruling 2 (owner, 2026-08-09): "Remove tabs days weeks months quarters and years from left
- *  menu." Supersedes this array's own prior claim to be `tools/uiref/render.mjs`'s literal,
- *  pinned eight-item list — that pin describes the *reference* fixture's nav, used for the S-100/
- *  S-101 pixel gate, which `tests/harness/report.py::backlog` already defers for unrelated
- *  reasons (`docs/PENDING_DOC_FIXES.md` row 85) and stays deferred; this array no longer tracks
- *  it and the two are allowed to disagree. Five items are gone outright (`days`, `weeks`,
- *  `months`, `quarters`, `years`) — removed, not hidden, per the owner's own word "remove".
- *
- *  The owner now keeps only the two real view switches. The scale labels are board columns, not
- *  navigation destinations, so no third tab is needed.
- *
- *  D250 WP-3: a third, real view switch joins them — "Docs", documents as first-class residents
- *  alongside goals. Same in-place content-pane swap as the other two, no URL of its own beyond
- *  the `#doc/<id>` fragment `main.ts`'s boot path reads (mirroring `#goal/<id>`). */
-type NavKey = 'inbox' | 'verticals' | 'docs'
-const NAV_ITEMS: { key: NavKey; label: string; wired: boolean }[] = [
-  { key: 'inbox', label: 'Inbox', wired: true },
-  { key: 'verticals', label: 'Verticals', wired: true },
-  { key: 'docs', label: 'Docs', wired: true },
-]
-
-/* D238 (KK, 2026-08-15, correcting D234): the value filter lives HERE, as more items in the one
- * nav row this shell already has — "Inbox | Verticals | Money | Health | Family" — not in an
- * invented bottom pill bar with colour dots (that component is gone). Same `.app-nav__link`
- * class, plain text, no colour identity in the menu: the board's cards already wear the derived
- * colour (D231), the menu does not repeat it. "Verticals" doubles as the unfiltered board, so no
- * separate "All" button exists; a value click from Inbox switches to the board filtered. */
-/* D240: sourced from the board's own `values` list, NOT the life column — a selected value
- * narrows the life column with the rest of the board, and a menu read off the column would
- * collapse to the one active button, eating its own escape hatch. `values` is unfiltered by
- * contract (core/board.py). */
-const values = computed(() => store.state.board?.values ?? [])
-
-/* D239: each element of the menu is ONE word — the value's explicit `short_label` (set via
- * MCP/API, value roots only), falling back to the title's first word for values that have not
- * been given one yet. The full title never renders in the nav. */
-function valueLabel(id: string, title: string): string {
-  return store.state.board?.short_labels?.[id] ?? title.split(/\s+/)[0] ?? title
+/* The conversation (docs/design-handoff S2.P1–S2.P6): your words rise into it, the field is the circle again and the
+   board goes out of focus; a click on the board sends it away into the circle. No agent, and ↵ does nothing. */
+/* The goal conversation Discuss is opening; a message sent meanwhile waits for it. */
+let goalOpening: Promise<void> | null = null
+async function onSubmit(text: string): Promise<void> {
+  if (!agentChat.available) return
+  // Sent while moving a goal: a new task with the move's context, and the move ends (docs/design-handoff S5.P3.041, .042).
+  if (circle.moving) {
+    const move = moveContext((id) => (findGoal(store.state.board, id) ?? spanGoal(id))?.title ?? null)
+    endMove()
+    newThread()
+    agentChat.open = true
+    agentChat.engaged = true
+    commandFilter.text = ''
+    void send(text, { move })
+    return
+  }
+  agentChat.open = true
+  agentChat.engaged = true
+  commandFilter.text = ''
+  ;(document.activeElement as HTMLElement | null)?.blur()
+  if (goalOpening) await goalOpening
+  const front = frontWindow.value
+  if (front?.kind === 'goal' && currentThread.value?.goal?.id !== front.target) await openForGoal({ id: front.target, title: front.title })
+  void send(text)
 }
-
-function onNavClick(item: (typeof NAV_ITEMS)[number]): void {
-  if (item.key === 'inbox' || item.key === 'verticals' || item.key === 'docs') {
-    // Closes any open goal detail through the same path the X button/Escape use. `GoalDetail` no
-    // longer risks losing `KModal`'s close-side cleanup here — it is mounted at this file's own
-    // level now (see `detailMounted`'s header comment above), not as a child `Board` could tear
-    // down mid-close — but switching the main nav section while a goal's detail is still open is
-    // still a real state change worth resolving deliberately rather than leaving stale, so the
-    // close stays.
-    store.closeGoal()
-    store.setView(item.key)
-    // "Verticals" is the whole board (D238): reaching it through the menu clears any value filter,
-    // the same way it would read to a user — the wider item resets the narrower one.
-    if (item.key === 'verticals') void store.setValueFilter(null)
+function onVeilClick(): void {
+  agentChat.open = false
+}
+/* Links in the conversation: a document or a web page opens as a window in the centre, at the part the link names
+   (S3.P4); a goal or a board date moves the board in place. */
+function onConversationLink(url: string, web: boolean, from: Element | null): void {
+  if (web) {
+    openWindow({ kind: 'page', target: url, title: new URL(url).hostname }, from)
+    agentChat.open = false
+    return
+  }
+  const doc = /^#doc\/([^#]+)(?:#(.+))?$/.exec(url)
+  if (doc) {
+    openWindow({ kind: 'doc', target: decodeURIComponent(doc[1]!), title: from?.textContent?.trim() || 'Document',
+      part: doc[2] ? decodeURIComponent(doc[2]) : undefined }, from)
+    agentChat.open = false
+    return
+  }
+  agentChat.open = false
+  closeWindows()
+  if (url.startsWith('#')) { location.hash = url; return }
+  history.pushState(history.state, '', url)
+  window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
+}
+/* Discuss with agent: the goal pops out of its row into a window, the board goes out of focus, and the goal's latest
+   conversation rises over the card (S3.P2.002, S3.P1.002). */
+function onDiscussGoal(event: Event): void {
+  const { id, session } = ((event as CustomEvent).detail ?? {}) as { id?: string; session?: string }
+  if (!id || !agentChat.available) return
+  const row = document.querySelector<HTMLElement>(`.goal-card[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)
+  const title = row?.querySelector<HTMLElement>('.goal-card__title-text')?.innerText.trim() || 'Goal'
+  openWindow({ kind: 'goal', target: id, title }, row)
+  if (session) openThread(session, { id, title })
+  else goalOpening = openForGoal({ id, title }).then(() => undefined).finally(() => { goalOpening = null })
+  agentChat.open = true
+  agentChat.engaged = true
+  // The menu that asked gives its focus back on its next tick; the field takes it after that (S3.P2.016).
+  void nextTick(() => nextTick(() => searchBar.value?.focusField()))
+}
+/* "Replan": the task pops out as a goal's window with its conversation over it, and our first message goes from you
+   when the task has no conversation yet (S4.P4.004-.006, .032). */
+async function onReplan(event: Event): Promise<void> {
+  const from = ((event as CustomEvent).detail?.from ?? null) as Element | null
+  let task = replanTask(store.state.board)
+  if (!task && await carryOver(todayIso())) {
+    await store.reloadBoard()
+    task = replanTask(store.state.board)
+  }
+  if (!task || !agentChat.available) return
+  openWindow({ kind: 'goal', target: task.id, title: task.title }, from)
+  agentChat.open = true
+  agentChat.engaged = true
+  const opening = openForGoal(task)
+  goalOpening = opening.then(() => undefined).finally(() => { goalOpening = null })
+  // Our first message only opens the task's first conversation; the server knows it even where this browser doesn't.
+  if (!await opening) void send(FIRST_MESSAGE)
+}
+/* Esc, when nothing smaller takes it, sends the windows away; ⌘[ and ⌘] move one window (S3.P2.011, S3.P3.017). */
+function onWindowsKey(event: KeyboardEvent): void {
+  if (!windows.list.length || event.defaultPrevented) return
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if ((event.metaKey || event.ctrlKey) && (event.key === '[' || event.key === ']')) {
+    event.preventDefault()
+    stepWindow(event.key === '[' ? -1 : 1)
+    return
+  }
+  if (event.key === 'Escape' && !target?.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) {
+    event.preventDefault()
+    if (agentChat.open) agentChat.open = false
+    else closeWindows()
   }
 }
+onMounted(() => {
+  void startAgentChat()
+  window.addEventListener('verticals:discuss-goal', onDiscussGoal)
+  window.addEventListener('verticals:replan', onReplan)
+  window.addEventListener('keydown', onWindowsKey)
+  void carryOver(todayIso())
+})
+onUnmounted(() => {
+  window.removeEventListener('verticals:discuss-goal', onDiscussGoal)
+  window.removeEventListener('verticals:replan', onReplan)
+  window.removeEventListener('keydown', onWindowsKey)
+})
 
-function onValueClick(id: string): void {
-  store.closeGoal()
-  store.setView('verticals')
-  void store.setValueFilter(id)
-}
-
-function valueActive(id: string): boolean {
-  return store.state.activeView === 'verticals' && store.state.valueFilter === id
-}
 </script>
 
 <template>
   <div class="app-shell">
-    <nav class="app-nav" data-cap="nav">
-      <div class="app-nav__panel">
-        <div class="app-nav__menu">
-          <!-- Search stays first; view buttons float immediately to its right. -->
-          <div class="app-nav__search">
-            <SearchBar />
-          </div>
-          <!-- data-cap on the row: the value links below are the filter_value gesture (S-77). -->
-          <div class="app-nav__links" data-cap="value-filter">
-            <button
-              v-for="item in NAV_ITEMS"
-              :key="item.key"
-              type="button"
-              class="app-nav__link"
-              :class="{
-                'app-nav__link--active':
-                  item.key === store.state.activeView &&
-                  (item.key !== 'verticals' || store.state.valueFilter === null),
-              }"
-              :data-nav-item="item.key"
-              :aria-current="item.key === store.state.activeView ? 'page' : undefined"
-              @click="onNavClick(item)"
-            >
-              {{ item.label }}
-            </button>
-            <!-- D238: one plain link per value (parentless life root), same component as the two
-                 view links above. Active = that value's filtered board is what the pane shows. -->
-            <button
-              v-for="v in values"
-              :key="v.id"
-              type="button"
-              class="app-nav__link"
-              :class="{ 'app-nav__link--active': valueActive(v.id) }"
-              :data-value-id="v.id"
-              :aria-current="valueActive(v.id) ? 'page' : undefined"
-              @click="onValueClick(v.id)"
-            >
-              {{ valueLabel(v.id, v.title) }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
-    <div class="app-content">
+    <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
+    <div class="app-veil" :class="{ 'is-shown': outOfFocus }" data-role="out-of-focus" aria-hidden="true" @click="onVeilClick"></div>
+    <WindowStack />
+    <AgentConversation @link="onConversationLink" />
+    <AgentStep />
+    <SearchBar id="verticals-command-bar" ref="searchBar" :agent-available="agentChat.available" @submit="onSubmit">
+      <template #agent-tag><AgentTag /></template>
+    </SearchBar>
+    <div class="app-content" :class="{ 'app-content--out-of-focus': outOfFocus }">
       <!-- Mutually exclusive (`v-if`/`v-else`), not `v-show`: before ruling 1 (owner, 2026-08-09),
            `InboxView` rendered the same Maybe-bucket goals as Board's own eighth column
            (deliberately — see InboxView.vue's header comment), so keeping both mounted at once
@@ -264,7 +254,10 @@ function valueActive(id: string): boolean {
            other pair of alternatives in this app and because `GoalDetail` moved out from under
            `Board` this pass (see `detailMounted`'s own header comment above) specifically so an
            "Inbox" click no longer tears an open goal detail down with it. -->
-      <InboxView v-if="store.state.activeView === 'inbox'" />
+      <div v-if="store.state.openGoalVertical === 'search' && store.state.openGoalId" class="search-goal-surface">
+        <GoalCard :id="store.state.openGoalId" :title="store.state.goalDetail?.title ?? 'Loading…'" :done="!!store.state.goalDetail?.done_at" :color="store.state.goalDetail?.color" :vertical="store.state.goalDetail?.vertical" column-vertical="search" />
+      </div>
+      <InboxView v-else-if="store.state.activeView === 'inbox'" />
       <DocsView v-else-if="store.state.activeView === 'docs'" />
       <Board
         v-else
@@ -287,86 +280,24 @@ function valueActive(id: string): boolean {
     <DevDeckPanel />
     <DevIconPanel />
     <DevGoalLayoutPanel />
+    <DevTuningPanel />
   </template>
 </template>
 
 <style>
-/* Global, matching every other product-side component's convention (GoalCard.vue,
-   SchedulePopover.vue, Board.vue, InboxView.vue) — plain CSS, new classes only, no kit rule
-   touched. Every number is docs/UI_MEASURED.md §1, re-verified live against the reference
-   fixtures before this file was written (see this file's own header comment). */
-.app-shell {
-  display: block;
-  height: 100%;
-  overflow: hidden;
-  background: #ffffff;
+:root { --app-bar-height: 0px; --radius: 12px; }
+.app-shell { display: block; height: 100%; overflow: hidden; background: #fff; }
+.board-bottom-fade { position: fixed; inset: auto 0 0; height: 80px; z-index: 299; pointer-events: none; background: linear-gradient(to bottom, rgba(255,255,255,0) 0, #fff 16px, #fff 100%); }
+.app-content { box-sizing: border-box; height: 100%; min-width: 0; overflow: hidden; position: relative;
+  transition: filter var(--vt-dur-sent) var(--vt-ease-large); }
+/* Out of focus (S2.P6): the board blurred until no word reads, under a light veil; only while the conversation or a
+   window is open. Its layer stays composited while it is, so WebKit doesn't stall (unknowns.md section 4). */
+.app-content--out-of-focus { filter: blur(var(--vt-focus-blur)) saturate(var(--vt-focus-saturate)); will-change: filter; pointer-events: none; }
+.app-veil { position: fixed; inset: 0; z-index: 280; background: var(--vt-focus-veil); opacity: 0; visibility: hidden;
+  transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s linear var(--vt-dur-sent); }
+.app-veil.is-shown { opacity: 1; visibility: visible; transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s; }
+@media (prefers-reduced-motion: reduce) {
+  .app-content, .app-veil, .app-veil.is-shown { transition-duration: var(--vt-crossfade); }
 }
-
-.app-nav {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 200;
-  width: auto;
-}
-
-.app-nav__panel {
-  width: max-content;
-}
-
-.app-nav__menu {
-  box-sizing: border-box;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.app-nav__links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.app-nav__link {
-  display: flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 10px 0 16px;
-  border: 0;
-  border-radius: 6px;
-  width: auto;
-  background: transparent;
-  color: rgb(121, 121, 120);
-  font-size: 15px;
-  line-height: 32px;
-  font-weight: 400;
-  letter-spacing: 0.15px;
-  text-align: left;
-  cursor: pointer;
-}
-.app-nav__link:hover:not(.app-nav__link--active) {
-  background: var(--color-surface-overlay);
-}
-.app-nav__link--active {
-  color: rgb(45, 48, 54);
-  background: rgba(226, 226, 226, 0.77);
-}
-
-.app-nav__search {
-}
-
-.app-content {
-  flex: 1 1 auto;
-  height: 100%;
-  /* Without this, a flex item's default `min-width: auto` refuses to shrink below its content's
-     intrinsic width — and Board's own content is deliberately wider than the viewport
-     (design-system/style.css's A7 comment: "2340px content against a 1148px visible area... the
-     board scrolls horizontally"). Omitting `min-width: 0` here does not show up as a broken
-     layout in a quick look; it shows up as the content pane silently refusing to stay at 1148px
-     and the whole shell gaining a page-level horizontal scrollbar. */
-  min-width: 0;
-  overflow: hidden;
-  position: relative;
-}
+.search-goal-surface { box-sizing: border-box; max-width: 720px; height: 100%; margin: 0 auto; padding: 32px 16px 80px; overflow-y: auto; }
 </style>

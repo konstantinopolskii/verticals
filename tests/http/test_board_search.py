@@ -13,33 +13,27 @@ from datetime import date
 
 import httpx
 
-from verticals.core.vertical import period_key
+from verticals.core.vertical import VERTICALS, period_key
 
 # §2's F2 census at 2026-08-08, keyed by the JSON `columns[].vertical` value (`None` for Maybe —
 # `core/board.py::_column_for`'s own encoding, not a guess). 8 columns, matches the
 # already-established fixture invariant guarded independently in tests/core/test_board.py.
 #
 # R10 revised (KK ruling 2026-08-16): ghosts exist only where the requested period IS the real
-# current one. The frozen board date's day and week periods can never be current again, so F2's
-# six day/week ghosts are gone for good and the census below is native everywhere but one cell:
-# the legacy decade row SYNDEC01 still carries over into the requested triennium exactly while
-# the wall clock is inside 2026–2028, and vanishes permanently on 2029-01-01. That one cell is
-# computed with the board's own period arithmetic, so this file needs no edit when that day comes.
-_DECADE_GHOSTS = int(
-    period_key("decade", date(2026, 8, 8)) == period_key("decade", date.today())
-)
+# current one, so the day and week ghosts of the frozen board date are gone for good. KK, 26 Sep
+# 2026: a carried plan lands in the first eligible window (Day to three years), so how many ghosts
+# each live column holds follows the wall clock and cannot be pinned here. What is pinned: the
+# native census (no ghost, any date), no ghost in a column that is not live for the requested
+# period, and every column's total being its native cards plus its ghosts.
+REQUESTED = date(2026, 8, 8)
+_LIVE = {
+    h.key for h in VERTICALS
+    if h.bounds_fn(REQUESTED) is not None and period_key(h.key, REQUESTED) == period_key(h.key, date.today())
+}
 
 EXPECTED_NATIVE_CENSUS = {
     None: 5, "day": 10, "week": 4, "month": 6,
     "quarter": 2, "year": 1, "decade": 0, "life": 1,
-}
-EXPECTED_GHOST_CENSUS = {
-    None: 0, "day": 0, "week": 0, "month": 0,
-    "quarter": 0, "year": 0, "decade": _DECADE_GHOSTS, "life": 0,
-}
-EXPECTED_CENSUS = {
-    key: EXPECTED_NATIVE_CENSUS[key] + EXPECTED_GHOST_CENSUS[key]
-    for key in EXPECTED_NATIVE_CENSUS
 }
 
 # tests/core/test_search.py's own pinned constant (module-level `CYCL`), repeated here rather
@@ -53,7 +47,7 @@ RECENT_BY_UPDATED_AT_DESC = [
 
 
 def test_s33_board_is_one_call(client: httpx.Client) -> None:
-    resp = client.get("/api/board", params={"date": "2026-08-08"})
+    resp = client.get("/api/board", params={"date": REQUESTED.isoformat()})
     assert resp.status_code == 200
     assert resp.headers.get("x-query-count") == "1"
     assert len(resp.content) < 128 * 1024, f"{len(resp.content)} bytes, over the 128 KB envelope budget"
@@ -62,7 +56,6 @@ def test_s33_board_is_one_call(client: httpx.Client) -> None:
     columns = body["columns"]
     assert len(columns) == 8
     census = {col["vertical"]: len(col["goals"]) for col in columns}
-    assert census == EXPECTED_CENSUS
     native_census = {
         col["vertical"]: sum(card["ghost"] is False for card in col["goals"])
         for col in columns
@@ -72,7 +65,8 @@ def test_s33_board_is_one_call(client: httpx.Client) -> None:
         for col in columns
     }
     assert native_census == EXPECTED_NATIVE_CENSUS
-    assert ghost_census == EXPECTED_GHOST_CENSUS
+    assert [key for key, n in ghost_census.items() if n and key not in _LIVE] == []
+    assert census == {key: native_census[key] + ghost_census[key] for key in native_census}
 
     for col in columns:
         for card in col["goals"]:
@@ -138,3 +132,24 @@ def test_s134_search_matches_core_over_http(client: httpx.Client, server_factory
             assert r8.json()["goals"] == []
         finally:
             t2_client.close()
+
+
+def test_finding_asks_for_parents_over_http(client: httpx.Client) -> None:
+    """docs/design-handoff S1.P3: `with=parents` adds each match's chain; the plain search keeps its shape."""
+    resp = client.get("/api/search", params={"q": "motorcycle", "with": "parents"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [card["id"] for card in body["goals"]] == ["SYNSCH04"]
+    assert body["parents"] == {"SYNSCH04": []}
+    assert "parents" not in client.get("/api/search", params={"q": "motorcycle"}).json()
+    assert client.get("/api/search", params={"q": "motorcycle", "tag": "retro", "with": "parents"}).status_code == 422
+
+
+def test_spans_are_board_columns_of_one_vertical(client: httpx.Client) -> None:
+    """docs/design-handoff S5.P1.030: weeks in a row, in the board's payload shape."""
+    response = client.get("/api/spans", params={"vertical": "week", "date": "2026-08-08", "count": 3})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [c["period_key"] for c in body["columns"]] == ["2026-W32", "2026-W33", "2026-W34"]
+    assert {"progress", "ancestors", "children"} <= set(body)
+    assert client.get("/api/spans", params={"vertical": "life", "date": "2026-08-08"}).status_code in (400, 422)

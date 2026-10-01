@@ -142,7 +142,7 @@ export function boardGoalHost(board: BoardResponse | null, id: string): BoardGoa
   const walk = (
     cards: GoalCard[],
     columnVertical: string,
-    columnIds: Set<string>,
+    columnCards: Map<string, GoalCard>,
     depth: number,
   ): BoardGoalHost | null => {
     for (const card of cards) {
@@ -156,11 +156,12 @@ export function boardGoalHost(board: BoardResponse | null, id: string): BoardGoa
         }
       }
       const nested = walk(
-        (board?.children[card.id] ?? []).filter(
-          (child) => child.vertical !== null && child.vertical === card.vertical && columnIds.has(child.id),
+        [...columnCards.values()].filter(
+          (child) => child.parent_id === card.id && child.vertical !== null
+            && child.vertical === card.vertical && !!child.ghost === !!card.ghost,
         ),
         columnVertical,
-        columnIds,
+        columnCards,
         depth + 1,
       )
       if (nested) return nested
@@ -169,13 +170,13 @@ export function boardGoalHost(board: BoardResponse | null, id: string): BoardGoa
   }
   for (const column of board?.columns ?? []) {
     if (column.vertical === null) continue
-    const columnIds = new Set(column.goals.map((goal) => goal.id))
-    const roots = column.goals.filter((card) => {
+    const columnCards = new Map(column.goals.filter(goal => !(goal.ghost && goal.done_at !== null)).map(goal => [goal.id, goal]))
+    const roots = [...columnCards.values()].filter((card) => {
       if (!card.parent_id) return true
-      const parent = findGoal(board, card.parent_id)
-      return !parent || parent.vertical !== card.vertical || !columnIds.has(parent.id)
+      const parent = columnCards.get(card.parent_id)
+      return !parent || parent.vertical !== card.vertical || !!parent.ghost !== !!card.ghost
     })
-    const found = walk(roots, column.vertical, columnIds, 0)
+    const found = walk(roots, column.vertical, columnCards, 0)
     if (found) return found
   }
   return null

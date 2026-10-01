@@ -371,8 +371,12 @@ def board_to_json(board: Board) -> dict:
                 "goals": [
                     {
                         **goal_to_card(g),
-                        "ghost": g.id in board.ghosts,
-                        "ghost_until": board.ghosts.get(g.id),
+                        # Time travel can show the historical source and its live, broader
+                        # landing column together. Only the latter is a carried-over card.
+                        "ghost": (is_ghost := g.id in board.ghosts and not (
+                            g.vertical == col.vertical and g.period_key == col.period_key
+                        )),
+                        "ghost_until": board.ghosts.get(g.id) if is_ghost else None,
                     }
                     for g in col.goals
                 ],
@@ -412,10 +416,20 @@ def search_to_json(result: SearchResult) -> dict:
     """`GET /api/search` — cards, not details (same "no `body` outside a detail call" rule as
     every other list-shaped response), plus the `truncated` flag AC-202 requires (S-129, proved
     over this route by S-134's own `limit=201` row)."""
-    return {
+    body: dict = {
         "goals": [goal_to_card(g) for g in result.goals],
         "truncated": result.truncated,
     }
+    if result.parents is not None:
+        body["parents"] = {
+            goal_id: [
+                {"id": a.id, "parent_id": a.parent_id, "title": a.title, "vertical": a.vertical, "anchor_date": a.anchor_date,
+                 "period_key": a.period_key, "done_at": a.done_at, "position": a.position}
+                for a in chain
+            ]
+            for goal_id, chain in result.parents.items()
+        }
+    return body
 
 
 # --- documents (D250, WP-1) ---------------------------------------------------------------------

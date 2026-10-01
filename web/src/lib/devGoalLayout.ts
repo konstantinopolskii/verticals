@@ -28,20 +28,6 @@ const text = (
   variable: GoalLayoutControl['variable'], label: string, value: string,
 ): GoalLayoutControl => ({ variable, label, kind: 'text', default: value })
 
-const lines = (
-  variable: GoalLayoutControl['variable'], value: number,
-): GoalLayoutControl => ({
-  variable,
-  label: 'Separator lines',
-  kind: 'select',
-  default: value,
-  options: [
-    { label: 'No lines', value: 0 },
-    { label: 'First line only', value: 1 },
-    { label: 'All lines', value: 2 },
-  ],
-})
-
 export const GOAL_LAYOUT_SECTIONS: GoalLayoutSection[] = [
   {
     title: 'Collapsed goals', open: true, controls: [
@@ -88,13 +74,7 @@ export const GOAL_LAYOUT_SECTIONS: GoalLayoutSection[] = [
       slider('--kkov-collapsed-subtask-checkbox-text-gap', 'Checkbox-to-text gap', 8, 0, 32),
       slider('--kkov-collapsed-subtask-group-margin-left', 'Group left margin', 4, 0, 80),
       slider('--kkov-collapsed-subtask-group-margin-right', 'Group right margin', 0, 0, 80),
-      slider('--kkov-collapsed-subtask-group-margin-top', 'Group top margin', 0, -20, 60),
       slider('--kkov-collapsed-subtask-group-margin-bottom', 'Group bottom margin', 0, -20, 60),
-      slider('--kkov-collapsed-subtask-group-spacing', 'Spacing between groups', 0, 0, 80),
-      lines('--kkov-collapsed-subtask-line-mode', 1),
-      slider('--kkov-collapsed-subtask-line-top', 'Line top offset', -6, -20, 40),
-      slider('--kkov-collapsed-subtask-line-left', 'Line left inset', 34, 0, 100),
-      slider('--kkov-collapsed-subtask-line-right', 'Line right inset', 16, 0, 100),
     ],
   },
   {
@@ -111,13 +91,17 @@ export const GOAL_LAYOUT_SECTIONS: GoalLayoutSection[] = [
       slider('--kkov-expanded-subtask-checkbox-text-gap', 'Checkbox-to-text gap', 12, 0, 32),
       slider('--kkov-expanded-subtask-group-margin-left', 'Group left margin', 6, 0, 80),
       slider('--kkov-expanded-subtask-group-margin-right', 'Group right margin', 0, 0, 80),
-      slider('--kkov-expanded-subtask-group-margin-top', 'Group top margin', 8, -20, 60),
       slider('--kkov-expanded-subtask-group-margin-bottom', 'Group bottom margin', 0, -20, 60),
-      slider('--kkov-expanded-subtask-group-spacing', 'Spacing between groups', 3, 0, 80),
-      lines('--kkov-expanded-subtask-line-mode', 1),
-      slider('--kkov-expanded-subtask-line-top', 'Line top offset', -8, -20, 40),
-      slider('--kkov-expanded-subtask-line-left', 'Line left inset', 42, 0, 100),
-      slider('--kkov-expanded-subtask-line-right', 'Line right inset', 16, 0, 100),
+    ],
+  },
+  {
+    title: 'Highlight', open: false, controls: [
+      slider('--kkov-light-tint', 'Lighter tint (hover, family)', 0.7, 0, 1, '', 0.01),
+      // flow 4: how far from white an open goal's farthest relatives stay (faint falls halfway), and the rest of the
+      // board, turned off
+      slider('--kkov-far-tint', 'Farthest tint (distance from white)', 3, 0, 8, '', 0.1),
+      slider('--kkov-off-opacity', 'Turned off (not related)', 0.32, 0, 1, '', 0.01),
+      slider('--kkov-off-grey', 'Turned off: grey', 0.5, 0, 1, '', 0.05),
     ],
   },
   {

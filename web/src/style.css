@@ -75,6 +75,13 @@ body {
 :root {
   user-select: none;
   --motion-hover: 300ms;
+  --motion-lift-in: 160ms;
+  --motion-lift-out: 220ms;
+  /* One lift, two steps (docs/design-handoff S5.P4.023, .024): pointed at on the board 6% and 2 px (lib/cardLift.ts),
+     picked up on the field 14% and 10 px on a 290 ms spring. */
+  --vt-lift-picked-scale: 1.14;
+  --vt-lift-picked-rise: -10px;
+  --vt-lift-picked-ms: 290ms;
   --motion-checkbox: 200ms;
   --motion-title: 150ms;
   --motion-progress: 100ms;
@@ -88,6 +95,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion-hover: 0.01ms;
+    --motion-lift-in: 0.01ms;
+    --motion-lift-out: 0.01ms;
     --motion-checkbox: 0.01ms;
     --motion-title: 0.01ms;
     --motion-progress: 0.01ms;
@@ -99,6 +108,96 @@ body {
     --motion-spinner: 0.01ms;
   }
 }
+
+/* The look (docs/design-handoff S0.P1). lib/look.ts registers each value as a hidden setting. */
+:root {
+  --vt-ink: 16, 18, 32;
+  --vt-shadow-hair: 0 0 0 .5px rgba(var(--vt-ink), .06), 0 2px 6px rgba(var(--vt-ink), .03);
+  --vt-shadow-grey-near: .12;
+  --vt-shadow-grey-far: .07;
+  --vt-light-near: .325;
+  --vt-light-far: .2;
+  --vt-light-black-near: .08;
+  --vt-light-black-far: .04;
+  --vt-side-grey: .65;
+  --vt-side-light-near: .21;
+  --vt-side-light-far: .15;
+  --vt-near-small: 0 18px 45px -6px;
+  --vt-far-small: 0 0 120px 12px;
+  --vt-near-medium: 0 36px 90px -12px;
+  --vt-far-medium: 0 0 240px 24px;
+  --vt-near-big: 0 72px 180px -24px;
+  --vt-far-big: 0 0 480px 48px;
+  --vt-near-back: 0 72px 180px -24px;
+  --vt-far-back: 0 0 480px 48px;
+  --vt-shadow-small: var(--vt-shadow-hair), var(--vt-near-small) rgba(var(--vt-ink), var(--vt-shadow-grey-near)),
+    var(--vt-far-small) rgba(var(--vt-ink), var(--vt-shadow-grey-far));
+  --vt-shadow-window: var(--vt-shadow-hair), var(--vt-near-big) rgba(var(--vt-ink), var(--vt-shadow-grey-near)),
+    var(--vt-far-big) rgba(var(--vt-ink), var(--vt-shadow-grey-far));
+
+  --vt-radius-window: 24px;
+  --vt-radius-field: 42px;
+  --vt-radius-tag: 14px;
+  --vt-radius-balloon: 24px;
+
+  --vt-focus-blur: 64px;
+  --vt-focus-saturate: 1.4;
+  --vt-focus-veil: rgba(245, 245, 247, .9);
+  --vt-blur-0: 1px;
+  --vt-blur-1: 3px;
+  --vt-blur-2: 6px;
+  --vt-blur-3: 10px;
+  --vt-blur-4: 15px;
+  --vt-step-back: .985;
+  --vt-step-side: .94;
+
+  --vt-ease-small: cubic-bezier(.165, .84, .44, 1);
+  --vt-ease-medium: cubic-bezier(.2, 0, 0, 1);
+  --vt-ease-large: cubic-bezier(.22, 1, .36, 1);
+  --vt-ease-play: cubic-bezier(.77, 0, .175, 1);
+  --vt-ease-breath: cubic-bezier(.37, 0, .63, 1);
+  --vt-ease-fall: cubic-bezier(.55, 0, 1, .45);
+  --vt-ease-sway: cubic-bezier(.45, 0, .55, 1);
+
+  --vt-dur-open: 140ms;
+  --vt-dur-close: 160ms;
+  --vt-dur-fade: 120ms;
+  --vt-dur-rise: 150ms;
+  --vt-dur-step: 80ms;
+  --vt-dur-board: 260ms;
+  --vt-dur-sent: 280ms;
+  --vt-dur-shape: 300ms;
+  --vt-dur-back: 320ms;
+  --vt-dur-pop: 400ms;
+  --vt-crossfade: 120ms;
+}
+
+/* A surface's shadow by its size (S0.P1.047), grey, or its goal's light when it has --vt-tint (S0.P1.004–.009).
+   --vt-tint and --vt-pale are "r, g, b" from lib/look.ts goalLight(). */
+.vt-shadow {
+  --vt-near: var(--vt-near-big);
+  --vt-far: var(--vt-far-big);
+  --vt-grey: 1;
+  --vt-lnear: var(--vt-light-near);
+  --vt-lfar: var(--vt-light-far);
+  box-shadow: var(--vt-shadow-hair),
+    var(--vt-near) rgba(var(--vt-ink), calc(var(--vt-shadow-grey-near) * var(--vt-grey))),
+    var(--vt-far) rgba(var(--vt-ink), calc(var(--vt-shadow-grey-far) * var(--vt-grey)));
+}
+.vt-shadow--small { --vt-near: var(--vt-near-small); --vt-far: var(--vt-far-small); }
+.vt-shadow--medium { --vt-near: var(--vt-near-medium); --vt-far: var(--vt-far-medium); }
+.vt-shadow--back { --vt-near: var(--vt-near-back); --vt-far: var(--vt-far-back); }
+.vt-shadow--side { --vt-grey: var(--vt-side-grey); --vt-lnear: var(--vt-side-light-near); --vt-lfar: var(--vt-side-light-far); }
+.vt-shadow--lit {
+  box-shadow: var(--vt-shadow-hair),
+    var(--vt-near) rgba(var(--vt-tint), var(--vt-lnear)),
+    var(--vt-far) rgba(var(--vt-tint), var(--vt-lfar)),
+    var(--vt-near) rgba(var(--vt-ink), calc(var(--vt-light-black-near) * var(--vt-grey))),
+    var(--vt-far) rgba(var(--vt-ink), calc(var(--vt-light-black-far) * var(--vt-grey)));
+}
+
+/* The white inside every checkbox is black (S0.P1.048). */
+.checkbox__input:checked + .checkbox__box { color: #000; }
 
 #goal-detail.modal {
   z-index: 5000;

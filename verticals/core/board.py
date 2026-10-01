@@ -55,6 +55,7 @@ from dataclasses import replace as _replace
 from datetime import date as _date
 from datetime import datetime as _datetime
 from datetime import timezone as _timezone
+from datetime import timedelta as _timedelta
 
 import psycopg
 
@@ -110,6 +111,26 @@ def _validate_date(value: object) -> _date:
     return value
 
 
+def _ladder() -> tuple[vertical.VerticalDescriptor, ...]:
+    return tuple(vertical.descriptor(key) for key in vertical.ROLL_LADDER)
+
+
+def _roll_thresholds(today: _date) -> dict[str, _date]:
+    """`roll_<own>_<k>`: a plan of scale `own` anchored before it has reached scale `k` by
+    `today`. Reaching k means the (k-1)-period it arrived in has ended before the current
+    k-period began; walking that back down the ladder gives one date per pair, so the statement
+    compares anchors only."""
+    ladder = _ladder()
+    out: dict[str, _date] = {}
+    for i, own in enumerate(ladder):
+        for k in range(i + 1, len(ladder)):
+            threshold = ladder[k].bounds_fn(today)[0]
+            for m in range(k - 1, i, -1):
+                threshold = ladder[m].bounds_fn(threshold - _timedelta(days=1))[0]
+            out[f"roll_{own.key}_{ladder[k].key}"] = own.bounds_fn(threshold)[0]
+    return out
+
+
 def _build_statement() -> str:
     """Built once, at import time — the branches' `WHERE` text never depends on a call's
     own parameter *values* (only on `core/vertical.py`'s fixed scale list), so there is nothing
@@ -131,6 +152,22 @@ def _build_statement() -> str:
         f"    FROM goals\n"
         f"   WHERE owner = %(owner)s AND {MAYBE_PREDICATE}"
     ]
+    bounded = tuple(h for h in vertical.VERTICALS if h.bounds_fn(_BOUNDS_PROBE) is not None)
+    own_start = "CASE vertical " + " ".join(
+        f"WHEN %(vt_{h.key})s::vertical_scale THEN %(current_start_{h.key})s::date"
+        for h in bounded
+    ) + " END"
+    # The roll (docs/design-handoff S4.P1): a missed plan stays in its own scale until the next
+    # larger period turns, then falls one scale up, and so on to the ladder's top. `roll_<own>_<k>`
+    # is the oldest anchor that has not yet reached scale k (see `board()`); scales past the
+    # ladder stay in their own column.
+    ladder = _ladder()
+    landing = "CASE " + " ".join(
+        f"WHEN vertical = %(vt_{own.key})s::vertical_scale AND anchor_date >= %(roll_{own.key}_{ladder[k].key})s::date "
+        f"THEN '{ladder[k - 1].key}'"
+        for i, own in enumerate(ladder) for k in range(i + 1, len(ladder))
+    ) + f" WHEN vertical IN ({', '.join(f'%(vt_{h.key})s::vertical_scale' for h in ladder)}) THEN '{ladder[-1].key}'" \
+        + " ELSE vertical::text END"
     for col_ord, h in enumerate(vertical.VERTICALS, start=1):
         if vertical.loads_legacy_period_keys(h.key):
             # R2 keeps legacy `2020s`/`2030s` rows byte-untouched. Their anchor dates still
@@ -160,16 +197,16 @@ def _build_statement() -> str:
                 f"  SELECT '{h.key}' AS col_key, {col_ord} AS col_ord, {COLUMNS}, content_revision, short_label,\n"
                 f"         true AS is_ghost, %(end_{h.key})s::date AS ghost_until\n"
                 f"    FROM goals\n"
-                # R10 (revised, KK ruling 2026-08-16): a ghost exists only on the CURRENT period
-                # — the column whose period contains wall-clock today. A time-traveled board
-                # (any other requested date) shows the goal solely at its own anchor; overdue
-                # work does not smear across the dates in between. `live_*` is bound per call
-                # in `board()` as "requested period == today's period" for this scale.
+                # Only the landing column's live gate applies. Browsing an old Day must not
+                # hide an aged Day goal whose landing Month is still the current Month.
                 f"   WHERE %(live_{h.key})s\n"
-                f"     AND owner = %(owner)s AND vertical = %(vt_{h.key})s::vertical_scale\n"
-                f"     AND anchor_date < %(start_{h.key})s::date AND done_at IS NULL\n"
+                f"     AND owner = %(owner)s\n"
+                f"     AND vertical IN ({', '.join(f'%(vt_{source.key})s::vertical_scale' for source in bounded[:bounded.index(h) + 1])})\n"
+                f"     AND anchor_date < ({own_start}) AND done_at IS NULL\n"
+                f"     AND ({landing}) = '{h.key}'\n"
                 f"     AND (carryover_ignored_until IS NULL\n"
-                f"          OR carryover_ignored_until < %(start_{h.key})s::date)\n"
+                # An expired short-period ignore must not become active again on promotion.
+                f"          OR carryover_ignored_until < %(today)s::date)\n"
                 # 011: an acknowledged dueness (either verdict) stops ghosting. Keyed to the
                 # goal's own missed period, so a reschedule that misses AGAIN ghosts again.
                 f"     AND NOT EXISTS (SELECT 1 FROM due_acknowledgements da\n"
@@ -409,13 +446,18 @@ def _column_for(key: str, anchor: _date, goals: tuple[Goal, ...]) -> Column:
 
 
 def board(
-    conn: psycopg.Connection, *, owner: str, date: _date, value: str | None = None
+    conn: psycopg.Connection, *, owner: str, date: _date, value: str | None = None,
+    today: _date | None = None,
 ) -> Board:
     """The whole board, one statement (IR-07): eight columns, every card's `progress`,
     `ancestors` and direct `children`. `date` is the anchor "today" the board renders against —
     `board`'s own parameter, distinct from any single `Goal.anchor_date` (`docs/E2E.md` S-20 and
     S-22 both call it `date`, and so does the `GET /api/board?date=` query parameter — this
     follows all three rather than the field name on `Goal`).
+
+    `today` is the wall-clock date the ghosts and the live columns read. Leave it out: the
+    default is the server's own date. Tests pass it to stand on a calendar edge without a mock
+    (S-109 bans mocks and monkeypatch).
 
     IR-02: takes an open connection, never commits, never opens a transaction of its own.
     """
@@ -429,10 +471,12 @@ def board(
         "as_of": _datetime.now(_timezone.utc),
         "value": value,
     }
-    # R10 (revised, KK ruling 2026-08-16): the one wall-clock read in this module. Ghost rows
+    # R10 (revised, KK ruling 2026-08-16): the one wall-clock read in this module (and `today`, when
+    # a caller passes one, replaces it). Ghost rows
     # exist only where the requested period IS the current period for that scale — comparing
     # period keys is exactly "does this scale's requested period contain today".
-    today = _date.today()
+    today = _date.today() if today is None else _validate_date(today)
+    params["today"] = today
     for h in vertical.VERTICALS:
         params[f"vt_{h.key}"] = h.key
         params[f"pk_{h.key}"] = h.period_key_fn(date)
@@ -440,6 +484,8 @@ def board(
         if bounds is not None:
             params[f"start_{h.key}"], params[f"end_{h.key}"] = bounds
             params[f"live_{h.key}"] = params[f"pk_{h.key}"] == h.period_key_fn(today)
+            params[f"current_start_{h.key}"] = h.bounds_fn(today)[0]
+    params.update(_roll_thresholds(today))
 
     rows = conn.execute(STATEMENT, params).fetchall()
 

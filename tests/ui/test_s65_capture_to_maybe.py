@@ -10,7 +10,7 @@ name **the Maybe column** only. AC-110's stronger "every column" claim is S-106'
 Ruling 1 (owner, 2026-08-09): "There's no need to show Maybe as a left column. Make it same tab as
 inbox." `ARCHITECTURE.md`:445's eighth-column reading is superseded — `Board.vue` no longer draws a
 Maybe column at all, so `[data-vertical="maybe"]` only exists once the Inbox nav view is open
-(`InboxView.vue`, `App.vue`'s `[data-nav-item="inbox"]` link). The one added step, a raw
+(`InboxView.vue`, reached from the command field's Inbox view, `tests/ui/views.py`). The one added step, a raw
 `page.click` on that nav link rather than `session.gestures.click`, is navigation, not the capture
 gesture itself — the same distinction every other scenario in this package draws between loading
 the app and acting inside it, and it is why `GestureCounter`'s own count still reads 2 (click +
@@ -22,6 +22,7 @@ from __future__ import annotations
 import psycopg
 
 from tests.ui.conftest import UiSession
+from tests.ui.views import switch_view
 
 MAYBE_ADD = '[data-vertical="maybe"] [data-cap="create-goal"]'
 MAYBE_EDITOR = f'{MAYBE_ADD} [data-role="column-add-editor"]'
@@ -38,7 +39,7 @@ def test_s65_capture_to_maybe(ui_f2: UiSession) -> None:
         assert existing == 0, "the probe title must not already exist"
 
         # --- navigate to Inbox (ruling 1) — not a gesture, per this file's own module docstring ----
-        session.page.click('[data-nav-item="inbox"]')
+        switch_view(session.page, "inbox")
         session.page.wait_for_selector('[data-cap="inbox"]')
         assert session.gestures.count == 0, "navigating to Inbox must not be counted as a gesture"
 
