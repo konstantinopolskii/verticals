@@ -30,6 +30,5 @@ web/tsconfig.tsbuildinfo
 # Nothing under these is used by the image.
 tests/
 tools/
-reference-planner-openapi.yaml
 docker-compose.test.yml
 .DS_Store
