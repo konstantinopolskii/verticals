@@ -255,10 +255,10 @@ def test_goal_doc_chip_navigates_to_docs_view(ui_f2: UiSession) -> None:
     card_row.click()
     expect(page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open')).to_be_visible()
 
-    # A line that is one link to a document is a linked document: the cleaned-up card lists it in one line under the
-    # notes, "1 document", which opens the list (KK 27-28 Sep 2026).
-    page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open + .goal-card__children--open [data-role="goal-documents"]').click()
-    item = page.locator('[data-role="goal-documents-list"] button[data-doc="syn-linked/target.md"]')
+    # A line that is one link to a document is a linked document: a row of the goal's links under its notes
+    # (docs/design-handoff S3.P1.007).
+    links = page.locator(f'[data-goal-id="{goal_id}"].goal-card--detail-open + .goal-card__children--open [data-role="goal-links"]')
+    item = links.locator('button[data-doc="syn-linked/target.md"]')
     expect(item).to_contain_text("SYN Target Doc", timeout=10000)
     item.click()
 
@@ -334,19 +334,17 @@ def test_inherited_doc_chip_is_ghosted_and_navigates(ui_f2: UiSession) -> None:
     card_row.click()
     expect(page.locator('[data-goal-id="SYNSUB01"].goal-card--detail-open')).to_be_visible()
 
-    # The cleaned-up card lists documents in one line under the notes (KK 27-28 Sep 2026); a step's line keeps its
-    # parent's documents after its own, greyed, under "From" and the parent's name (KK picked it on 29 Sep 2026).
+    # The goal's links list its documents under the notes (docs/design-handoff S3.P1.007); a step keeps its parent's
+    # documents after its own, greyed, with the parent's name (KK picked it on 29 Sep 2026).
     parent_title = httpx.get(
         f"{session.backend.base_url}/api/goals/SYNDAY01",
         headers={"Authorization": f"Bearer {session.backend.token}"},
         timeout=10,
     ).json()["title"]
-    line = page.locator(
-        '[data-goal-id="SYNSUB01"].goal-card--detail-open + .goal-card__children--open [data-role="goal-documents"]'
+    listed = page.locator(
+        '[data-goal-id="SYNSUB01"].goal-card--detail-open + .goal-card__children--open [data-role="goal-links"]'
     )
-    expect(line).to_be_visible(timeout=10000)
-    line.click()
-    listed = page.locator('[data-role="goal-documents-list"]')
+    expect(listed).to_be_visible(timeout=10000)
     own_item = listed.locator('button[data-doc="syn-inherit/child-linked.md"]')
     inherited_item = listed.locator('button[data-doc="syn-inherit/parent-linked.md"]')
     expect(own_item).to_be_visible(timeout=10000)
@@ -356,7 +354,7 @@ def test_inherited_doc_chip_is_ghosted_and_navigates(ui_f2: UiSession) -> None:
     assert own_item.get_attribute("data-inherited") is None
     # ...its parent's always is, under the parent's name, and it is visibly muted, not just tagged
     assert inherited_item.get_attribute("data-inherited") == "true"
-    expect(listed.locator(".goal-detail__mention-from", has_text=parent_title)).to_have_text(f"From {parent_title}")
+    expect(inherited_item.locator(".goal-links__note")).to_have_text(f"from {parent_title}")
     own_color = own_item.evaluate("el => getComputedStyle(el).color")
     inherited_color = inherited_item.evaluate("el => getComputedStyle(el).color")
     assert inherited_color != own_color, "a parent's document must read as visually muted, not identical"

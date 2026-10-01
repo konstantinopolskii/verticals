@@ -134,6 +134,20 @@ def _light(page: Page, vertical: str, goal_id: str) -> str | None:
     return page.locator(_card(vertical, goal_id)).first.get_attribute("data-light")
 
 
+def _settled_box(page: Page, locator) -> dict[str, float]:
+    """Where a row stands once the board has stopped moving: an opened goal keeps growing while its notes and steps
+    arrive, and a row under it moves down after the first read (R.027 in docs/design-handoff)."""
+    box = locator.bounding_box()
+    for _ in range(40):
+        page.wait_for_timeout(100)
+        again = locator.bounding_box()
+        if again == box:
+            break
+        box = again
+    assert box is not None
+    return box
+
+
 def _open_path(page: Page) -> list[str]:
     """The levels the wide column shows: its lines on top, outermost first, then the open card."""
     return page.evaluate(
@@ -317,8 +331,7 @@ def test_holding_a_dragged_goal_over_a_step_opens_it(ui_f2: UiSession) -> None:
     # Pick up the open goal's sibling, drawn under it in the same wide column, and hold it over the open card's first
     # step. The hand stays in that column: a drag resting 0.2 s over another column widens it (D246), which folds this one.
     source = page.locator(_card("quarter", fam.sibling)).first
-    box = source.locator(":scope > .goal-card__row").bounding_box()
-    assert box is not None
+    box = _settled_box(page, source.locator(":scope > .goal-card__row"))
     page.mouse.move(box["x"] + GRIP["x"], box["y"] + GRIP["y"])
     page.mouse.down()
     page.mouse.move(box["x"] + GRIP["x"] + DRAG_THRESHOLD_PX + 15, box["y"] + GRIP["y"], steps=4)

@@ -1,93 +1,20 @@
-"""D231/D233/D235/D238 in the real browser, as the bottom bar has them since it became one field ("filter board
-from one field", 3bc40f9): the values that were links in the app nav (D238) are commands in "Find, filter or ask".
-Focused and empty, the field offers each value by its one word (D239); taking one narrows the board to that value's
-goals, and taking it away brings the whole board back. The picker is gone, hover runs both directions.
+"""D231/D235 in the real browser: the colour picker is gone from the card menu, and hover lights a chain both ways.
+The values the field once offered as filters (D233/D238/D239) left with its filter words (docs/design-handoff S1.P2.027).
 
-Fixture F2 at the suite's pinned clock (2026-08-08). SYNLIF01 is the only parentless life root,
-so the field offers exactly one value. SYNCOL01 is a day root with no life ancestor — the
-filter's witness (it must vanish) and the hover test's neutral bystander.
+Fixture F2 at the suite's pinned clock (2026-08-08). SYNCOL01 is a day root with no life ancestor, the hover test's
+neutral bystander.
 """
 
 from __future__ import annotations
 
-import httpx
-from playwright.sync_api import expect
-
 from tests.ui.conftest import UiSession, activate_column
-from tests.ui.views import FIELD, switch_view
 
-VALUE = '.command-field__suggestions [data-token="area:SYNLIF01"]'
-TOKEN = ".command-field__token"
 HOVER_CLASS = "goal-card--ancestor-hover"
 
 
 def _has_hover_class(page, goal_id: str) -> bool:
     classes = page.locator(f'[data-goal-id="{goal_id}"]').first.get_attribute("class") or ""
     return HOVER_CLASS in classes.split()
-
-
-def test_value_filters_the_board_and_taking_it_away_restores(ui_f2: UiSession) -> None:
-    session = ui_f2
-    page = session.page
-    page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
-
-    # The field offers the one value; the D234 bar and the D238 nav links are gone.
-    page.locator(FIELD).click()
-    expect(page.locator('.command-field__suggestions [data-token^="area:"]')).to_have_count(1)
-    assert page.locator(".value-bar, .value-bar__dot, [data-cap=value-filter]").count() == 0
-
-    # D233: the value narrows the dated columns; the unvalued day root vanishes.
-    page.locator(VALUE).click()
-    page.wait_for_selector('[data-goal-id="SYNCOL01"]', state="detached", timeout=10000)
-    expect(page.locator('[data-goal-id="SYNDAY01"]')).to_be_visible()
-    live = page.locator(TOKEN, has_text="Live")
-    expect(live).to_have_count(1)
-
-    # Taking the value away restores the whole board.
-    live.click()
-    page.wait_for_selector('[data-goal-id="SYNCOL01"]', timeout=10000)
-    expect(page.locator('[data-goal-id="SYNDAY01"]')).to_be_visible()
-
-
-def test_value_wears_one_word(ui_f2: UiSession) -> None:
-    session = ui_f2
-    page = session.page
-    page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
-
-    # D239 fallback: no short_label set, the value shows the title's FIRST WORD, never the whole
-    # title. SYNLIF01's fixture title is two words ("Live deliberately", f2_synth.sql).
-    page.locator(FIELD).click()
-    assert (page.locator(VALUE).text_content() or "").strip() == "Live"
-
-    # D239 explicit: a short_label set over the API (the only writable surface — value roots
-    # only) replaces the fallback after the board refetches.
-    patched = httpx.patch(
-        f"{session.backend.base_url}/api/goals/SYNLIF01",
-        json={"short_label": "Money"},
-        headers={"Authorization": f"Bearer {session.backend.token}"},
-        timeout=10,
-    )
-    assert patched.status_code == 200, patched.text
-    page.reload()
-    page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
-    page.locator(FIELD).click()
-    assert (page.locator(VALUE).text_content() or "").strip() == "Money"
-
-
-def test_value_chosen_in_inbox_narrows_the_board_it_returns_to(ui_f2: UiSession) -> None:
-    session = ui_f2
-    page = session.page
-    page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
-
-    # D238's one gesture (a value from Inbox switched and filtered) is two tokens in one field now, the view and the
-    # value: taken in Inbox, the value stays when Inbox is taken away, so the board comes back narrowed to it.
-    switch_view(page, "inbox")
-    page.locator(FIELD).click()
-    page.locator(VALUE).click()
-    switch_view(page, "verticals")
-    page.wait_for_selector('[data-goal-id="SYNDAY01"]', timeout=10000)
-    expect(page.locator('[data-goal-id="SYNCOL01"]')).to_have_count(0)
-    expect(page.locator(TOKEN, has_text="Live")).to_have_count(1)
 
 
 def test_colour_picker_is_gone_from_the_card_menu(ui_f2: UiSession) -> None:

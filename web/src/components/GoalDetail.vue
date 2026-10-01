@@ -11,6 +11,7 @@
    notes for one line after them; long notes show ten lines and say what is left; the card never scrolls inside. */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import GoalDetailEditor from './GoalDetailEditor.vue'
+import GoalLinks from './GoalLinks.vue'
 import { store } from '../store'
 import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
@@ -36,8 +37,11 @@ function requestClose() {
   store.closeFamily()
 }
 
+/* A goal in a window goes with its window: Esc and × there (docs/design-handoff S3.P2.011), never a press beside it. */
+const inWindow = () => store.state.openGoalVertical === 'window'
+
 function onDetailKeydown(event: KeyboardEvent) {
-  if (store.state.openGoalId === null) return
+  if (store.state.openGoalId === null || inWindow()) return
   const hosted = document.querySelector<HTMLElement>(
     '#dropdownPortal [data-popover-surface][data-state="open"]',
   )
@@ -49,17 +53,17 @@ function onDetailKeydown(event: KeyboardEvent) {
 }
 
 function onInlinePointerDown(event: PointerEvent) {
-  if (store.state.openGoalId === null) return
+  if (store.state.openGoalId === null || inWindow()) return
   const target = event.target as HTMLElement | null
   if (!target) return
   // WP-B2: the comments panel now docks to the viewport edge, mounted at `App.vue`'s own level
   // (`CommentsPanel.vue`'s header comment) — no longer a descendant of `[data-goal-id]`. Without
   // this, writing a reply or clicking Resolve inside the panel would register as a pointerdown
   // OUTSIDE the card and collapse it mid-write. The open goal's steps list (`data-open-region`)
-  // is part of the card: a press between its steps is not a press outside. A token in the command field closes the goal
+  // is part of the card: a press between its steps is not a press outside. A view's tag over the circle closes the goal
   // itself when its click changes the view; closed first, on the press, the goal rewound the address to the view it was
-  // opened from, and that rewind landed after the click: taking "Inbox" away over an open Inbox goal stayed in Inbox.
-  if (target.closest('#goal-detail, #dropdownPortal, [data-goal-id], [data-open-region], [data-role="comments-panel"], .command-field__token')) return
+  // opened from, and that rewind landed after the click: leaving Inbox over an open Inbox goal stayed in Inbox.
+  if (target.closest('#goal-detail, #dropdownPortal, [data-goal-id], [data-open-region], [data-role="comments-panel"], .circle-tag')) return
   requestClose()
 }
 
@@ -325,7 +329,7 @@ function onBodySurfaceKeydown(event: KeyboardEvent) {
    - the ones that mention the goal (their text links to it) and aren't in its notes: "Mentioned in 13 documents · latest
      24 Sep". They used to be pills, 21 on one goal. Two documents with one title show once, the newer: the 25 Sep
      migration left copies of some under `migration/`. */
-type DocItem = { key: string; title: string; updated: string | null; open: () => void; from?: string; fromId?: string }
+type DocItem = { key: string; id?: string; title: string; updated: string | null; open: () => void; from?: string; fromId?: string }
 const openList = ref<'documents' | 'mentions' | null>(null)
 const newestFirst = (a: DocItem, b: DocItem) => (b.updated ?? '').localeCompare(a.updated ?? '')
 const documents = computed<DocItem[]>(() => {
@@ -333,6 +337,7 @@ const documents = computed<DocItem[]>(() => {
   const known = new Map(store.state.docs.list.map((d) => [d.path, d]))
   const own = linkedDocs.value.map((d) => ({
     key: d.path,
+    id: known.get(d.path)?.id,
     title: known.get(d.path)?.title || d.title,
     updated: known.get(d.path)?.updated_at ?? null,
     open: () => void store.followBodyLink({ kind: 'doc', target: d.path }),
@@ -344,6 +349,7 @@ const documents = computed<DocItem[]>(() => {
     .filter((d) => d.source === 'goal' && d.inherited_from && !mine.has(d.path))
     .map((d) => ({
       key: d.path,
+      id: d.id,
       title: d.title || known.get(d.path)?.title || d.path,
       updated: known.get(d.path)?.updated_at ?? null,
       open: () => store.openDocFromGoal(d.id),
@@ -366,8 +372,10 @@ const mentions = computed<DocItem[]>(() => {
   }
   return all.sort(newestFirst).filter((d) => !seen.has(d.title) && seen.add(d.title))
 })
+/* The goal's own documents, its parents' after them, are rows of its links (S3.P1.007); the ones that mention it stay a
+   line of their own. */
+const links = computed(() => documents.value.map((d) => ({ key: d.id ?? d.key, path: d.key, title: d.title, updated: d.updated, open: d.open, from: d.from })))
 const docLines = computed(() => [
-  { role: 'goal-documents', list: 'documents' as const, docs: documents.value, label: (n: number) => `${n} ${n === 1 ? 'document' : 'documents'}` },
   { role: 'goal-mentions', list: 'mentions' as const, docs: mentions.value, label: (n: number) => `Mentioned in ${n} ${n === 1 ? 'document' : 'documents'}` },
 ].filter((line) => line.docs.length).map((line) => ({
   ...line,
@@ -531,6 +539,8 @@ function fitIntoView(): void {
                   :style="{ left: `${anchoring.selectionButtonPos.value.x}px`, top: `${anchoring.selectionButtonPos.value.y}px` }"
                   @mousedown.prevent="anchoring.commitSelectionToComment"
                 >Comment</button>
+                <GoalLinks :goal-id="goal!.id" :goal-title="goal!.title" :body="goal!.body" :docs="links"
+                  :in-window="store.state.openGoalVertical === 'window'" />
                 <template v-for="line in docLines" :key="line.list">
                   <button
                     type="button"

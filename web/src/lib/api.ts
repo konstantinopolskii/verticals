@@ -141,6 +141,22 @@ export interface SearchResponse {
   truncated: boolean
 }
 
+/** One goal of a match's chain, root first (`GET /api/search?with=parents`). */
+export interface SearchParent {
+  id: string
+  parent_id: string | null
+  title: string
+  vertical: string | null
+  anchor_date: string | null
+  period_key: string | null
+  done_at: string | null
+  position: number
+}
+
+export interface FindResponse extends SearchResponse {
+  parents: Record<string, SearchParent[]>
+}
+
 export interface TagMeta {
   tag: string
   project: boolean
@@ -298,6 +314,22 @@ export function searchGoals(params: {
   limit?: number
 }): Promise<SearchResponse> {
   return request<SearchResponse>(`/api/search${qs(params)}`)
+}
+
+/** The board's finding: titles and notes, every period, each match's parents (docs/design-handoff S1.P3). */
+export function findGoals(q: string): Promise<FindResponse> {
+  return request<FindResponse>(`/api/search${qs({ q, with: 'parents', limit: 200 })}`)
+}
+
+/** One vertical's periods in a row, in the board's own payload (docs/design-handoff S5.P1.030). */
+export function fetchSpans(vertical: string, date: string, count: number, value: string | null = null): Promise<BoardResponse> {
+  return request<BoardResponse>(`/api/spans${qs({ vertical, date, count, ...(value ? { value } : {}) })}`)
+}
+
+/** The day's carry-over into the "Replan carried-over plans" task (docs/design-handoff S4.P1): the server does it once
+ *  a day, however often it is asked, and answers the task it wrote to. */
+export function runReplan(date: string): Promise<{ task_id: string | null }> {
+  return request<{ task_id: string | null }>(`/api/replan${qs({ date })}`, { method: 'POST' })
 }
 
 export function createGoal(payload: CreateGoalPayload): Promise<GoalCard> {

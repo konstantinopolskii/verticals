@@ -5,6 +5,10 @@ import AppIcon from './AppIcon.vue'
 import ColumnHeader from './ColumnHeader.vue'
 import GoalCard from './GoalCard.vue'
 import InlineAdd from './InlineAdd.vue'
+import FindingSections from './FindingSections.vue'
+import CarriedGroup from './CarriedGroup.vue'
+import ColumnDots from './ColumnDots.vue'
+import type { SpanScale } from '../lib/spans'
 import { store } from '../store'
 import { playSound } from '../lib/sound'
 import type { PeriodDirection } from '../lib/periodNavigation'
@@ -24,10 +28,14 @@ const props = withDefaults(
     periodKey?: string | null
     periodDirection?: PeriodDirection
     periodSwapId?: number
+    /** One period of the spans while a goal moves (docs/design-handoff S5.P1): its header names how far away it is. */
+    span?: boolean
+    /** The span's end, small and light after its date (S5.P1.008-.014). */
+    end?: string
   }>(),
   {
     subLabel: '', active: false, deckActive: false, deckMain: false, addPlaceholder: 'Add…', periodKey: null,
-    periodDirection: 1, periodSwapId: 0,
+    periodDirection: 1, periodSwapId: 0, span: false, end: '',
   },
 )
 
@@ -52,8 +60,10 @@ function onAdd(title: string) {
 // fold affordance anywhere" (KK, verbatim: "let's show all sub-task by default now").
 
 function onHeaderClick(): void {
-  store.toggleExpandedColumn(props.vertical)
+  if (!props.span) store.toggleExpandedColumn(props.vertical)
 }
+/* While a goal is dragged the dots take the period controls' place; a span has neither (S5.P2.017, .019). */
+const dragging = computed(() => store.state.drag.id !== null)
 
 /** One props bag per top-level card, forwarded straight through — no face substitution, no
  *  children truncation. The D244 §5 chain-hover wash (`goal-card--ancestor-hover`, GoalCard.vue's
@@ -71,8 +81,6 @@ function cardProps(goal: GoalCardData) {
     columnVertical: props.vertical,
     foil: goal.foil,
     ghost: goal.ghost,
-    ghostUntil: goal.ghostUntil,
-    plannedPeriod: goal.plannedPeriod,
     progress: goal.progress,
     subgoalCount: goal.subgoalCount,
     repeat: goal.repeat,
@@ -163,9 +171,9 @@ function renderItems(slide: PeriodSlide): RenderItem[] {
 function carriedGoals(slide: PeriodSlide): GoalCardData[] {
   return slide.goals.filter(goal => goal.ghost)
 }
-function carriedCount(slide: PeriodSlide): number {
-  const count = (goals: GoalCardData[]): number => goals.reduce((sum, goal) => sum + Number(!!goal.ghost) + count(goal.children ?? []), 0)
-  return count(carriedGoals(slide))
+/* "Replan" opens the Inbox task that holds the carried plans (S4.P2.038, S4.P4). */
+function onReplan(from: Element): void {
+  window.dispatchEvent(new CustomEvent('verticals:replan', { detail: { from } }))
 }
 
 const columnRoot = ref<HTMLElement | null>(null)
@@ -274,7 +282,8 @@ onBeforeUnmount(() => swapAnimation?.cancel())
     :data-vertical="vertical"
     :data-period-key="periodKey ?? ''"
   >
-    <div v-if="vertical !== 'life'" class="column-period-controls" data-cap="period-nav">
+    <ColumnDots v-if="dragging && vertical !== 'life' && vertical !== 'maybe' && !span" :vertical="vertical as SpanScale" />
+    <div v-else-if="vertical !== 'life' && !span" class="column-period-controls" data-cap="period-nav">
       <button
         class="column-period-controls__arrow"
         type="button"
@@ -316,10 +325,12 @@ onBeforeUnmount(() => swapAnimation?.cancel())
         <ColumnHeader
           :title="slide.title"
           :sub-label="slide.subLabel"
-          data-cap="column-expand"
+          :end="end"
+          :data-cap="span ? undefined : 'column-expand'"
           @click="onHeaderClick"
         />
         <div class="pattern-vertical-board__body">
+          <CarriedGroup v-if="carriedGoals(slide).length" :vertical="vertical" :goals="carriedGoals(slide)" @replan="onReplan" />
           <KCardStack dense data-section="planned">
             <template v-for="item in renderItems(slide)" :key="item.key">
               <div
@@ -346,15 +357,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
             </template>
             <InlineAdd v-if="!filterActive" :placeholder="addPlaceholder" data-cap="create-goal" @add="onAdd" />
           </KCardStack>
-          <template v-if="carriedCount(slide)">
-            <div class="column-now-line" data-role="now-line" :aria-label="`${carriedCount(slide)} carried-over goals`">
-              <span class="column-now-line__rule" aria-hidden="true"></span>
-              <span class="t-caption" data-role="now-count">{{ carriedCount(slide) }}</span>
-            </div>
-            <KCardStack dense data-section="carried">
-              <GoalCard v-for="goal in carriedGoals(slide)" :key="goal.id" v-bind="cardProps(goal)" />
-            </KCardStack>
-          </template>
+          <FindingSections v-if="filterActive && slide.state !== 'outgoing'" :vertical="vertical" :period-key="slide.periodKey" :shown="slide.goals" />
         </div>
       </section>
     </div>
@@ -363,15 +366,6 @@ onBeforeUnmount(() => swapAnimation?.cancel())
 </template>
 
 <style>
-/* A row leaves 6px of card padding on either side of the 2px stack gap. The
-   line center uses that same visible 14px rhythm, including the add row's 6px inset. */
-.column-now-line { display: flex; align-items: center; gap: 8px; height: 1px; margin: 7.5px calc(6px + var(--space-2)); color: #df496d; }
-.column-now-line__rule { flex: 1; height: 1px; background: #df496d; }
-.column-now-line [data-role='now-count'] { font-size: 15px; font-variant-numeric: tabular-nums; }
-.pattern-vertical-board__column--active .column-now-line { margin-block: calc(7.5px + var(--kkov-expanded-goal-spacing)); }
-/* Fit the add row to its text, so the line has the same visible gap on both sides
-   in compact and expanded columns instead of inheriting its fixed 34px shell. */
-.pattern-vertical-board__body:has(> .column-now-line) > [data-section='planned'] > .column-add-row { height: auto; }
 /* Compact board geometry (COMPACT_BOARD_HANDOFF.md §3, HC-1/HC-2): seven EQUAL columns filling
    the viewport exactly — `flex: 1 1 0` shares the strip evenly regardless of content, so there
    is never a horizontal scroll or a dead right gutter. Day gets no special width (KK ruling).

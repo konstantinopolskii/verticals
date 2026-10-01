@@ -632,7 +632,6 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 .goal-card .goal-card__title-text.goal-card__title-text--finding { font-weight: 400; }
 
 /* The carried title stays full strength; only its original period is secondary. */
-.goal-card__planned-period { color: #686868; font-size: inherit; font-weight: 400; white-space: nowrap; }
 
 /* The open goal's facts line and "Add…" grow in and fold away with its notes (GoalCard.vue's transitions), in the
    opening's time and curve: the steps under the facts line slide down, and back up on closing, instead of jumping. */
@@ -673,7 +672,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
    swaps under the pointer. Nothing here applies while nothing is open. */
 .pattern-vertical-board {
   --vt-light-ms: 360ms;
-  --vt-light-ease: cubic-bezier(.22, 1, .36, 1);
+  --vt-light-ease: var(--vt-ease-large);
   --goal-off-opacity: var(--kkov-off-opacity, .32);
   --goal-off-grey: var(--kkov-off-grey, .5);
 }

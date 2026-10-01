@@ -571,7 +571,7 @@ onBeforeUnmount(() => {
   background: #fff;
   border: 0;
   border-radius: 10px;
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 8%), 0 10px 28px rgb(0 0 0 / 12%);
+  box-shadow: var(--vt-shadow-small);
   color: #000;
   outline: none;
   user-select: none;

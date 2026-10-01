@@ -609,7 +609,9 @@ class Session:
         self.running = False
         ms = int((time.time() - (self.started_at or time.time())) * 1000)
         self.chat.record(self.id, "assistant", self.reply)
-        self.emit({"t": "done", "error": bool(error), "detail": detail or "", "ms": ms})
+        at = time.time()
+        self.chat.update(self.id, lastTurnAt=at)
+        self.emit({"t": "done", "error": bool(error), "detail": detail or "", "ms": ms, "at": at})
         for key in list(self.asks):
             self.resolve(key, "Expired")
         if self.queue:
@@ -673,6 +675,15 @@ class Chat:
             log.append([role, text[:4000]])
             del log[:-40]
             self.save(data)
+
+    def goal_conversations(self, goal_id):
+        """A goal's conversations, the latest turn first: Discuss with agent continues the first (docs/design-handoff
+        S3.P1)."""
+        found = [{"session": id, "provider": entry.get("provider"), "title": (entry.get("goal") or {}).get("title", ""),
+                  "lastTurnAt": entry.get("lastTurnAt") or 0}
+                 for id, entry in self.load().items()
+                 if isinstance(entry, dict) and (entry.get("goal") or {}).get("id") == goal_id]
+        return sorted(found, key=lambda c: c["lastTurnAt"], reverse=True)
 
     def session(self, id) -> Session:
         try:
@@ -792,6 +803,9 @@ class Chat:
             raise ChatError("Empty message")
         s = self.session(id)
         settings = clean_settings(settings)
+        goal = context.get("goal") if isinstance(context, dict) else None
+        if isinstance(goal, dict) and isinstance(goal.get("id"), str) and len(goal["id"]) < 100:
+            self.update(id, goal={"id": goal["id"], "title": str(goal.get("title", ""))[:300]})
         if not which(settings["provider"]):
             raise ChatError(f"{AGENTS[settings['provider']]['label']} is not installed.")
         s.emit({"t": "user", "text": text, "provider": settings["provider"], "model": settings.get("model"),
@@ -936,6 +950,38 @@ def format_context(ctx):
             lines.append(f"{label}: {str(ctx[key])[:limit]}")
     goal = ctx.get("goal")
     if isinstance(goal, dict) and isinstance(goal.get("id"), str) and len(goal["id"]) < 100:
-        lines.append(f"This conversation is about the goal \"{str(goal.get('title', ''))[:300]}\" "
-                     f"(id {goal['id']}, link #goal/{goal['id']}). Read it with the goal tool before answering.")
+        about = f"This conversation is about the goal \"{str(goal.get('title', ''))[:300]}\" (id {goal['id']}, link #goal/{goal['id']})."
+        changes = str(ctx.get("changes") or "")[:4000]
+        if changes:
+            lines.append(f"{about} You know it from the earlier turns; what changed on it since your last turn:\n{changes}")
+        elif ctx.get("continuing"):
+            lines.append(f"{about} You know it from the earlier turns; nothing changed on it since.")
+        else:
+            lines.append(f"{about} Read it with the goal tool before answering.")
+        if goal.get("title") == REPLAN_TITLE:
+            lines.append(REPLAN_RULES)
+    move = ctx.get("move")
+    if isinstance(move, dict):
+        # Words sent while the owner moves a goal on the board (docs/design-handoff S5.P3.041).
+        held = move.get("goal") if isinstance(move.get("goal"), dict) else None
+        spans = [str(s)[:120] for s in move.get("spans") or []][:12]
+        lines.append(
+            f"The owner was moving a goal on the board, in the {str(move.get('view') or 'board')[:40]} view"
+            + (f", showing: {'; '.join(spans)}" if spans else "")
+            + (f"; the goal waiting to be placed: \"{str(held.get('title') or '')[:300]}\" (id {str(held.get('id'))[:40]})" if held else "")
+            + ". Their words are about that move; the move itself was cancelled when they sent them."
+        )
     return "\n".join(lines)
+
+
+# The app's sorting task (docs/design-handoff S4.P4.010, .011): how its table is worked. Its words are the agent's own.
+REPLAN_TITLE = "Replan carried-over plans"
+REPLAN_RULES = (
+    "This is the app's task for plans that carried over. Its notes hold a markdown table: Goal | Summary | Next step | "
+    "Your comment, one row per plan, linked. Fill Summary from each plan's own notes, and under its planned time in "
+    "Next step put where it should go (Move to this week, Move to next week, Move to the Inbox, Move to next month). "
+    "When the owner writes in Your comment, save those words verbatim as a comment on that plan, confirm with them, "
+    "apply it with schedule, reparent or update, clear the cell and leave the receipt in Next step, such as "
+    "\"Moved to next week, as you wrote.\" Move nothing until the owner says go. Skip a plan whose link no longer "
+    "opens a goal. Edit only the cells you change."
+)

@@ -581,7 +581,7 @@ def _make_ui_session(
         lambda req: failed_requests.append(
             f"{req.method} {req.url} — {req.failure or 'unknown'}"
         )
-        if "/api/events" not in req.url
+        if "/api/events" not in req.url and "/__chat/events" not in req.url
         else None,
     )
     page.on(

@@ -34,7 +34,7 @@ import psycopg
 from playwright.sync_api import Page, expect
 
 from tests.ui.conftest import EXPANDED_COLUMN_CLASS, UiSession, activate_column
-from tests.ui.views import switch_view
+from tests.ui.views import FIELD, switch_view
 
 # conftest.py's own PINNED_CLOCK_ISO date — matches test_hand_drag.py's ANCHOR_ISO exactly, so a
 # goal anchored here lands in whichever column the pinned clock renders as "current" for its
@@ -485,12 +485,12 @@ def test_od5_search_navigates_across_a_period_boundary_and_opens_in_place(ui_f2:
         "seed check: the target must NOT already be on the initially-loaded (August) board"
     )
 
-    # Search is the command field since the bottom bar became one field: a title lists the goals the board doesn't show
-    # right above the field, and taking one moves the board to it ("Search simply moves u to vertical").
-    field = session.page.locator('input[aria-label="Find, filter or ask"]')
-    field.click()
+    # Finding shows a goal of another period under its period's headline in its own column (docs/design-handoff S1.P3),
+    # and a click on it moves the board to it ("Search simply moves u to vertical").
+    field = session.page.locator(FIELD)
+    session.page.keyboard.press("Control+k")
     field.fill("SYN OD5 search target")
-    result = session.page.locator(f'[data-role="offboard-matches"] [data-goal-id="{g_id}"]')
+    result = session.page.locator(f'[data-role="finding"] [data-goal-id="{g_id}"] > .goal-card__row')
     result.wait_for(state="visible", timeout=10_000)
     result.click()
 

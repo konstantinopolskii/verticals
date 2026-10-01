@@ -8,16 +8,24 @@ import { computed } from 'vue'
 import SchedulePopover from './SchedulePopover.vue'
 import ShotSizeFields from '../kit-ext/shot-size-fields/ShotSizeFields.vue'
 import { store } from '../store'
+import { agentChat as agentChatState } from '../lib/agentChat'
 import { plannedPeriodLabel } from '../lib/schedule'
-import type { VerticalScale } from '../lib/periods'
+import { MONTH_NAMES, type VerticalScale } from '../lib/periods'
 
 const props = defineProps<{ id: string }>()
 
 const goal = computed(() => (store.state.goalDetail?.id === props.id ? store.state.goalDetail : null))
 
+/* The app's own task says where it lives and when it was made: "Inbox · made Mon 28 Sep" (docs/design-handoff S4.P1.012). */
+const made = computed(() => {
+  const g = goal.value
+  if (!g || g.vertical || g.origin !== 'app') return null
+  const d = new Date(g.created_at)
+  return `made ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]!.slice(0, 3)}`
+})
 const dateLabel = computed(() => {
   const g = goal.value
-  if (!g?.vertical) return 'Schedule'
+  if (!g?.vertical) return made.value ? 'Inbox' : 'Schedule'
   if (g.vertical === 'life') return 'Life'
   return plannedPeriodLabel(g)
 })
@@ -33,8 +41,8 @@ function toggleComments(): void {
   else store.openCommentsPanel('goal', props.id)
 }
 
-/* The desktop chat (desktop/chat/ui/chat.js) marks itself on window when it loads; a plain browser has no agent. */
-const agentChat = (window as { __vtChat?: boolean }).__vtChat === true
+/* Only where an agent exists (docs/design-handoff S2.P1.023). */
+const agentChat = computed(() => agentChatState.available)
 function discuss(): void {
   window.dispatchEvent(new CustomEvent('verticals:discuss-goal', { detail: { id: props.id } }))
 }
@@ -62,6 +70,10 @@ function onSchedule(scale: VerticalScale, periodKey: string): void {
         >{{ dateLabel }}</button>
       </template>
     </SchedulePopover>
+    <template v-if="made">
+      <span class="goal-facts__sep" aria-hidden="true">·</span>
+      <span class="goal-facts__made" data-role="goal-made">{{ made }}</span>
+    </template>
     <template v-if="sized">
       <span class="goal-facts__sep" aria-hidden="true">·</span>
       <ShotSizeFields

@@ -1,28 +1,32 @@
-"""The app's views, reached the way a person reaches them since the bottom bar became one field ("filter board from
-one field", 3bc40f9): Inbox and Docs are commands in "Find, filter or ask". The empty field, focused, offers them;
-taking one shows that view, and removing its token goes back to the board. The `[data-nav-item]` links are gone.
+"""The app's views, reached the way a person reaches them since the field became the circle (docs/design-handoff S1.P2,
+S2.P2): pointed at, the circle shows its tags; the docs tag opens Docs, the Inbox tag the Inbox, and a view's own tag
+pressed again goes back to the board.
 
-A view entered another way (a document opened from a goal, an address with `#inbox` or `#doc/...`) puts no token in
-the field, so a scenario that left the board that way comes back with the browser's back, as a person would."""
+A view entered another way (a document opened from a goal, an address with `#inbox` or `#doc/...`) comes back the same
+way, or with the browser's back, as a person would."""
 
 from __future__ import annotations
 
-import re
-
 from playwright.sync_api import Page, expect
 
-FIELD = 'input[aria-label="Find, filter or ask"]'
-VIEW_TOKEN = re.compile(r"^(Inbox|Docs)\b")
+FIELD = '[data-cap="search-input"] textarea'
+CIRCLE = ".circle-field__shape"
 MARK = {"inbox": '[data-cap="inbox"]', "docs": '[data-cap="docs"]', "verticals": ".pattern-vertical-board"}
 
 
+def show_tags(page: Page) -> None:
+    """Point at the circle: the field opens and its tags come in."""
+    page.locator(CIRCLE).hover()
+    expect(page.locator(".circle-tags.is-shown")).to_have_count(1)
+
+
 def switch_view(page: Page, view: str) -> None:
-    """`inbox` or `docs` from the command field's suggestions; `verticals` by removing the view's token."""
+    """`inbox` or `docs` from its tag; `verticals` by pressing the tag of the view on screen again."""
+    show_tags(page)
     if view == "verticals":
-        page.locator(".command-field__token", has_text=VIEW_TOKEN).first.click()
+        page.locator('.circle-tag[aria-pressed="true"]').click()
     else:
-        page.locator(FIELD).click()
-        page.locator(f'.command-field__suggestions [data-token="{view}"]').click()
+        page.locator(f'.circle-tag[data-tag="{view}"]').click()
     expect(page.locator(MARK[view]).first).to_be_visible(timeout=10000)
 
 

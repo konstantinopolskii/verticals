@@ -59,6 +59,7 @@ from verticals.core import board as B
 from verticals.core import goals
 from verticals.core import vertical
 from verticals.models import Board, Column, Goal
+from tests.core.test_ghosts import _rolled
 from tests.conftest import fresh_clone, maintenance_dsn
 from tests.harness import stmt
 from tests.harness.report import gate
@@ -218,10 +219,8 @@ def _board_params(owner: str, anchor: date) -> dict[str, object]:
         if bounds is not None:
             params[f"start_{h.key}"], params[f"end_{h.key}"] = bounds
             params[f"live_{h.key}"] = params[f"pk_{h.key}"] == h.period_key_fn(today)
-            current = h.bounds_fn(today)
-            previous = h.bounds_fn(current[0] - timedelta(days=1))
-            params[f"current_start_{h.key}"] = current[0]
-            params[f"previous_start_{h.key}"] = previous[0]
+            params[f"current_start_{h.key}"] = h.bounds_fn(today)[0]
+    params.update(B._roll_thresholds(today))
     return params
 
 
@@ -367,10 +366,7 @@ def test_s24_exclusive_buckets(f2: psycopg.Connection) -> None:
         own = bounded[keys.index(goal.vertical)]
         assert goal.done_at is None
         assert goal.anchor_date < own.bounds_fn(today)[0]
-        candidates = bounded[keys.index(goal.vertical):]
-        expected = next((h for h in candidates if goal.anchor_date >= h.bounds_fn(
-            h.bounds_fn(today)[0] - timedelta(days=1)
-        )[0]), bounded[-1])
+        expected = vertical.descriptor(_rolled(goal.vertical, goal.anchor_date, today))
         assert column.vertical == expected.key
         assert column.period_key == expected.period_key_fn(today)
         assert b.ghosts[gid] == expected.bounds_fn(today)[1]

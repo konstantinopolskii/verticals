@@ -12,6 +12,7 @@
 import { findGoal, siblingIds } from './boardIndex'
 import { idsInColumn, resolveReorderSlot, slotBesideCard, sourceSlot } from './dragSlots'
 import type { BoardResponse } from './api'
+import { destinationRect, SETTLE_GRACE_MS, settleDuration } from './dragSettle'
 
 /** P-02/M1: desktop stays a click through exactly 5 CSS px and arms strictly beyond it. */
 export const DRAG_THRESHOLD_PX = 5
@@ -25,12 +26,7 @@ export const AUTOSCROLL_EDGE_RATIO = 0.2
 export const AUTOSCROLL_CROSS_AXIS_PX = 10
 export const AUTOSCROLL_MAX_PX = 25
 
-export const SETTLE_MIN_MS = 330
-export const SETTLE_MAX_MS = 550
-export const SETTLE_DISTANCE_CAP_PX = 1500
-export const SETTLE_FALLBACK_MS = 250
-export const SETTLE_GRACE_MS = 50
-export const SETTLE_EASING = 'cubic-bezier(.2,1,.1,1)'
+export { SETTLE_EASING, settleDuration } from './dragSettle'
 
 export function exceedsThreshold(dx: number, dy: number): boolean {
   return Math.hypot(dx, dy) > DRAG_THRESHOLD_PX
@@ -327,64 +323,6 @@ export function autoScrollAtPointer(drag: DragState): boolean {
   return moved
 }
 
-function sourceRect(id: string): DOMRect | null {
-  return document
-    .querySelector(`[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)
-    ?.getBoundingClientRect() ?? null
-}
-
-function destinationRect(id: string, target: DropTarget): DOMRect | null {
-  if (target?.kind === 'reorder') {
-    // Source slot reserves the CARD while its nested target constructs the ROW. Destination slot
-    // is already the ROW. Both paths return a rendered row box directly: no padding correction.
-    const indicator = document.querySelector<HTMLElement>('[data-role="drop-indicator"]')
-    if (!indicator) return sourceRect(id)
-    const row = indicator.dataset.box === 'card'
-      ? indicator.querySelector<HTMLElement>('[data-role="drop-row-target"]')
-      : indicator
-    return row?.getBoundingClientRect() ?? sourceRect(id)
-  }
-  if (target?.kind === 'combine') return combineDestinationRect(target.targetId) ?? sourceRect(id)
-  return sourceRect(id)
-}
-
-function runningTranslateY(card: HTMLElement): number {
-  const transform = getComputedStyle(card).transform
-  return transform && transform !== 'none' ? new DOMMatrixReadOnly(transform).m42 : 0
-}
-
-function closingHeight(indicator: HTMLElement): number {
-  const next = indicator.nextElementSibling as HTMLElement | null
-  if (next) return next.offsetTop - indicator.offsetTop
-  const gap = parseFloat(getComputedStyle(indicator.parentElement as HTMLElement).rowGap) || 0
-  return indicator.offsetHeight + gap
-}
-
-/** Where the combine target's row ends up once the held placeholder unmounts. */
-function combineDestinationRect(targetId: string): DOMRect | null {
-  const row = document.querySelector<HTMLElement>(
-    `[data-goal-id="${CSS.escape(targetId)}"] > .goal-card__row`,
-  )
-  if (!row) return null
-  const rect = row.getBoundingClientRect()
-  let top = rect.top - runningTranslateY(row.parentElement as HTMLElement)
-  const indicator = document.querySelector<HTMLElement>('[data-role="drop-indicator"]')
-  if (
-    indicator
-    && indicator.closest('[data-vertical]') === row.closest('[data-vertical]')
-    && indicator.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING
-  ) {
-    top -= closingHeight(indicator)
-  }
-  return new DOMRect(rect.left, top, rect.width, rect.height)
-}
-
-export function settleDuration(distance: number | null): number {
-  if (distance === null) return SETTLE_FALLBACK_MS
-  const fraction = Math.min(Math.max(distance, 0), SETTLE_DISTANCE_CAP_PX) / SETTLE_DISTANCE_CAP_PX
-  return SETTLE_MIN_MS + (SETTLE_MAX_MS - SETTLE_MIN_MS) * fraction
-}
-
 /** Clear input state, animate overlay to drop/cancel destination, then keep 50 ms cleanup grace. */
 export function releasePointerDrag(
   drag: DragState,
@@ -479,9 +417,9 @@ export function hitTest(x: number, y: number, sourceId: string | null = null): P
   }
   if (!colEl) return hit
 
-  // Carried goals are a computed pile, never a drop/reorder destination.
-  const nowLine = colEl.querySelector<HTMLElement>(`${LIVE_SLIDE} [data-role="now-line"]`)
-  if (nowLine && y >= nowLine.getBoundingClientRect().top) {
+  // Carried goals are a computed pile, never a drop/reorder destination (their group, S4.P2).
+  const group = colEl.querySelector<HTMLElement>(`${LIVE_SLIDE} [data-role="carried-group"]`)?.getBoundingClientRect()
+  if (group && y >= group.top && y <= group.bottom) {
     hit.columnVertical = null
     hit.columnPeriodKey = null
     return hit

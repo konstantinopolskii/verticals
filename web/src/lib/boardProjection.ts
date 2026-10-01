@@ -8,7 +8,7 @@
  *  750-line module rule (S-90a). They read no store state and hold none.
  */
 
-import { columnPeriodLabel, verticalHeadline, plannedPeriodLabel } from './schedule'
+import { columnPeriodLabel, verticalHeadline } from './schedule'
 import type { BoardColumn, BoardResponse, GoalCard } from './api'
 import type { BoardColumnData, GoalCardData } from '../types'
 
@@ -53,9 +53,6 @@ export function toCardData(
     && child.vertical === g.vertical && columnIds.has(child.id)
     && !!child.ghost === !!g.ghost && !(child.ghost && child.done_at !== null))
   const sameVerticalKids = g.ghost ? visibleKids.sort(carriedOrder) : completedLast(visibleKids)
-  const parent = g.parent_id ? columnCards.get(g.parent_id) : undefined
-  const repeatsParentPeriod = parent?.ghost && parent.vertical === g.vertical
-    && parent.period_key === g.period_key
   // D231: `g.color` arrives DERIVED from the server (the value root's colour, or null for a
   // tree with no life-vertical root) — the old client-side `valueColorFor` walk is gone with it.
   return {
@@ -72,7 +69,6 @@ export function toCardData(
     ghost: g.ghost ?? false,
     ghostUntil: g.ghost_until ?? null,
     anchorDate: g.anchor_date,
-    plannedPeriod: g.ghost && !repeatsParentPeriod ? plannedPeriodLabel(g) : undefined,
     // S-70/AC-033: `done/total` over descendants, computed server-side in the same board query.
     // A leaf has no entry and renders no label, which is AC-033's "leaves report no progress".
     progress: board.progress[g.id],

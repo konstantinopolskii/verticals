@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from datetime import date as _date
 
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 
 from verticals.api.deps import get_conn, verify_bearer_token
 from verticals.api.schemas import (
@@ -68,6 +68,7 @@ def search_goals(
     tag: str | None = None,
     vertical: str | None = None,
     limit: int = DEFAULT_LIMIT,
+    with_: str | None = Query(default=None, alias="with"),
 ) -> dict:
     """S-134 plus P-01's recent-default search surface.
 
@@ -76,7 +77,11 @@ def search_goals(
     """
     owner = request.app.state.config.owner
     with get_conn(request) as conn:
-        if q is None and tag is None and vertical is None:
+        if with_ == "parents" and q is not None and tag is None and vertical is None:
+            result = core_search.search_with_parents(conn, owner=owner, q=q, limit=limit)
+        elif with_ is not None:
+            raise ValidationError("with=parents takes q alone", field="with")
+        elif q is None and tag is None and vertical is None:
             result = core_search.recent(conn, owner=owner, limit=limit)
         else:
             result = core_search.search(conn, owner=owner, q=q, tag=tag, vertical=vertical, limit=limit)

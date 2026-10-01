@@ -63,6 +63,11 @@ export interface DragActionDeps {
   expandColumn: (vertical: string) => void
   /** Flow 4: open the chain a held-over goal is drawn under plus itself, in its column (`lib/familyView.ts`). */
   openFamily: (path: string[], vertical: string) => Promise<void>
+  /** Moving a goal (docs/design-handoff S5): every armed move, and the end of the gesture with its flight's length. */
+  onMove?: (x: number, y: number) => void
+  onRelease?: (settleMs: number, parked: boolean) => void
+  /** Before a release: true when the goal is let go somewhere that keeps it (the field, S5.P3.037). */
+  beforeRelease?: (cancelled: boolean) => boolean
 }
 
 /** D246: wait for the DOM to catch up with a hover-driven layout change before trusting row
@@ -146,6 +151,7 @@ export function createDragActions(deps: DragActionDeps) {
     if (!hit) return
     const target = state.drag.target
     dragHover.onMove(hit.columnVertical, clientX, clientY, target?.kind === 'combine' ? target.targetId : null)
+    deps.onMove?.(clientX, clientY)
   }
   function setDragPreviewSize(width: number, height: number): void {
     if (!state.drag.id || width <= 0 || height <= 0) return
@@ -172,8 +178,12 @@ export function createDragActions(deps: DragActionDeps) {
    *  vertical right before the write, matching D244's "card click expands + opens" rule without
    *  any drag-scoped state of its own. */
   function pointerUpDrag(cancelled = false): void {
-    const released = releasePointerDrag(state.drag, cancelled)
+    const parked = deps.beforeRelease?.(cancelled) ?? false
+    const released = releasePointerDrag(state.drag, cancelled || parked)
+    // A goal kept above the field is there already: no flight back to its row.
+    if (parked) state.drag.settling = null
     dragHover.reset()
+    deps.onRelease?.(state.drag.settling?.duration ?? 0, parked)
     if (!released?.target) return
     const { id, target } = released
     const goal = deps.findGoalById(id)

@@ -48,8 +48,6 @@ const props = withDefaults(
     repeat?: RepeatRule | null
     foil?: boolean
     ghost?: boolean
-    ghostUntil?: string | null
-    plannedPeriod?: string
     /** `BoardResponse.progress[id]` — done/total over descendants. Absent on a leaf. */
     progress?: { done: number; total: number }
     subgoalCount?: number
@@ -70,8 +68,6 @@ const props = withDefaults(
     repeat: null,
     foil: false,
     ghost: false,
-    ghostUntil: null,
-    plannedPeriod: undefined,
     progress: undefined,
     subgoalCount: 0,
     children: () => [],
@@ -82,7 +78,7 @@ const props = withDefaults(
 
 const checked = computed(() => props.done)
 const titleParts = computed(() => highlightTitle(props.title))
-const filterContext = computed(() => isContextGoal(props.id, props.columnVertical))
+const filterContext = computed(() => isContextGoal(props.id))
 const cardStyle = computed(() => {
   const palette = devPaletteFor(props.color)
   // flow 4: the family's faint and farthest tints, found from this colour (lib/familyView.ts)
@@ -228,15 +224,6 @@ function onCardContextMenu(event: MouseEvent): void {
 function completeParent(): void {
   playSound('checked'); void store.completeGoal(props.id, true)
 }
-function park(): void {
-  playSound('goal_deleted')
-  void store.parkGoal(props.id)
-}
-function ignoreGhost(): void {
-  if (props.ghostUntil) void store.ignoreGhost(props.id, props.ghostUntil)
-}
-function ackDue(): void { void store.dueAckGhost(props.id, 'overdue') }
-function ackDoneOnTime(): void { void store.dueAckGhost(props.id, 'done_on_time') }
 
 /* The compact row keeps its DOM identity while inline detail is open. Drag state may still hide
    that same row temporarily; opening detail never replaces it with a second editor heading. */
@@ -376,6 +363,9 @@ function renderChildren(): ChildRenderItem[] {
 }
 
 const childrenListEl = ref<HTMLElement | null>(null)
+/* A goal in a window is the window (docs/design-handoff S3.P2.005): it doesn't lift, doesn't leave by drag, and lights
+   nothing on the board out of focus behind it. Its steps carry the same column, so they open with a click and stay. */
+const inWindow = computed(() => props.columnVertical === 'window')
 /* Hover lift (KK, 27 Sep 2026): a top-level goal and its subtasks rise as one piece, `lib/cardLift.ts`. */
 const {
   lifted,
@@ -388,7 +378,7 @@ const {
 } = useCardLift({
   card: rootElement,
   list: childrenListEl,
-  enabled: () => props.depth === 0 && store.state.drag.id === null && !isPathLine.value,
+  enabled: () => props.depth === 0 && store.state.drag.id === null && !isPathLine.value && !inWindow.value,
   // its own menu or a subgoal's hangs from it
   pinned: () => {
     const id = menuGoalId.value
@@ -411,6 +401,7 @@ function onAddStep(title: string): void {
   void store.addDetailChild(title)
 }
 function onCardEnter(): void {
+  if (inWindow.value) return
   highlightFamily()
   liftEnter()
   if (inWideColumn.value) void store.ensureDetail(props.id) // flow 4: a click here moves the column from its detail
@@ -459,7 +450,7 @@ function fromControl(event: Event): boolean {
    opposed to the plain `click` a tap-and-release produces, handled below unchanged) lives in
    `lib/drag.ts`, read on the next `pointermove` `Board.vue`'s own window listener forwards. */
 function onRowPointerDown(event: PointerEvent) {
-  if (fromControl(event)) return
+  if (fromControl(event) || inWindow.value) return
   const row = event.currentTarget as HTMLElement
   row.focus({ preventScroll: true })
   // A drag starts from the board at rest, lifted or not: its row, the gap it leaves, the rows it may land on.
@@ -577,7 +568,7 @@ function onRowKeydown(event: KeyboardEvent) {
         >
           <span class="goal-card__title-text" :class="{ 'goal-card__title-text--repeat': repeat, 'goal-card__title-text--context': filterContext, 'goal-card__title-text--finding': titleParts.some(part => part.match) || filterContext }">
             <RepeatMark v-if="repeat" />
-            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template><template v-if="plannedPeriod && !isInlineDetailHost">{{ ' ' }}<span class="goal-card__planned-period">{{ plannedPeriod.replace(/ /g, '\u00a0') }}</span></template>
+            <template v-for="(part, index) in titleParts" :key="index"><strong v-if="part.match">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template>
           </span>
         </p>
         <textarea
@@ -617,13 +608,8 @@ function onRowKeydown(event: KeyboardEvent) {
         :vertical="vertical"
         :repeat="repeat"
         :open="isInlineDetailHost"
-        :show-ignore="ghost"
         @details="onOpenDetail"
         @complete="completeParent"
-        @park="park"
-        @ignore="ignoreGhost"
-        @ack-due="ackDue"
-        @ack-done="ackDoneOnTime"
         @open-change="onMenuOpenChange"
       />
     </div>
@@ -706,8 +692,6 @@ function onRowKeydown(event: KeyboardEvent) {
           :column-vertical="columnVertical"
           :foil="item.goal.foil"
           :ghost="item.goal.ghost"
-          :ghost-until="item.goal.ghostUntil"
-          :planned-period="item.goal.plannedPeriod"
           :progress="item.goal.progress"
           :subgoal-count="item.goal.subgoalCount"
           :children="item.goal.children"
