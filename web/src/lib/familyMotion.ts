@@ -213,8 +213,9 @@ function columnScroller(vertical: string): HTMLElement | null {
     : document.querySelector<HTMLElement>(`.pattern-vertical-board__column[data-vertical="${vertical}"] .period-slide:not([data-state="outgoing"])`)
 }
 
-/** Where a column stands: the rows in its window from the top edge down, each with its place there, and its scroll. */
-export interface ColumnPlace { scroller: HTMLElement; rows: { key: string; offset: number }[]; scrollTop: number }
+/** Where a column stands: the rows in its window, each with its place there, `anchor` first if it's there, then from
+ *  the top edge down, and its scroll. */
+export interface ColumnPlace { scroller: HTMLElement; rows: { key: string; offset: number }[]; scrollTop: number; anchored: boolean }
 
 /** Where `row` starts in `scroller`'s content, as laid out: a lift or a glide doesn't count. */
 function contentTop(row: HTMLElement, scroller: HTMLElement): number {
@@ -223,7 +224,7 @@ function contentTop(row: HTMLElement, scroller: HTMLElement): number {
   return y
 }
 
-export function columnPlace(vertical: string): ColumnPlace | null {
+export function columnPlace(vertical: string, anchor?: string): ColumnPlace | null {
   const scroller = columnScroller(vertical)
   if (!scroller) return null
   const rows: ColumnPlace['rows'] = []
@@ -231,15 +232,18 @@ export function columnPlace(vertical: string): ColumnPlace | null {
     const offset = contentTop(row, scroller) - scroller.scrollTop
     if (offset + row.offsetHeight > 0 && offset < scroller.clientHeight) rows.push({ key: row.dataset.rowKey!, offset })
   }
-  return { scroller, rows, scrollTop: scroller.scrollTop }
+  const at = rows.findIndex((row) => row.key === anchor)
+  if (at > 0) rows.unshift(...rows.splice(at, 1))
+  return { scroller, rows, scrollTop: scroller.scrollTop, anchored: at >= 0 }
 }
 
-/** Scroll the column back to `place`: the row nearest its top edge where it stood, even when the cards changed size
- *  with the column's width; the next one if it is gone; the old scroll if all are. */
+/** Scroll the column back to `place`: its first row where it stood, even when the cards changed size with the column's
+ *  width; the next one if it is gone; the old scroll if all are. Without an anchor, a column that was at its top goes
+ *  back to its top. */
 export function scrollBack(place: ColumnPlace): void {
   const { scroller } = place
   if (!scroller.isConnected) return
-  if (place.scrollTop === 0) { scroller.scrollTop = 0; return }
+  if (place.scrollTop === 0 && !place.anchored) { scroller.scrollTop = 0; return }
   for (const { key, offset } of place.rows) {
     const row = scroller.querySelector<HTMLElement>(`.goal-card[data-row-key="${CSS.escape(key)}"]`)
     if (row) { scroller.scrollTop = contentTop(row, scroller) - offset; return }
