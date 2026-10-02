@@ -51,12 +51,13 @@ def test_more_opens_the_rest_in_place_newest_first(ui_f2: UiSession) -> None:
 
 
 def test_pointing_at_a_goal_lights_its_family_in_the_box(ui_f2: UiSession) -> None:
-    """S4.P3.021-.023: the box takes the goal's colour and shows its family's plans, keeps about its height, and goes
+    """S4.P3.021-.023: the box takes the goal's colour and shows its family's plans, gets as short as they are, and goes
     back to rest when the pointer leaves."""
     with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
         value = goals.create(conn, owner="t1", title="SYN value with carried plans", vertical="life", anchor_date=date.today(), color="#92ce14").goal.id
         mine = _last_year(conn, "SYN the value's carried plan", parent=value)
         _last_year(conn, "SYN someone else's carried plan")
+        _last_year(conn, "SYN another carried plan")
     page = ui_f2.page
     _goto_today(page, ui_f2.base_url)
     group = page.locator(GROUP)
@@ -65,9 +66,32 @@ def test_pointing_at_a_goal_lights_its_family_in_the_box(ui_f2: UiSession) -> No
     expect(group).to_have_class(re.compile("carried-group--lit"))
     expect(group.locator('[data-section="carried"] > .goal-card')).to_have_count(1)
     expect(group.locator(f'[data-goal-id="{mine}"]')).to_have_count(1)
-    assert abs(group.bounding_box()["height"] - height) <= 2
+    page.wait_for_timeout(400)  # 200 ms of height, and the frames to draw it
+    assert group.bounding_box()["height"] < height - 20
     page.mouse.move(5, 5)
     expect(group).not_to_have_class(re.compile("carried-group--lit"))
+    page.wait_for_timeout(400)
+    assert abs(group.bounding_box()["height"] - height) <= 2
+
+
+def test_pointing_at_a_goal_in_the_boxs_own_column_keeps_its_height(ui_f2: UiSession) -> None:
+    """S4.P3.004: the goal stands under the box, so a shorter box would slide it away from the pointer; the box lights
+    for its family and keeps its height."""
+    with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
+        value = goals.create(conn, owner="t1", title="SYN value of a goal in the column", vertical="life", anchor_date=date.today(), color="#278dea").goal.id
+        mine = goals.create(conn, owner="t1", title="SYN goal of this year", vertical="year", anchor_date=date.today(), parent_id=value).goal.id
+        plan = _last_year(conn, "SYN the goal's carried plan", parent=mine)
+        _last_year(conn, "SYN someone else's carried plan")
+        _last_year(conn, "SYN another carried plan")
+    page = ui_f2.page
+    _goto_today(page, ui_f2.base_url)
+    group = page.locator(GROUP)
+    height = group.bounding_box()["height"]
+    page.locator(f'.pattern-vertical-board__column[data-vertical="year"] [data-goal-id="{mine}"] > .goal-card__row').hover()
+    expect(group).to_have_class(re.compile("carried-group--lit"))
+    expect(group.locator(f'[data-goal-id="{plan}"]')).to_have_count(1)
+    page.wait_for_timeout(400)
+    assert abs(group.bounding_box()["height"] - height) <= 2
 
 
 def test_replan_opens_the_task_as_a_window_with_our_first_message(ui_agent: UiSession) -> None:  # noqa: F811

@@ -1,14 +1,15 @@
 <script setup lang="ts">
 // A column's carried-over plans (docs/design-handoff S4.P2): one group on top, on a faint ground, one line of notice
 // ("From earlier weeks"), "Replan" with its black circle, the newest three and "N more". Pointing at a goal whose family
-// has plans here, the box takes that goal's colour and shows its family's plans, at about its size (S4.P3).
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+// has plans here, the box takes that goal's colour and shows its family's plans, and its height follows them (S4.P3).
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { KCardStack } from '@konstantinopolskii/vue'
 import GoalCard from './GoalCard.vue'
 import AppIcon from './AppIcon.vue'
 import { store, todayIso } from '../store'
 import { MONTH_NAMES } from '../lib/periods'
 import { goalLight } from '../lib/look'
+import { reducedMotion, timing } from '../lib/motion'
 import type { GoalCardData } from '../types'
 
 const props = defineProps<{ vertical: string; goals: GoalCardData[] }>()
@@ -77,14 +78,56 @@ const list = computed(() => family.value?.plans ?? newestFirst.value)
 const visible = computed(() => (open.value && !family.value ? list.value : list.value.slice(0, SHOWN)))
 const more = computed(() => list.value.length - SHOWN)
 
+/* The box is as tall as what it shows, and gets there with the colour's movement (S4.P3.013, .014): the same 200 ms, the
+   same curve, the goals under it gliding with its edge. It is measured, so the animation runs from where the box is now,
+   also when it is interrupted halfway. One case keeps the rest height: the goal under the pointer stands in this very
+   column, under the box, and a box that got shorter would slide it away from the pointer, to light another family and
+   lift the box again (S4.P3.004). Reduced motion: the height changes at once, the colour as it did. */
+const holdsHeight = ref(false)
+let resize: Animation | null = null
+let ran = 0
+
+function standsUnder(box: HTMLElement, goalId: string): boolean {
+  const column = box.closest('.pattern-vertical-board__column')
+  if (!column) return false
+  return [...column.querySelectorAll(`[data-goal-id="${CSS.escape(goalId)}"]`)].some((el) => !box.contains(el))
+}
+
+watch(() => family.value?.id ?? null, async (id) => {
+  const box = root.value
+  const mine = ++ran
+  holdsHeight.value = !!box && id !== null && standsUnder(box, id)
+  if (!box || reducedMotion()) return
+  const from = box.getBoundingClientRect().height
+  await nextTick()
+  if (mine !== ran) return
+  resize?.cancel()
+  const to = box.getBoundingClientRect().height
+  if (Math.abs(from - to) < 1) return
+  box.style.overflow = 'hidden'
+  const run = box.animate([{ height: `${from}px` }, { height: `${to}px` }], timing(200, 'large'))
+  const end = () => {
+    if (resize !== run) return
+    resize = null
+    box.style.overflow = ''
+    if (!family.value) restHeight.value = box.offsetHeight
+  }
+  run.onfinish = end
+  run.oncancel = end
+  resize = run
+}, { flush: 'pre' })
+
 let sizes: ResizeObserver | null = null
 onMounted(() => {
   sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
-    if (!family.value && root.value) restHeight.value = root.value.offsetHeight
+    if (!family.value && !resize && root.value) restHeight.value = root.value.offsetHeight
   })
   if (root.value) sizes?.observe(root.value)
 })
-onBeforeUnmount(() => sizes?.disconnect())
+onBeforeUnmount(() => {
+  sizes?.disconnect()
+  resize?.cancel()
+})
 
 function cardProps(goal: GoalCardData) {
   return {
@@ -101,7 +144,7 @@ function cardProps(goal: GoalCardData) {
     :class="{ 'carried-group--lit': !!lit }"
     data-role="carried-group"
     :data-count="goals.length"
-    :style="{ ...(lit ?? {}), minHeight: family ? `${restHeight}px` : undefined }"
+    :style="{ ...(lit ?? {}), minHeight: holdsHeight ? `${restHeight}px` : undefined }"
   >
     <div class="carried-group__head">
       <span class="carried-group__notice" data-role="carried-notice">{{ notice }}</span>
