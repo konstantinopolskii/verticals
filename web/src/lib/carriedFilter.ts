@@ -11,6 +11,8 @@
 //   · A goal in the box's own column keeps its place: the box changes inside the space it had, shorter, and the empty
 //     space belongs to the mascot. A list that doesn't fit shows what fits, and "N more".
 //   · "N more", "See all": the way out. It shows everything and ends the filter.
+//   · A plan of the box opened: the box is only its header line (the count, "Replan"), and the opened plan stands under it,
+//     alone; the rest comes back when it closes, in the filter it had.
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { store } from '../store'
@@ -102,18 +104,27 @@ export function useCarriedFilter(o: {
   const token = Symbol('carried-box')
   registry.set(token, () => o.plans().map((g) => g.id))
 
+  /** The plan of this box that is open, or one of its steps (going deeper keeps the plan as the path's first level). */
+  const openPlan = computed(() => {
+    if (store.state.openGoalVertical !== o.vertical()) return null
+    const root = store.state.openPath[0]
+    return root ? o.plans().find((g) => g.id === root) ?? null : null
+  })
+
   /* What the box lists. */
   const family = computed(() => {
     const f = filter.value
     return f ? o.plans().filter((g) => f.ids.includes(g.id)) : null
   })
   const visible = computed(() => {
+    if (openPlan.value) return [openPlan.value]
     if (family.value) return family.value.slice(0, filter.value?.shown ?? SHOWN)
     return expanded.value ? o.plans() : o.plans().slice(0, SHOWN)
   })
   const hidden = computed(() => o.plans().length - visible.value.length)
   /** The button under the list: the rest, the way out of an empty filter, or "Show fewer" once everything is open. */
   const button = computed(() => {
+    if (openPlan.value) return null
     if (family.value && visible.value.length === 0) return 'See all'
     if (hidden.value > 0) return `${hidden.value} more`
     return !family.value && expanded.value && o.plans().length > SHOWN ? 'Show fewer' : null
@@ -121,6 +132,7 @@ export function useCarriedFilter(o: {
   const opened = computed(() => !family.value && expanded.value && button.value === 'Show fewer')
   /** The box takes its family's colour, or the colour of the plan the pointer is on; an empty filter has none. */
   const lit = computed(() => {
+    if (openPlan.value) return null
     const f = family.value
     if (f) return f.length ? goalLight(f[0]!.color) : null
     const id = store.state.hoverChainId
@@ -198,6 +210,7 @@ export function useCarriedFilter(o: {
   }
   function consider(id: string | null): void {
     if (!id) return
+    if (openPlan.value) { clearDwell(); return } // a plan is open: the box is its header, and nothing follows
     if (pinned.value || isCarriedPlan(id)) { clearDwell(); return }
     const f = filter.value
     if (f && f.src === id) { clearDwell(); return }
@@ -218,6 +231,13 @@ export function useCarriedFilter(o: {
   }
   watch(() => store.state.hoverChainId, consider)
   watch(pointerGoal, (goal) => { if (goal === null) clearDwell() }) // leaving a goal is not resting on it
+
+  watch(openPlan, (plan) => {
+    if (!plan) return
+    clearDwell()
+    hold.value = 0
+    gap.value = false
+  })
 
   /* The way between the goal and the box. */
   const onTheWay = computed(() => {
@@ -284,7 +304,7 @@ export function useCarriedFilter(o: {
   })
 
   return {
-    filter, hold, expanded, pinned, gap, lift, lit, visible, family, button, opened, more,
+    filter, hold, expanded, pinned, gap, lift, lit, visible, family, button, opened, more, openPlan,
     enter, leave,
   }
 }

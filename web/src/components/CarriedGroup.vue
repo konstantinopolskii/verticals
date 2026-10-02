@@ -8,7 +8,7 @@ import { KCardStack } from '@konstantinopolskii/vue'
 import GoalCard from './GoalCard.vue'
 import AppIcon from './AppIcon.vue'
 import CarriedMascot from './CarriedMascot.vue'
-import { todayIso } from '../store'
+import { store, todayIso } from '../store'
 import { MONTH_NAMES } from '../lib/periods'
 import { useCarriedFilter } from '../lib/carriedFilter'
 import type { GoalCardData } from '../types'
@@ -66,12 +66,17 @@ const newestFirst = computed(() => [...props.goals].sort((a, b) => (b.anchorDate
    around it keeps its height while a goal under the box is pointed at, and the empty rest of it is the mascot's. */
 const root = ref<HTMLElement | null>(null)
 const place = ref<HTMLElement | null>(null)
-const { hold, pinned, gap, lift, lit, visible, button, opened, more: onMore, enter, leave } = useCarriedFilter({
+const { hold, pinned, gap, lift, lit, visible, button, opened, more: onMore, openPlan, enter, leave } = useCarriedFilter({
   vertical: () => props.vertical,
   plans: () => newestFirst.value,
   box: root,
   place,
 })
+
+/** A plan is open: the header line is the way back, anywhere on it but "Replan". */
+function onHeadClick(event: MouseEvent): void {
+  if (openPlan.value && !(event.target as Element).closest('[data-role="replan"]')) store.closeGoal()
+}
 
 function cardProps(goal: GoalCardData) {
   return {
@@ -82,18 +87,18 @@ function cardProps(goal: GoalCardData) {
 </script>
 
 <template>
-  <div ref="place" class="carried-place" data-role="carried-place" :style="{ minHeight: hold ? `${hold}px` : undefined }">
+  <div ref="place" class="carried-place" data-role="carried-place" :style="{ minHeight: hold && !openPlan ? `${hold}px` : undefined }">
     <section
       ref="root"
       class="carried-group"
-      :class="{ 'carried-group--lit': !!lit, 'carried-group--lifted': pinned }"
+      :class="{ 'carried-group--lit': !!lit, 'carried-group--lifted': pinned && !openPlan, 'carried-group--open': !!openPlan }"
       data-role="carried-group"
       :data-count="goals.length"
       :style="{ ...(lit ?? {}), '--carried-lift': lift ?? undefined }"
       @pointerenter="enter"
       @pointerleave="leave"
     >
-      <div class="carried-group__head">
+      <div class="carried-group__head" @click="onHeadClick">
         <span class="carried-group__notice" data-role="carried-notice">{{ notice }}</span>
         <button type="button" class="carried-group__replan" data-role="replan" @click="emit('replan', $event.currentTarget as Element)">
           Replan<span class="carried-group__dot" aria-hidden="true"></span>
@@ -106,7 +111,7 @@ function cardProps(goal: GoalCardData) {
         {{ button }}<AppIcon name="chevron-down" :size="12" :class="{ 'carried-group__chevron--open': opened }" />
       </button>
     </section>
-    <CarriedMascot :on="gap" :box="root" />
+    <CarriedMascot :on="gap && !openPlan" :box="root" />
   </div>
 </template>
 
@@ -162,7 +167,20 @@ function cardProps(goal: GoalCardData) {
 /* The cards stand on the ground itself: the kit paints a stack's cards, the first one too, in the page's colour. */
 .carried-group > [data-section='carried'] { --color-bg: transparent; --color-surface-overlay: transparent; }
 .carried-group__chevron--open { transform: rotate(180deg); }
-.carried-group .goal-card__row::before { opacity: 0 !important; }
+.carried-group:not(.carried-group--open) .goal-card__row::before { opacity: 0 !important; }
+/* A plan open (KK 2026-10-02): the box is only its header, a line on top like a level stepped through, and the opened plan
+   stands under it on its own colour. */
+.carried-group--open { padding: 0; background: transparent; }
+.carried-group--open .carried-group__head {
+  /* above the column's veil, like the column's name: it is not a goal, and it is the way back */
+  position: relative;
+  z-index: 2;
+  margin: 0 0 8px;
+  padding: 8px 10px 8px 11px;
+  border-radius: 8px;
+  background: #f5f5f1;
+  cursor: pointer;
+}
 /* A plan under the pointer takes the goal's hover tint on the box's own colour, the way a subtask does. */
 .carried-group .goal-card:hover > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
 </style>

@@ -289,6 +289,37 @@ def test_the_box_lifts_as_one_piece_in_its_plans_colour_and_never_into_the_margi
     assert gap >= 4, f"{gap}px left under a lifted box"
 
 
+def test_an_open_plan_stands_under_the_boxs_header_line_alone(ui_f2: UiSession) -> None:
+    """S4.P3.037: a plan of the box open: the box is only its header line with the count, the plan stands under it alone;
+    the line, or Escape, closes it, and the box comes back."""
+    with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
+        value, plan = _value_with_plan(conn, "SYN opened value", "#92ce14")
+        _others(conn)
+    page = ui_f2.page
+    _goto_today(page, ui_f2.base_url)
+    group = page.locator(GROUP)
+    total = int(group.get_attribute("data-count") or 0)
+    page.locator(f'{GROUP} [data-goal-id="{plan}"] > .goal-card__row').first.click()
+    expect(group).to_have_class(re.compile("carried-group--open"))
+    expect(_carried_cards(group)).to_have_count(1)
+    expect(group.locator(f'[data-goal-id="{plan}"]')).to_have_class(re.compile("goal-card--detail-open"))
+    expect(group.locator('[data-role="carried-notice"]')).to_have_text(f"{total} from earlier years")
+    expect(group.locator('[data-role="carried-more"]')).to_have_count(0)
+    head = group.locator(".carried-group__head")
+    assert head.bounding_box()["y"] < group.locator(f'[data-goal-id="{plan}"]').bounding_box()["y"], "the line stands above the card"
+    head.locator('[data-role="carried-notice"]').click()                       # the line is the way back
+    expect(group).not_to_have_class(re.compile("carried-group--open"))
+    expect(_carried_cards(group)).to_have_count(3)
+    # the plan is the family's newest, so it is in view again: open it once more and close it with Escape
+    plan_row = page.locator(f'{GROUP} [data-goal-id="{plan}"] > .goal-card__row').first
+    plan_row.wait_for(state="visible")
+    plan_row.click()
+    expect(group).to_have_class(re.compile("carried-group--open"))
+    page.keyboard.press("Escape")
+    expect(group).not_to_have_class(re.compile("carried-group--open"))
+    expect(_carried_cards(group)).to_have_count(3)
+
+
 def test_replan_opens_the_task_as_a_window_with_our_first_message(ui_agent: UiSession) -> None:  # noqa: F811
     """S4.P4.028: the task pops out as a goal's window, our first message sent, the agent answering under it."""
     with psycopg.connect(ui_agent.backend.dsn, autocommit=True) as conn:
