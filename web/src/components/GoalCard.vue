@@ -378,7 +378,7 @@ const {
 } = useCardLift({
   card: rootElement,
   list: childrenListEl,
-  enabled: () => props.depth === 0 && store.state.drag.id === null && !isPathLine.value && !inWindow.value,
+  enabled: () => props.depth === 0 && !props.ghost && store.state.drag.id === null && !isPathLine.value && !inWindow.value, // a carried plan stays: its box lifts (CarriedGroup)
   // its own menu or a subgoal's hangs from it
   pinned: () => {
     const id = menuGoalId.value

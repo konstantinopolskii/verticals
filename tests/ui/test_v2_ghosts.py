@@ -8,6 +8,7 @@ one board ghosts can appear on."""
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 
 import psycopg
@@ -52,9 +53,10 @@ def test_carried_plans_stand_in_one_group_on_top_of_their_column(ui_f2: UiSessio
     assert group.locator(f'[data-goal-id="{ghost.id}"]').count() == 1
     assert group.locator(f'[data-goal-id="{control.id}"]').count() == 0
     # F2's own plans from 2020 share the group, so its notice names the oldest's way (S4.P2.028).
-    expect(group.locator('[data-role="carried-notice"]')).to_have_text("From earlier years")
+    expect(group.locator('[data-role="carried-notice"]')).to_have_text(re.compile(r"^\d+ from earlier years$"))
     expect(group.locator('[data-role="replan"]')).to_have_text("Replan")
-    assert year.locator(".pattern-vertical-board__body > *").first.get_attribute("data-role") == "carried-group"
+    first = year.locator(".pattern-vertical-board__body > *").first
+    assert first.get_attribute("data-role") == "carried-place" and first.locator('[data-role="carried-group"]').count() == 1
     assert session.page.locator('[data-role="now-line"], .goal-card__planned-period, .goal-card__due').count() == 0
     # D168: carryover cards stay opaque.
     native = session.page.locator(f'[data-goal-id="{control.id}"]')
