@@ -390,14 +390,12 @@ function shortDate(iso: string | null): string {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0, 3)}`
 }
 
-/* Opening where you expect it (KK, 27 Sep 2026: "I want the goal to be opened in a way I will see it, so it should
-   appear at the top, not to scroll a bit at a bottom"). Wherever it was clicked, the opened goal's card goes to the top
-   of its column, 16 px under the window's edge, in the same movement as the opening; the column's first goal stays under
-   the column's name, where it already is. A goal too near the column's end gets room after the last card
-   (`lib/columnRoom.ts`). The card and the cards above it still grow while it opens, so the target is read again every
-   frame until nothing moves. The glide takes longer the farther it goes (360-600 ms), so its first frame never jumps.
-   Once per opening; closing scrolls it back (`lib/familyView.ts`); any wheel, key or press takes over. */
-const TOP_GAP = 16
+/* The opened goal is seen whole. If it fits where it was clicked, the column stays; otherwise it scrolls just enough,
+   16 px from the window's edge or the board's bottom fade, and a goal taller than the window shows its top. A goal near
+   the column's end gets room after the last card (`lib/columnRoom.ts`). The goal grows while it opens, so the target
+   is read every frame until nothing moves; the glide takes 360-600 ms by distance. Once per opening; closing
+   scrolls back (`lib/familyView.ts`); any wheel, key or press takes over. */
+const GAP = 16
 let fitted = false
 let tween = 0
 function stopScroll(): void {
@@ -415,7 +413,7 @@ function fitIntoView(): void {
   if (fitted || tween) return
   if (store.state.drag.id !== null) { fitted = true; return } // flow 4: opened by a held drag, it stays under the hand
   const detail = rootEl.value
-  // Flow 4: the family goes to the top from its first line, so the levels stepped through stay in view above the card.
+  // Flow 4: the family counts from its first line, so the levels stepped through stay in view above the card.
   let list = detail?.parentElement ?? null
   while (list?.parentElement?.closest('.goal-card__children')) list = list.parentElement.closest<HTMLElement>('.goal-card__children')
   const card = list?.previousElementSibling as HTMLElement | null
@@ -424,19 +422,29 @@ function fitIntoView(): void {
   if (!detail || !list || !card || !scroller) return
   fitted = true
   const el = scroller
-  const first = el.querySelector<HTMLElement>('.goal-card')
+  const open = list
   const body = el.querySelector<HTMLElement>(':scope > .pattern-vertical-board__body')
-  const target = (): number => {
-    const top = contentTop(card, el)
-    const to = first && top <= contentTop(first, el) + 1 ? 0 : Math.max(0, top - TOP_GAP)
+  const fade = document.querySelector<HTMLElement>('[data-role="board-bottom-fade"]')
+  // Where the goal ends once open: its list and notes still grow from nothing (`lib/cardFamily.ts`'s growList).
+  const bottom = (): number => {
+    const clip = open.querySelector<HTMLElement>('.goal-detail-inline__clip')
+    const notes = clip ? Math.max(0, clip.scrollHeight - clip.getBoundingClientRect().height) : 0
+    return contentTop(open, el) + Math.max(open.offsetHeight, open.scrollHeight + notes)
+  }
+  const seen = (): number => Math.min(el.clientHeight, (fade?.getBoundingClientRect().top ?? window.innerHeight) - el.getBoundingClientRect().top)
+  const target = (from: number): number => {
+    const top = contentTop(card, el) - GAP
+    const to = Math.max(0, Math.min(top, Math.max(from, bottom() + GAP - seen())))
     if (body) roomFor(el, body, to)
     return to
   }
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.scrollTop = target(); return }
   // The glide starts from wherever the first frame finds the column: GoalCard.vue holds the clicked card in place first.
-  let from = Number.NaN
+  // Without motion the column jumps at once, and keeps up with the goal while it grows.
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduced) el.scrollTop = target(el.scrollTop)
+  let from = reduced ? el.scrollTop : Number.NaN
   let ms = OPEN_MS
-  let start = 0
+  let start = performance.now()
   let last = Number.NaN
   let still = 0
   const step = () => {
@@ -445,12 +453,12 @@ function fitIntoView(): void {
     const now = performance.now()
     if (Number.isNaN(from)) {
       from = el.scrollTop
-      ms = Math.min(600, Math.max(OPEN_MS, 250 + 0.3 * Math.abs(target() - from)))
+      ms = Math.min(600, Math.max(OPEN_MS, 250 + 0.3 * Math.abs(target(from) - from)))
       start = now
     }
     const t = Math.min(1, (now - start) / ms)
-    const to = target()
-    el.scrollTop = from + (to - from) * (1 - (1 - t) ** 3)
+    const to = target(from)
+    el.scrollTop = reduced ? to : from + (to - from) * (1 - (1 - t) ** 3)
     still = Math.abs(to - last) < 0.5 ? still + 1 : 0
     last = to
     tween = t < 1 || (still < 3 && now - start < ms + 600) ? requestAnimationFrame(step) : 0
