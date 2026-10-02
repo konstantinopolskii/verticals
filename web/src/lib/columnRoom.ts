@@ -1,7 +1,7 @@
-/* Room after a column's last card (KK, 27 Sep 2026: an opened goal "should appear at the top, not to scroll a bit at a
-   bottom"). A goal near its column's end can't scroll to the top, so while it's open the column gets just enough empty
-   room after its last card (`GoalDetail.vue` asks for it every frame of the opening). When the goal closes, the room
-   stays as long as it's in view and shrinks as the column scrolls back up, so the column never jumps while it folds. */
+/* Room after a column's last card. A goal near its column's end can't always scroll far enough to be seen whole, so
+   while it's open the column gets just enough empty room after its last card (`GoalDetail.vue` asks for it every frame
+   of the opening). When the goal closes, the room stays as long as it's in view and shrinks as the column scrolls back
+   up, so the column never jumps while it folds. */
 
 type Room = { body: HTMLElement; scroller: HTMLElement; base: number; px: number; trim: (() => void) | null }
 const rooms = new WeakMap<HTMLElement, Room>()

@@ -112,7 +112,7 @@ export function useCardFamily(props: {
 
   /** Opening a goal starts from where it was clicked: a goal open above it closes, or its column widens and the cards
    *  above it grow, and either would throw it away from under the pointer in one frame (404 px down, low in Week). Returns
-   *  the step to run once it has opened; from there `GoalDetail.vue` glides it to the top of the column. */
+   *  the step to run once it has opened; from there `GoalDetail.vue` scrolls it into view. */
   function holdPlace(): (() => void) | null {
     const card = rootElement()
     let scroller = card?.parentElement ?? null

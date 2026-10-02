@@ -178,7 +178,7 @@ export function createFamilyView(
     return [vertical, parent ?? 'root', i, path[i]].join(':')
   }
 
-  /** Where each column stood before a goal opened in it. */
+  /** Where each column stood before a goal opened in it, held by the goal clicked. */
   const restPlace = new Map<string, ColumnPlace>()
   // However its goal goes, closed or opened elsewhere, the column scrolls back there.
   watch(() => state.openGoalVertical, (now, was) => {
@@ -195,7 +195,7 @@ export function createFamilyView(
   function openFamily(path: string[], vertical: string): Promise<void> {
     if (!path.length || path.length > DEEPEST) return Promise.resolve()
     if (state.openGoalId === null || state.openGoalVertical !== vertical) {
-      const place = columnPlace(vertical)
+      const place = columnPlace(vertical, path.join('/'))
       if (place) restPlace.set(vertical, place)
     }
     const open = () => {

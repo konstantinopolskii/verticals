@@ -1,6 +1,6 @@
-"""An opened goal glides to the top of its column; once it closes, however it closes, the column scrolls back: the goal
-nearest its top edge stands where it stood, even when the column's width changed the cards' height
-(`web/src/lib/familyView.ts`)."""
+"""An opened goal is seen whole: one that doesn't fit scrolls into view just enough, one that fits leaves the column where
+it is (`web/src/components/GoalDetail.vue`). Once it closes, however it closes, the column scrolls back: the goal stands
+where it stood, even when the column's width changed the cards' height (`web/src/lib/familyView.ts`)."""
 
 from __future__ import annotations
 
@@ -49,37 +49,54 @@ def _scroll_to(page: Page, top: int) -> None:
     page.locator(SCROLLER.format(COLUMN)).evaluate("(el, top) => { el.scrollTop = top }", top)
 
 
-def _top_row(page: Page) -> tuple[str, float]:
-    """The goal nearest the column's top edge and where it stands in the window, as laid out (no hover lift)."""
+def _window_top(page: Page, goal_id: str) -> float:
+    """Where the goal stands in the column's window, as laid out (no hover lift)."""
     return page.locator(SCROLLER.format(COLUMN)).evaluate(
-        f"""slide => {{
-          const top = {CONTENT_TOP}
-          for (const card of slide.querySelectorAll('.goal-card[data-row-key]')) {{
-            const y = top(card, slide) - slide.scrollTop
-            if (y + card.offsetHeight > 0) return [card.dataset.rowKey, y]
-          }}
-          return null
-        }}"""
+        f"(slide, id) => ({CONTENT_TOP})(slide.querySelector(`.goal-card[data-goal-id=\"${{id}}\"]`), slide) - slide.scrollTop",
+        goal_id,
     )
 
 
-def _window_top(page: Page, row_key: str) -> float:
+def _goals_in_window(page: Page) -> list[tuple[str, float]]:
+    """The column's goals whose titles show above the board's bottom fade, each with where it stands."""
     return page.locator(SCROLLER.format(COLUMN)).evaluate(
-        f"(slide, key) => ({CONTENT_TOP})(slide.querySelector(`.goal-card[data-row-key=\"${{key}}\"]`), slide) - slide.scrollTop",
-        row_key,
+        f"""slide => {{
+          const top = {CONTENT_TOP}
+          const fade = document.querySelector('[data-role="board-bottom-fade"]')
+          const seen = Math.min(slide.clientHeight, fade.getBoundingClientRect().top - slide.getBoundingClientRect().top)
+          const out = []
+          for (const card of slide.querySelectorAll('.goal-card[data-row-key]')) {{
+            const y = top(card, slide) - slide.scrollTop
+            if (y > 0 && y + 40 < seen) out.push([card.dataset.goalId, y])
+          }}
+          return out
+        }}"""
     )
 
 
 def _goal_low_in_window(page: Page) -> str:
-    return page.locator(SCROLLER.format(COLUMN)).evaluate(
-        f"""slide => {{
-          const top = {CONTENT_TOP}
-          for (const card of slide.querySelectorAll('.goal-card[data-row-key]')) {{
-            if (top(card, slide) - slide.scrollTop > slide.clientHeight / 2) return card.dataset.goalId
-          }}
-          return null
-        }}"""
+    """The lowest goal in the window: opened, it doesn't fit."""
+    return _goals_in_window(page)[-1][0]
+
+
+def _goal_high_in_window(page: Page) -> str:
+    """A goal well inside the window: opened, it fits."""
+    return next(goal for goal, y in _goals_in_window(page) if y > 120)
+
+
+def _assert_seen_whole(page: Page) -> None:
+    """The open goal, its card down to its notes, stands between the window's top and the board's bottom fade."""
+    top, bottom, seen = page.locator(SCROLLER.format(COLUMN)).evaluate(
+        """slide => {
+          const box = slide.getBoundingClientRect()
+          const fade = document.querySelector('[data-role="board-bottom-fade"]')
+          const card = slide.querySelector('.goal-card--detail-open')
+          const list = card.nextElementSibling
+          return [card.getBoundingClientRect().top - box.top, list.getBoundingClientRect().bottom - box.top,
+                  Math.min(slide.clientHeight, fade.getBoundingClientRect().top - box.top)]
+        }"""
     )
+    assert top >= 0 and bottom <= seen, (top, bottom, seen)
 
 
 def _settle(page: Page) -> None:
@@ -112,21 +129,40 @@ def test_closing_scrolls_the_column_back(ui_f2: UiSession) -> None:
 
     # from a narrow column, which stays wide once the goal closes
     _scroll_to(page, 400)
-    key, at = _top_row(page)
-    _open(page, _goal_low_in_window(page))
-    assert _scroll_top(page) > 500, "the opened goal glides up"
+    goal = _goal_low_in_window(page)
+    at = _window_top(page, goal)
+    _open(page, goal)
+    assert _scroll_top(page) > 400, "the opened goal scrolls into view"
+    _assert_seen_whole(page)
     page.keyboard.press("Escape")
     _closed(page)
-    assert _window_top(page, key) == pytest.approx(at, abs=1)
+    assert _window_top(page, goal) == pytest.approx(at, abs=1)
 
     # in the wide column, closed by a press beside the goal
     _scroll_to(page, 250)
     scrolled = _scroll_top(page)
     _open(page, _goal_low_in_window(page))
-    assert _scroll_top(page) > scrolled + 100
+    assert _scroll_top(page) > scrolled
+    _assert_seen_whole(page)
     page.evaluate("() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))")
     _closed(page)
     assert _scroll_top(page) == pytest.approx(scrolled, abs=1)
+
+
+@pytest.mark.parametrize("ui_reduced_motion", ["reduce", "no-preference"], indirect=True)
+def test_a_goal_that_fits_leaves_the_column_where_it_is(ui_f2: UiSession) -> None:
+    page = ui_f2.page
+    _seed(ui_f2)
+    _scroll_to(page, 400)
+    goal = _goal_high_in_window(page)
+    at = _window_top(page, goal)
+
+    _open(page, goal)
+    assert _window_top(page, goal) == pytest.approx(at, abs=1)
+    _assert_seen_whole(page)
+    page.keyboard.press("Escape")
+    _closed(page)
+    assert _window_top(page, goal) == pytest.approx(at, abs=1)
 
 
 @pytest.mark.parametrize("wide", [False, True], ids=["narrow", "wide"])
@@ -136,8 +172,9 @@ def test_a_goal_opened_in_another_column_scrolls_the_old_one_back(ui_f2: UiSessi
     if wide:
         expand_column(page, COLUMN)
     _scroll_to(page, 400)
-    key, at = _top_row(page)
-    _open(page, _goal_low_in_window(page))
+    goal = _goal_low_in_window(page)
+    at = _window_top(page, goal)
+    _open(page, goal)
 
     _open(page, month, "month")
-    assert _window_top(page, key) == pytest.approx(at, abs=1)
+    assert _window_top(page, goal) == pytest.approx(at, abs=1)
