@@ -29,6 +29,12 @@ const MAX_SCALE = 1.06
 const SIDE_GROWTH_PX = 7 // most a side may grow: the column gives 8 px of room past the card's column
 const END_GROWTH_PX = 4 // most an end may grow: with the 2 px rise it stays inside the 2 px gap and the neighbour's padding
 
+/** How much a lifted piece grows: up to 6%, but no more than the room around it allows (7 px a side, 4 px an end). The carried
+ *  box lifts by the same rule, so a tall one never grows into the margin under it. */
+export function liftScale(width: number, height: number): number {
+  return Math.min(MAX_SCALE, 1 + (2 * SIDE_GROWTH_PX) / width, 1 + (2 * END_GROWTH_PX) / height)
+}
+
 let holder: symbol | null = null // the card holding its lift after a click
 const waiting = new Set<() => void>() // cards the pointer entered meanwhile: they lift once the hold ends
 function releaseHold(): void {
@@ -96,7 +102,7 @@ export function useCardLift(options: {
     const width = card.offsetWidth
     const top = card.offsetTop
     const bottom = Math.max(top + card.offsetHeight, list ? list.offsetTop + list.offsetHeight : 0)
-    const scale = Math.min(MAX_SCALE, 1 + (2 * SIDE_GROWTH_PX) / width, 1 + (2 * END_GROWTH_PX) / (bottom - top))
+    const scale = liftScale(width, bottom - top)
     const cx = card.offsetLeft + width / 2
     const cy = (top + bottom) / 2
     const origin = (el: HTMLElement) => `${cx - el.offsetLeft}px ${cy - el.offsetTop}px`
