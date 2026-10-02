@@ -157,7 +157,7 @@ function onWindowClick(index: number, event: MouseEvent): void {
 .window-stack { position: fixed; inset: 0; z-index: 285; pointer-events: none; }
 .vt-window {
   position: absolute;
-  top: 32px;
+  top: calc(32px + var(--titlebar-height));
   box-sizing: border-box;
   max-height: min(738px, 80vh);
   display: flex;

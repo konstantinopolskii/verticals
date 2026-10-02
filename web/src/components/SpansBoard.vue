@@ -88,6 +88,7 @@ watch(() => spans.offset, async (now, was) => {
   inset: 0;
   z-index: 40;
   display: flex;
+  padding-top: var(--titlebar-height);
   background: var(--color-bg);
 }
 /* Empty periods are common here: their add row stands on the page, not on the kit's first-card fill. */

@@ -433,7 +433,8 @@ function fitIntoView(): void {
   }
   const seen = (): number => Math.min(el.clientHeight, (fade?.getBoundingClientRect().top ?? window.innerHeight) - el.getBoundingClientRect().top)
   const target = (from: number): number => {
-    const top = contentTop(card, el) - GAP
+    // The column's top padding lies under the desktop title bar (App.vue): the goal stops below it.
+    const top = contentTop(card, el) - GAP - (parseFloat(getComputedStyle(el).paddingTop) || 0)
     const to = Math.max(0, Math.min(top, Math.max(from, bottom() + GAP - seen())))
     if (body) roomFor(el, body, to)
     return to

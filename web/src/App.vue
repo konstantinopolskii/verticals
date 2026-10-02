@@ -230,6 +230,7 @@ onUnmounted(() => {
 
 <template>
   <div class="app-shell">
+    <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus" class="board-top-fade" aria-hidden="true"></div>
     <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
     <div class="app-veil" :class="{ 'is-shown': outOfFocus }" data-role="out-of-focus" aria-hidden="true" @click="onVeilClick"></div>
     <WindowStack />
@@ -285,10 +286,21 @@ onUnmounted(() => {
 </template>
 
 <style>
-:root { --app-bar-height: 0px; --radius: 12px; }
+/* --titlebar-height: the desktop app's transparent title bar (desktop/macos/Verticals.swift). */
+:root { --app-bar-height: 0px; --titlebar-height: 0px; --radius: 12px; }
 .app-shell { display: block; height: 100%; overflow: hidden; background: #fff; }
 .board-bottom-fade { position: fixed; inset: auto 0 0; height: 80px; z-index: 299; pointer-events: none; background: linear-gradient(to bottom, rgba(255,255,255,0) 0, #fff 16px, #fff 100%); }
-.app-content { box-sizing: border-box; height: 100%; min-width: 0; overflow: hidden; position: relative;
+/* Under the desktop app's title bar the column strip runs on to the window's top: what sits in a column keeps below
+   the bar by --board-under-bar, and what scrolls up passes under it and fades, as at the bottom. In a browser the
+   bar's height is 0; with the sample notice above it the strip stays where it is. */
+.app-content > .pattern-vertical-board:first-child {
+  --board-under-bar: var(--titlebar-height);
+  margin-top: calc(-1 * var(--board-under-bar)); height: calc(100% + var(--board-under-bar));
+}
+.period-slide { padding-top: var(--board-under-bar, 0px); }
+.period-slide > .pattern-vertical-board__header.pattern-vertical-board__header { top: var(--board-under-bar, 0px); }
+.board-top-fade { position: fixed; inset: 0 0 auto; height: var(--titlebar-height); z-index: 299; pointer-events: none; background: linear-gradient(to top, rgba(255,255,255,0) 0, #fff 16px, #fff 100%); }
+.app-content { box-sizing: border-box; height: 100%; min-width: 0; padding-top: var(--titlebar-height); overflow: hidden; position: relative;
   transition: filter var(--vt-dur-sent) var(--vt-ease-large); }
 /* Out of focus (S2.P6): the board blurred until no word reads, under a light veil; only while the conversation or a
    window is open. Its layer stays composited while it is, so WebKit doesn't stall (unknowns.md section 4). */
