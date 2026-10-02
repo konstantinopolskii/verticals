@@ -390,6 +390,6 @@
 /* A selection is a tint of the goal's colour, the text staying black (the kit draws it as a black block). */
 .goal-detail__body ::selection,
 .goal-detail__body::selection {
-  background: color-mix(in srgb, var(--goal-hover-background, rgb(215 215 215)) 100%, transparent);
-  color: inherit;
+  background: color-mix(in srgb, var(--goal-hover-background, rgb(215 215 215)), #000 12%);
+  color: color-mix(in srgb, var(--goal-hover-background, rgb(215 215 215)), #000 80%);
 }
