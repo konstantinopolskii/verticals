@@ -338,7 +338,6 @@ body.pattern-vertical-board__no-select * {
 .pattern-vertical-board {
   --goal-focus-motion-duration: 360ms;
   --goal-focus-motion-ease: var(--vt-ease-large);
-  user-select: text;
   opacity: 1;
   transition: opacity 0s;
 }
