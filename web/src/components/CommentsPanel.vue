@@ -225,7 +225,7 @@ watch(
   width: var(--inspector-w);
   max-width: 100vw;
   box-sizing: border-box;
-  padding: var(--space-4) var(--space-5) var(--space-4) var(--space-4);
+  padding: calc(var(--space-4) + var(--titlebar-height)) var(--space-5) var(--space-4) var(--space-4);
   border-left: 0.5px solid var(--color-border-strong);
   background: #ffffff;
   box-shadow: -2px 0 8px rgb(0 0 0 / 8%);

@@ -382,7 +382,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
 .column-period-controls {
   position: absolute;
   z-index: 3; /* over the column's name, which stands over flow 4's veil at 2 (goalCard.css) and took every click here */
-  top: 6px;
+  top: calc(6px + var(--board-under-bar, 0px));
   right: 12px;
   display: flex;
   align-items: baseline;

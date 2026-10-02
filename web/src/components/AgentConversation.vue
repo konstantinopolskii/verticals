@@ -100,7 +100,7 @@ function onClick(event: MouseEvent): void {
   position: relative;
   box-sizing: border-box;
   height: 100%;
-  padding: 32px 0 calc(24px + var(--vt-field-height, 84px) + 12px + max(var(--vt-conversation-lift, 0px), var(--vt-tags-lift, 0px)));
+  padding: calc(32px + var(--titlebar-height)) 0 calc(24px + var(--vt-field-height, 84px) + 12px + max(var(--vt-conversation-lift, 0px), var(--vt-tags-lift, 0px)));
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;

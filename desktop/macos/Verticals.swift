@@ -12,9 +12,25 @@ let healthURL = URL(string: "http://127.0.0.1:8288/healthz")!
 let releasesAPI = URL(string: UserDefaults.standard.string(forKey: "ReleasesAPI")
     ?? "https://api.github.com/repos/konstantinopolskii/verticals/releases/latest")!
 
+// The page runs under the transparent title bar, which leaves the press there to the page; this
+// gives it back to the window: drag moves it, double click acts as the system setting says.
+final class WebView: WKWebView {
+    override func mouseDown(with event: NSEvent) {
+        guard let window, event.locationInWindow.y > window.contentLayoutRect.maxY else {
+            return super.mouseDown(with: event)
+        }
+        guard event.clickCount == 2 else { return window.performDrag(with: event) }
+        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        case "Minimize": window.miniaturize(nil)
+        case "None": break
+        default: window.zoom(nil)
+        }
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
-    var webView: WKWebView!
+    var webView: WebView!
     var status: NSTextField!
     var backend: Process?
 
@@ -31,7 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         buildMenu()
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
-        webView = WKWebView(frame: .zero, configuration: config)
+        webView = WebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.isHidden = true
@@ -57,14 +73,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         ])
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
-                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Verticals"
+        // The page shows through the title bar, only the window buttons stay; the UI has no dark theme.
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.backgroundColor = .white
+        window.appearance = NSAppearance(named: .aqua)
         window.contentView = content
         window.setFrameAutosaveName("VerticalsWindow")
         if !window.setFrameUsingName("VerticalsWindow") { window.center() }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        syncTitlebar()
+        for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { _ in self.syncTitlebar() }
+        }
 
         healthy { up in
             if up { self.showUI() } else { self.startBackend() }
@@ -217,12 +243,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         offer.addButton(withTitle: "Later")
         guard await offer.beginSheetModal(for: window) == .alertFirstButtonReturn else { return }
         updating = true
+        window.titleVisibility = .visible
         window.subtitle = "Downloading Verticals \(found.version)…"
         do {
             try await install(found.version, from: found.zip)
         } catch {
             updating = false
             window.subtitle = ""
+            window.titleVisibility = .hidden
             await tell("Could not update Verticals", error.localizedDescription)
         }
     }
@@ -373,6 +401,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     @objc func reload(_ sender: Any?) { webView.reload() }
+
+    // The page keeps its content below the title bar by `--titlebar-height`; full screen has none.
+    func syncTitlebar() {
+        let height = window.styleMask.contains(.fullScreen) ? 0 : window.frame.height - window.contentLayoutRect.height
+        let js = "document.documentElement.style.setProperty('--titlebar-height', '\(Int(height))px')"
+        let scripts = webView.configuration.userContentController
+        scripts.removeAllUserScripts()
+        scripts.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        webView.evaluateJavaScript(js)
+    }
 
     // MARK: menu (Edit is what makes copy/paste work inside the web view)
 
