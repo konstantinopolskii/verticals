@@ -12,7 +12,8 @@
 //     space belongs to the mascot. A list that doesn't fit shows what fits, and "N more".
 //   · "N more", "See all": the way out. It shows everything and ends the filter.
 //   · A plan of the box opened: the box is only its header line (the count, "Replan"), and the opened plan stands under it,
-//     alone; the rest comes back when it closes, in the filter it had.
+//     alone; the rest comes back when it closes, in the filter it had. The plan stays where it was clicked, by this
+//     module's own hold: nothing here waits for the column to scroll the family to the top (that glide is not ours).
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { store } from '../store'
@@ -79,6 +80,18 @@ function ease(node: HTMLElement, from: number, to: number, force = false): void 
   const done = () => { if (runs.get(node) === run) { runs.delete(node); node.style.overflow = '' } }
   run.onfinish = done
   run.oncancel = done
+}
+/** The column's scroller around an element. */
+function scrollerOf(el: HTMLElement | null): HTMLElement | null {
+  let node = el?.parentElement ?? null
+  while (node && !/auto|scroll/.test(getComputedStyle(node).overflowY)) node = node.parentElement
+  return node
+}
+/** Where an element stands in the scroller's window, as laid out: a lift's scale and rise don't count. */
+function restingTop(el: HTMLElement, scroller: HTMLElement): number {
+  let y = 0
+  for (let e: HTMLElement | null = el; e && e !== scroller; e = e.offsetParent as HTMLElement | null) y += e.offsetTop
+  return y - scroller.scrollTop
 }
 /** Layout height: a lift's transform doesn't change it, a running height animation does. */
 const heightOf = (el: HTMLElement): number => parseFloat(getComputedStyle(el).height) || el.offsetHeight
@@ -232,12 +245,22 @@ export function useCarriedFilter(o: {
   watch(() => store.state.hoverChainId, consider)
   watch(pointerGoal, (goal) => { if (goal === null) clearDwell() }) // leaving a goal is not resting on it
 
-  watch(openPlan, (plan) => {
+  /* The plans above the clicked one go with the opening, which moves the card up the column. The column is made to keep it
+     where it was clicked (as far as its scroll allows; at the top it can't, and the card stands right under the header
+     line): read where the card is before, and put it back after the new layout. Idempotent with any other hold or glide of
+     the column: it only moves the scroll by what the card still is off its place. */
+  watch(openPlan, async (plan) => {
     if (!plan) return
     clearDwell()
     hold.value = 0
     gap.value = false
-  })
+    const card = o.place.value?.querySelector<HTMLElement>(`[data-goal-id="${CSS.escape(plan.id)}"]`) ?? null
+    const scroller = scrollerOf(card)
+    if (!card || !scroller) return
+    const before = restingTop(card, scroller)
+    await nextTick()
+    scroller.scrollTop += restingTop(card, scroller) - before
+  }, { flush: 'pre' })
 
   /* The way between the goal and the box. */
   const onTheWay = computed(() => {
