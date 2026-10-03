@@ -2,12 +2,13 @@
 // On launch it starts Resources/desktop/launcher.py with the bundled Python (PostgreSQL, API, MCP,
 // UI gateway) unless Verticals is already running, waits until it is healthy, and shows the UI.
 // Quitting stops what it started. Resources mirrors the repository layout (see desktop/macos/bundle.py).
-// Updates come from the repository's GitHub releases (see "updates" below).
+// Updates come from the repository's GitHub releases (Updater.swift, UpdateIndicator.swift).
 import Cocoa
 import WebKit
 
 let uiURL = URL(string: "http://127.0.0.1:8288/")!
 let healthURL = URL(string: "http://127.0.0.1:8288/healthz")!
+let busyURL = URL(string: "http://127.0.0.1:8288/__chat/busy")!
 // `-ReleasesAPI <url>` on the command line points the updater elsewhere (tests).
 let releasesAPI = URL(string: UserDefaults.standard.string(forKey: "ReleasesAPI")
     ?? "https://api.github.com/repos/konstantinopolskii/verticals/releases/latest")!
@@ -33,17 +34,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     var webView: WebView!
     var status: NSTextField!
     var backend: Process?
+    var updater: Updater!
+    var indicator: UpdateIndicator!
+    var relaunching = false
 
     // Code, Python and PostgreSQL live in Contents/Resources; data in ~/Library/Application Support.
     var resources: URL { Bundle.main.resourceURL! }
     var root: URL { resources }
+    // `-StateDir <path>` on the command line keeps a test run away from the real data.
     var stateDir: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Verticals")
+        UserDefaults.standard.string(forKey: "StateDir").map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Verticals")
     }
     var logPath: String { stateDir.appendingPathComponent("app.log").path }
 
     func applicationDidFinishLaunching(_ note: Notification) {
+        // The last quit's install opens Verticals when it is done; a Restart lost to a crash installs now.
+        if Updater.installing(stateDir) { exit(0) }
+        updater = Updater(stateDir: stateDir)
+        if updater.launch() {
+            updater.installOnQuit(relaunch: true)
+            exit(0)
+        }
         buildMenu()
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
@@ -95,7 +108,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         healthy { up in
             if up { self.showUI() } else { self.startBackend() }
         }
-        Task { await checkForUpdates(manual: false) }
+        indicator = UpdateIndicator(window: window, updater: updater)
+        indicator.restart = { [unowned self] in restartToUpdate() }
+        indicator.cancelRestart = { [unowned self] in
+            updater.update { $0.restart = false }
+            updater.activity = .none
+        }
+        updater.changed = { [unowned self] in indicator.refresh() }
+        updater.reveal = { [unowned self] in indicator.reveal() }
+        updater.start()
     }
 
     // MARK: backend
@@ -171,7 +192,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     func showUI() {
         status.isHidden = true
         webView.isHidden = false
-        webView.load(URLRequest(url: uiURL))
+        let reopen = UserDefaults.standard.string(forKey: "ReopenPage").flatMap { URL(string: $0) }
+        UserDefaults.standard.removeObject(forKey: "ReopenPage")
+        let page = reopen.flatMap { $0.host == uiURL.host && $0.port == uiURL.port ? $0 : nil } ?? uiURL
+        webView.load(URLRequest(url: page))
     }
 
     func fail(_ message: String) {
@@ -183,185 +207,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     var quitting = false
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let process = backend, process.isRunning else { return .terminateNow }
-        // SIGTERM makes start.py stop the services and shut PostgreSQL down cleanly.
+        if quitting { return .terminateLater }
         quitting = true
-        status.stringValue = "Stopping Verticals…"
-        status.isHidden = false
-        webView.isHidden = true
-        process.terminate()
-        DispatchQueue.global().async {
-            let deadline = Date().addingTimeInterval(20)
-            while process.isRunning && Date() < deadline { usleep(100_000) }
-            DispatchQueue.main.async { sender.reply(toApplicationShouldTerminate: true) }
+        Task {
+            await savePage()
+            if let process = backend, process.isRunning {
+                // SIGTERM makes the launcher stop the services and shut PostgreSQL down cleanly.
+                status.stringValue = "Stopping Verticals…"
+                status.isHidden = false
+                webView.isHidden = true
+                process.terminate()
+                await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                    DispatchQueue.global().async {
+                        let deadline = Date().addingTimeInterval(20)
+                        while process.isRunning && Date() < deadline { usleep(100_000) }
+                        done.resume()
+                    }
+                }
+            }
+            updater.installOnQuit(relaunch: relaunching)
+            sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+
+    // Edits still waiting out their debounce reach the API before it stops; a restart reopens this page.
+    func savePage() async {
+        guard webView != nil, !webView.isHidden else { return }
+        if relaunching, let url = webView.url, url.host == uiURL.host, url.port == uiURL.port {
+            UserDefaults.standard.set(url.absoluteString, forKey: "ReopenPage")
+        }
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            var finished = false
+            let finish = {
+                if !finished { finished = true; done.resume() }
+            }
+            webView.callAsyncJavaScript("await window.verticalsBeforeQuit?.()", arguments: [:], in: nil, in: .page) { _ in finish() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { finish() }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     // MARK: updates
 
-    // A newer GitHub release is offered at launch and from the menu. Its zip is unpacked next to the
-    // app; once this process has quit (stopping the backend), a shell swaps the bundles and opens
-    // the new one. Data in Application Support is not touched.
+    @objc func checkForUpdatesNow(_ sender: Any?) { Task { await updater.check(manual: true) } }
 
-    struct Release: Decodable {
-        struct Asset: Decodable { let name: String; let browserDownloadUrl: URL }
-        let tagName: String
-        let assets: [Asset]
+    // Restart waits while an agent is answering, then quits with the relaunch flag set.
+    func restartToUpdate() {
+        updater.update { $0.restart = true; $0.failure = nil }
+        waitForAgent()
     }
 
-    struct UpdateError: LocalizedError {
-        let errorDescription: String?
-        init(_ message: String) { errorDescription = message }
-    }
-
-    var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
-    var updating = false
-
-    @objc func checkForUpdatesNow(_ sender: Any?) { Task { await checkForUpdates(manual: true) } }
-
-    func checkForUpdates(manual: Bool) async {
-        guard !updating else { return }
-        let found: (version: String, zip: URL)?
-        do {
-            found = try await latestRelease()
-        } catch {
-            NSLog("Verticals update check: \(error.localizedDescription)")
-            if manual { await tell("Could not check for updates", error.localizedDescription) }
-            return
-        }
-        guard let found, found.version.compare(version, options: .numeric) == .orderedDescending else {
-            if manual { await tell("Verticals \(version) is up to date") }
-            return
-        }
-        let offer = NSAlert()
-        offer.messageText = "Verticals \(found.version) is available"
-        offer.informativeText = "You have \(version). Verticals downloads it, keeps a copy of the database, restarts and opens the same board."
-        offer.addButton(withTitle: "Update")
-        offer.addButton(withTitle: "Later")
-        guard await offer.beginSheetModal(for: window) == .alertFirstButtonReturn else { return }
-        updating = true
-        window.titleVisibility = .visible
-        window.subtitle = "Downloading Verticals \(found.version)…"
-        do {
-            try await install(found.version, from: found.zip)
-        } catch {
-            updating = false
-            window.subtitle = ""
-            window.titleVisibility = .hidden
-            await tell("Could not update Verticals", error.localizedDescription)
-        }
-    }
-
-    func latestRelease() async throws -> (version: String, zip: URL)? {
-        var request = URLRequest(url: releasesAPI)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
-        case 200:
-            break
-        case 404:
-            // GitHub answers 404 both when nothing is released yet and when the repository is not public.
-            let repo = releasesAPI.deletingLastPathComponent().deletingLastPathComponent()
-            let (_, answer) = try await URLSession.shared.data(from: repo)
-            guard (answer as? HTTPURLResponse)?.statusCode == 200 else {
-                throw UpdateError("\(repo.path) is not public on GitHub.")
+    func waitForAgent(unanswered: Int = 0) {
+        var request = URLRequest(url: busyURL)
+        request.timeoutInterval = 2
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            let busy = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["busy"] as? Bool
+            DispatchQueue.main.async {
+                guard self.updater.state.restart else { return }
+                func askAgain(_ count: Int) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.waitForAgent(unanswered: count) }
+                }
+                switch busy {
+                case true?:
+                    self.updater.activity = .waitingForAgent
+                    askAgain(0)
+                case nil where unanswered < 3:
+                    // No answer is not "free": ask again before restarting over a running agent.
+                    askAgain(unanswered + 1)
+                default:
+                    self.relaunching = true
+                    // From the run loop, not this main-queue block: termination waits for a main-queue reply.
+                    NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)
+                }
             }
-            return nil
-        case let code:
-            throw UpdateError("GitHub answered \(code).")
-        }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let release = try decoder.decode(Release.self, from: data)
-        guard let zip = release.assets.first(where: { $0.name == "Verticals.zip" }) else {
-            throw UpdateError("Release \(release.tagName) has no Verticals.zip.")
-        }
-        let tag = release.tagName
-        return (tag.hasPrefix("v") ? String(tag.dropFirst()) : tag, zip.browserDownloadUrl)
-    }
-
-    func install(_ latest: String, from zip: URL) async throws {
-        let app = Bundle.main.bundleURL
-        let folder = app.deletingLastPathComponent()
-        guard FileManager.default.isWritableFile(atPath: folder.path) else {
-            throw UpdateError("Verticals cannot replace itself in \(folder.path). Move it to Applications first.")
-        }
-        // On the app's volume, so the swap is a rename.
-        let stage = try FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask,
-                                                appropriateFor: app, create: true)
-        do {
-            let (file, response) = try await URLSession.shared.download(from: zip)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                throw UpdateError("The download failed.")
-            }
-            let archive = stage.appendingPathComponent("Verticals.zip")
-            try FileManager.default.moveItem(at: file, to: archive)
-            let fresh = stage.appendingPathComponent("Verticals.app")
-            guard await run("/usr/bin/ditto", "-x", "-k", archive.path, stage.path) == 0,
-                  let info = NSDictionary(contentsOf: fresh.appendingPathComponent("Contents/Info.plist")),
-                  info["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier,
-                  info["CFBundleShortVersionString"] as? String == latest else {
-                throw UpdateError("The download is not Verticals \(latest).")
-            }
-            _ = await run("/usr/bin/xattr", "-dr", "com.apple.quarantine", fresh.path)
-            guard await run("/usr/bin/codesign", "--verify", "--deep", "--strict", fresh.path) == 0 else {
-                throw UpdateError("The downloaded app is damaged: its signature does not verify.")
-            }
-            // Swaps only under a stopped database, after a copy of it lands in backups/ (last three
-            // kept); otherwise the old app opens again. Steps go to update.log in the state folder.
-            let swap = Process()
-            swap.executableURL = URL(fileURLWithPath: "/bin/sh")
-            swap.arguments = ["-c", """
-                app=$2 stage=$3 state=$4 from=$5 to=$6 pidfile=$4/postgres/postmaster.pid
-                say() { mkdir -p "$state" && echo "$(date '+%F %T') $from -> $to: $1" >> "$state/update.log"; }
-                cancel() { say "$1"; rm -rf "$stage"; open "$app"; exit 1; }
-                while kill -0 "$1" 2>/dev/null; do sleep 0.2; done
-                i=0
-                while [ -e "$pidfile" ] && kill -0 "$(head -1 "$pidfile")" 2>/dev/null; do
-                  i=$((i + 1)); [ $i -gt 300 ] && cancel "cancelled, PostgreSQL is still running"; sleep 0.2
-                done
-                if [ -d "$state/postgres" ]; then
-                  copy="$state/backups/$(date +%Y%m%d-%H%M%S)-$from"
-                  mkdir -p "$state/backups" && ditto "$state/postgres" "$copy" || cancel "cancelled, no database copy"
-                  ls -r "$state/backups" | tail -n +4 | while read -r old; do rm -rf "$state/backups/$old"; done
-                  say "database copied to $copy"
-                fi
-                mv "$app" "$stage/previous.app" || cancel "cancelled, could not move the old app aside"
-                if ! mv "$stage/Verticals.app" "$app"; then
-                  mv "$stage/previous.app" "$app"; cancel "cancelled, could not move the new app in"
-                fi
-                rm -rf "$stage"
-                say "updated"
-                open "$app"
-                """, "swap", String(ProcessInfo.processInfo.processIdentifier), app.path, stage.path,
-                stateDir.path, version, latest]
-            try swap.run()
-        } catch {
-            try? FileManager.default.removeItem(at: stage)
-            throw error
-        }
-        // From the run loop, not this main-queue task: termination waits for a main-queue reply.
-        NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)
-    }
-
-    func run(_ tool: String, _ args: String...) async -> Int32 {
-        await withCheckedContinuation { done in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: tool)
-            process.arguments = args
-            process.terminationHandler = { done.resume(returning: $0.terminationStatus) }
-            do { try process.run() } catch { done.resume(returning: -1) }
-        }
-    }
-
-    func tell(_ title: String, _ detail: String = "") async {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = detail
-        _ = await alert.beginSheetModal(for: window)
+        }.resume()
     }
 
     // MARK: web view
@@ -454,8 +375,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 }
 
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.regular)
-app.run()
+@main enum Main {
+    static func main() {
+        let args = CommandLine.arguments
+        if let at = args.firstIndex(of: "--install-update") { Installer.run(Array(args[(at + 1)...])) }
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.regular)
+        app.run()
+    }
+}

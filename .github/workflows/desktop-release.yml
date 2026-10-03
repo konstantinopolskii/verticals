@@ -2,7 +2,9 @@ name: desktop release
 
 # Run by hand: Actions → desktop release → Run workflow, or `gh workflow run desktop-release.yml`.
 # Builds Verticals.app from the chosen branch and publishes release v<version> with Verticals.zip
-# (what the app downloads to update itself) and Verticals.dmg (first install).
+# (what the app downloads to update itself), Verticals-lite.zip (the same without the runtime, for an
+# app that already has it), release.json (the words the app shows, from desktop/releases.json, and the
+# runtime's fingerprint) and Verticals.dmg (first install).
 
 on:
   workflow_dispatch:
@@ -40,6 +42,8 @@ jobs:
           if gh release view "v$version" >/dev/null 2>&1; then
             echo "::error::v$version is already released"; exit 1
           fi
+          python3 -c "import json, sys; sys.exit(not any(e['version'] == sys.argv[1] for e in json.load(open('desktop/releases.json'))))" "$version" \
+            || { echo "::error::Add $version to desktop/releases.json: a summary (empty for fixes only) and notes"; exit 1; }
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v7
@@ -67,11 +71,28 @@ jobs:
             gh release download --pattern Verticals.zip --dir previous
             ditto -x -k previous/Verticals.zip previous
             python3 desktop/macos/upgrade_check.py previous/Verticals.app desktop/dist/Verticals.app
+            python3 desktop/macos/lite_check.py previous/Verticals.app desktop/dist/Verticals-lite.zip
           else
             echo "::notice::No earlier release to upgrade from"
           fi
 
+      - name: Release notes
+        run: |
+          python3 - <<'EOF'
+          import json, os, plistlib
+          version = os.environ["VERSION"]
+          entry = next(e for e in json.load(open("desktop/releases.json")) if e["version"] == version)
+          plist = plistlib.load(open("desktop/dist/Verticals.app/Contents/Info.plist", "rb"))
+          runtime = open("desktop/dist/Verticals.app/Contents/Resources/RUNTIME").read().strip()
+          release = {"version": version, "summary": entry.get("summary", ""), "notes": entry.get("notes", []),
+                     "min_macos": plist["LSMinimumSystemVersion"], "runtime": runtime}
+          json.dump(release, open("desktop/dist/release.json", "w"), indent=2, ensure_ascii=False)
+          lines = ([release["summary"], ""] if release["summary"] else []) + [f"- {note}" for note in release["notes"]]
+          open("desktop/dist/notes.md", "w").write("\n".join(lines) + "\n")
+          EOF
+
       - name: Release
         run: |
-          gh release create "v$VERSION" desktop/dist/Verticals.zip desktop/dist/Verticals.dmg \
-            --target "$GITHUB_SHA" --title "Verticals $VERSION" --generate-notes
+          gh release create "v$VERSION" desktop/dist/Verticals.zip desktop/dist/Verticals-lite.zip \
+            desktop/dist/release.json desktop/dist/Verticals.dmg \
+            --target "$GITHUB_SHA" --title "Verticals $VERSION" --notes-file desktop/dist/notes.md

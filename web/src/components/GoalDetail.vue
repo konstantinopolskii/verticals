@@ -15,6 +15,7 @@ import GoalLinks from './GoalLinks.vue'
 import { store } from '../store'
 import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
+import { onBeforeQuit } from '../lib/beforeQuit'
 import { MONTH_NAMES } from '../lib/periods'
 import { leaveRoom, roomFor } from '../lib/columnRoom'
 import {
@@ -153,26 +154,28 @@ function paintBody(body: string): void {
   })
 }
 
-function flushBodySave(id: string, keepalive = false) {
+function flushBodySave(id: string, keepalive = false): Promise<void> {
   const pending = bodySaveTimers.get(id)
-  if (!pending) return
+  if (!pending) return Promise.resolve()
   window.clearTimeout(pending.timer)
   bodySaveTimers.delete(id)
   if (id === bodySessionId) bodySessionPersisted = pending.body
-  void store.updateGoal(id, { body: pending.body }, keepalive)
+  return store.updateGoal(id, { body: pending.body }, keepalive)
 }
 
-function flushAllBodySaves(keepalive = false) {
-  for (const id of [...bodySaveTimers.keys()]) flushBodySave(id, keepalive)
+function flushAllBodySaves(keepalive = false): Promise<void[]> {
+  return Promise.all([...bodySaveTimers.keys()].map((id) => flushBodySave(id, keepalive)))
 }
 
 function onBodyVisibilityChange() {
-  if (document.visibilityState === 'hidden') flushAllBodySaves(true)
+  if (document.visibilityState === 'hidden') void flushAllBodySaves(true)
 }
 
 function onBodyPageHide() {
-  flushAllBodySaves(true)
+  void flushAllBodySaves(true)
 }
+
+const stopBeforeQuit = onBeforeQuit(() => flushAllBodySaves())
 
 onMounted(() => {
   document.addEventListener('visibilitychange', onBodyVisibilityChange)
@@ -183,14 +186,15 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onBodyVisibilityChange)
   window.removeEventListener('pagehide', onBodyPageHide)
   window.removeEventListener('resize', measureBodyLength)
-  flushAllBodySaves()
+  stopBeforeQuit()
+  void flushAllBodySaves()
 })
 
 // Follow the loaded record without replacing an active draft; goal switches close stale edits.
 watch(
   () => goal.value?.id,
   (id, previousId) => {
-    if (previousId && id !== previousId) flushBodySave(previousId)
+    if (previousId && id !== previousId) void flushBodySave(previousId)
     editingBody.value = false
     moreLines.value = 0
     bodyExpanded.value = false
