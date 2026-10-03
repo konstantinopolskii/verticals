@@ -17,7 +17,7 @@ launcher has its own ports, database, state directory and UI build.
   `ui/assets/` (the agents' and models' marks). The conversation itself is drawn by the app
   (`web/src/lib/agentChat.ts`, `AgentConversation.vue`).
 - `macos/` — `Verticals.swift` (native window, WKWebView), `Updater.swift` (checks, downloads and
-  installs updates), `UpdateIndicator.swift` (the update line in the title bar) and `bundle.py`
+  installs updates), `UpdateIndicator.swift` (the Update button in the title bar) and `bundle.py`
   (self-contained `Verticals.app` + `.dmg`).
 
 The agent picker follows Enjoy's (strings, model artwork).
@@ -93,9 +93,9 @@ Updates never interrupt work:
   The zip is checked against the asset's sha256, then the bundle id, the version and the
   signature. A failed background check shows nothing and comes back later (15 min, doubling up to
   6 h).
-- A downloaded release with a `summary` shows one line on the right of the title bar. A click opens
-  the notes, Restart and Skip This Version. Nothing else asks: ignored, the update installs when
-  Verticals quits, and the next launch is the new version.
+- A downloaded release with a `summary` shows a grey Update button in the title bar's right corner,
+  the summary on its left. The button opens the notes, Restart and Skip This Version. Nothing else
+  asks: ignored, the update installs when Verticals quits, and the next launch is the new version.
 - Restart waits while an agent is answering (`/__chat/busy`), sends the edits still waiting to be
   saved, quits and opens the new version on the same page. A Restart lost to a crash installs at the
   next launch from the files already downloaded.

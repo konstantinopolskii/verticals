@@ -184,8 +184,8 @@ struct UpdateError: LocalizedError {
         }
     }
 
-    // The menu's check answers where its progress was, never in a window: a line, or with none the
-    // card. A plain line leaves after 10 s; an error, which opens to its reason, after 30 s.
+    // The menu's check answers where its progress was, never in a window: words, or with none the
+    // card. Plain words leave after 10 s; an error, with Try Again beside it, after 30 s.
     private func reply(_ notice: Notice? = nil) {
         guard asked, activity != .waitingForAgent else { return }
         guard let notice else {

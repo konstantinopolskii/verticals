@@ -325,7 +325,7 @@ MCP для своих агентов, пока приложение открыт
 (токен и готовый конфиг: ~/Library/Application Support/Verticals/mcp.json)
 
 Обновления скачиваются сами и ставятся, когда вы закрываете Verticals; справа в полосе
-заголовка видно, что стало лучше, и там же кнопка Restart. Вручную: меню Verticals →
+заголовка видно, что стало лучше, и кнопка Update, а в ней Restart. Вручную: меню Verticals →
 Check for Updates…
 
 Требуется Mac на Apple Silicon (M1 и новее), macOS 13+.
