@@ -120,6 +120,7 @@ export function useCardFamily(props: {
     if (!card || !scroller) return null
     const before = card.getBoundingClientRect().top
     return () => {
+      if (familyMoving()) return // the move that opens it holds it, inside its own movement (lib/familyMotion.ts)
       const now = rootElement()
       if (now && scroller) scroller.scrollTop += now.getBoundingClientRect().top - before
     }

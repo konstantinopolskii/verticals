@@ -9,7 +9,7 @@
 // optimistic commit), mirroring exactly what the same lines imported while they lived in
 // store.ts.
 
-import { nextTick } from 'vue'
+import { nextTick, watch } from 'vue'
 import {
   patchGoal,
   reparentGoal as apiReparentGoal,
@@ -28,7 +28,7 @@ import {
   type DragState,
 } from './drag'
 import { createDragHover, type DragHoverController } from './dragHover'
-import { pinRow } from './familyMotion'
+import { familyMovingNow, pinRow } from './familyMotion'
 import { reorderPlacement, reparentPlacement } from './boardPlacement'
 import { messageForError } from './scheduleFeedback'
 import { playSound } from './sound'
@@ -153,6 +153,13 @@ export function createDragActions(deps: DragActionDeps) {
     dragHover.onMove(hit.columnVertical, clientX, clientY, target?.kind === 'combine' ? target.targetId : null)
     deps.onMove?.(clientX, clientY)
   }
+  // A press during a family's move reads the rows mid-flight (`lib/familyMotion.ts`): once the move lands, a gesture still
+  // held reads them again where they stand and aims again, as after any other change of layout under a drag.
+  watch(familyMovingNow, (moving) => {
+    if (moving || (!state.drag.pending && !state.drag.id)) return
+    recaptureRowRects()
+    pointerMoveDrag(state.drag.x, state.drag.y)
+  })
   function setDragPreviewSize(width: number, height: number): void {
     if (!state.drag.id || width <= 0 || height <= 0) return
     state.drag.previewWidth = width

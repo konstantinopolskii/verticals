@@ -130,7 +130,7 @@ function cardProps(goal: GoalCardData) {
   padding: 8px 0 6px;
   border-radius: 8px;
   background: #f5f5f1;
-  transition: background-color 200ms var(--vt-ease-large), transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1);
+  transition: background-color 200ms var(--vt-ease-large), transform var(--motion-lift-out) var(--vt-ease-medium);
 }
 .carried-group--lit { background: rgb(var(--vt-pale)); }
 /* Pointing into the box lifts it as one piece, the way a goal lifts (`lib/cardLift.ts`), by the same room: a tall box
@@ -169,8 +169,15 @@ function cardProps(goal: GoalCardData) {
 .carried-group__chevron--open { transform: rotate(180deg); }
 .carried-group:not(.carried-group--open) .goal-card__row::before { opacity: 0 !important; }
 /* A plan open (KK 2026-10-02): the box is only its header, a line on top like a level stepped through, and the opened plan
-   stands under it on its own colour. */
-.carried-group--open { padding: 0; background: transparent; }
+   stands under it on its own colour. Opening ends the box's lift at once: a lift easing out made the box a layer of its
+   own for 220 ms, which kept the opened plan under the column's veil, pale, until it lit up in one frame (the motion
+   review of 3 Oct 2026); the move that opens the plan read it lifted and lands it at rest (lib/familyMotion.ts). */
+.carried-group--open {
+  padding: 0;
+  background: transparent;
+  transform: none;
+  transition: background-color 200ms var(--vt-ease-large);
+}
 .carried-group--open .carried-group__head {
   /* above the column's veil, like the column's name: it is not a goal, and it is the way back */
   position: relative;

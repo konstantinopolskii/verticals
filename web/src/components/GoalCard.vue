@@ -117,7 +117,7 @@ function onToggle(value: boolean) {
 /* Where this card stands in the open goal's family: the open goal, a level stepped through, a step, or a relative lit
    further off (flow 4, `lib/cardFamily.ts`). */
 const {
-  isInlineDetailHost, isOpenRelated, inWideColumn, isFocus, isInsideOpen, familyDepth, isPathLine, isDeepestStep,
+  isInlineDetailHost, isOpenRelated, isFocus, isInsideOpen, familyDepth, isPathLine, isDeepestStep,
   familyKids, listKids, familyLit, showChildren, onOpenDetail, growList, foldList,
 } = useCardFamily(props, rootElement)
 
@@ -143,8 +143,8 @@ function clearFamily(): void {
   if (menuOpen.value) return // its menu is open: the family stays lit until it closes
   if (store.state.hoverChainId === props.id) store.setHoverChain(null)
 }
-const isChainHovered = computed(() => {
-  const chain = store.hoverChain.value
+const isChainHovered = computed(() => { // lit once the pointer rests on a card (lib/boardViewState.ts)
+  const chain = store.restChain.value
   return chain !== null && chain.id !== props.id && chain.set.has(props.id)
 })
 // R7 can carry one goal twice on the wire (its filtered top-level copy and its nested copy).
@@ -404,7 +404,7 @@ function onCardEnter(): void {
   if (inWindow.value) return
   highlightFamily()
   liftEnter()
-  if (inWideColumn.value) void store.ensureDetail(props.id) // flow 4: a click here moves the column from its detail
+  void store.ensureDetail(props.id) // a click here moves the board from its detail (lib/familyMotion.ts): fetch it ahead
 }
 function onCardLeave(): void { clearFamily(); liftLeave() }
 const nestedInsertionSlot = computed(() => (

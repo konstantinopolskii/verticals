@@ -764,19 +764,21 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 }
 .goal-card.goal-card--deepest-step .goal-card__title { cursor: default; }
 
-/* While the wide column moves (lib/familyMotion.ts): colours are solid and rows are drawn darken, so two shapes of one
-   colour that cross make one shape and never a darker patch, and dark words show through a light shape passing over
-   them. The open card's parts don't run their own transitions: the move draws their arrival. */
-body[data-family-moving] .pattern-vertical-board__column--active .goal-card > .goal-card__row { mix-blend-mode: darken; }
-body[data-family-moving] .pattern-vertical-board__column--active .goal-card > .goal-card__row::before {
+/* While a column moves (lib/familyMotion.ts marks it a lane): colours are solid and rows are drawn darken, so two
+   shapes of one colour that cross make one shape and never a darker patch, and dark words show through a light shape
+   passing over them. The open card's parts don't run their own transitions: the move draws their arrival. */
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card > .goal-card__row {
+  mix-blend-mode: darken;
+}
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card > .goal-card__row::before {
   background: linear-gradient(var(--goal-hover-background), var(--goal-hover-background)), var(--color-bg);
 }
-body[data-family-moving] .pattern-vertical-board__column--active .goal-card.goal-card {
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card.goal-card {
   background-color: transparent !important;
   transition: none !important;
 }
-body[data-family-moving] .pattern-vertical-board__column--active :is(.goal-part-enter-active, .goal-part-leave-active,
-  .goal-notes-enter-active, .goal-notes-leave-active) {
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
+  :is(.goal-part-enter-active, .goal-part-leave-active, .goal-notes-enter-active, .goal-notes-leave-active) {
   transition: none !important;
 }
 .family-ghosts {
@@ -786,7 +788,8 @@ body[data-family-moving] .pattern-vertical-board__column--active :is(.goal-part-
   pointer-events: none;
 }
 /* The hover lift stays out of a move: the move reads where everything is without it. */
-body[data-family-moving] .pattern-vertical-board__column--active :is(.goal-card--lifted, .goal-card__children--lifted) {
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
+  :is(.goal-card--lifted, .goal-card__children--lifted) {
   transform: none !important;
   transition: none !important;
 }

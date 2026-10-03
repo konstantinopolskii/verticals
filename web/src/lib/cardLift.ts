@@ -43,6 +43,22 @@ function releaseHold(): void {
   waiting.clear()
   retries.forEach((retry) => retry())
 }
+
+/* A family's move takes the lifts off inside its own movement (`lib/familyMotion.ts`): the move reads the lifted card
+   where it stands and lands it at rest, so a lift that came back after the move was a second movement, 6-9 px at
+   430 ms (the motion trace, 3 Oct 2026). Then nothing lifts until the hand moves: what slid under a still pointer is
+   not what the hand pointed at. */
+const releases = new Set<() => void>()
+let quiet: { x: number; y: number } | null = null
+export function releaseLifts(at: { x: number; y: number } | null): void {
+  quiet = at ?? (Number.isNaN(pointer.x) ? null : { ...pointer })
+  releases.forEach((release) => release())
+}
+function wake(event: PointerEvent): void {
+  if (!quiet || Math.hypot(event.clientX - quiet.x, event.clientY - quiet.y) < HOLD_MOVE_PX) return
+  quiet = null
+  if (holder === null) releaseHold()
+}
 export const LIFTED_CLASS = 'goal-card--lifted'
 export const LIFTED_LIST_CLASS = 'goal-card__children--lifted'
 
@@ -61,7 +77,7 @@ export function whenMenuCloses(fn: () => void): void {
 }
 let pointer = { x: Number.NaN, y: Number.NaN } // where the pointer last was: a card settles by it when its menu closes
 if (typeof window !== 'undefined') {
-  window.addEventListener('pointermove', (event) => { pointer = { x: event.clientX, y: event.clientY } }, { capture: true, passive: true })
+  window.addEventListener('pointermove', (event) => { pointer = { x: event.clientX, y: event.clientY }; wake(event) }, { capture: true, passive: true })
   window.addEventListener('verticals:root-popover-close', () => {
     const retries = [...afterMenu]
     afterMenu.clear()
@@ -117,7 +133,7 @@ export function useCardLift(options: {
 
   function enter(): void {
     if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null }
-    if (holder !== null && holder !== me) { waiting.add(retry); return }
+    if ((holder !== null && holder !== me) || quiet) { waiting.add(retry); return }
     if (!lifted.value && anyMenuOpen()) { whenMenuCloses(retry); return }
     if (lifted.value || !options.enabled() || !measure()) return
     lifted.value = true
@@ -216,7 +232,10 @@ export function useCardLift(options: {
     clickHost?.addEventListener('click', hold, true)
   }, { flush: 'post' })
 
+  releases.add(drop)
+
   onBeforeUnmount(() => {
+    releases.delete(drop)
     clearTimers()
     observer.disconnect()
     clickHost?.removeEventListener('click', hold, true)

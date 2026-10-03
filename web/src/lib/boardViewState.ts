@@ -16,6 +16,7 @@ export interface BoardViewState {
   board: BoardResponse | null
   expandedVertical: string | null
   hoverChainId: string | null
+  restChainId: string | null
   /** Ids whose child lists are locally collapsed (S-67 nested view). Local view state only,
    *  never persisted — lists are expanded by default. Moved here from `store.ts` itself (S-90a,
    *  the module's own 750-line cap) alongside every other session-only board view toggle. */
@@ -57,34 +58,60 @@ export function expandColumn(view: BoardViewState, vertical: string): void {
  *  (COMPACT_BOARD_HANDOFF.md §5) is physically impossible: the pointer must LEAVE the hovered
  *  card to travel to the stack, that mouseleave would clear the chain, and the face would revert
  *  before the click lands. Any card entered during the window cancels the pending clear, so
- *  moving within the family keeps the swap and moving to an unrelated card retargets instantly. */
+ *  moving within the family keeps the swap and moving to an unrelated card retargets instantly.
+ *
+ *  The family light waits for the pointer to rest (KK, the board motion review of 3 Oct 2026): `restChainId` takes a
+ *  card only once the pointer has stayed on it HOVER_REST_MS, so a hand crossing the board no longer relights three
+ *  columns on every card it passes; leaving the card first cancels it. The carried box rests as long before it follows
+ *  a goal (`lib/carriedFilter.ts`). The card's own lift stays instant, and so does `hoverChainId`, which the box and
+ *  the mascot read with rests of their own. */
 const HOVER_CLEAR_GRACE_MS = 250
+const HOVER_REST_MS = 250
 let hoverClearTimer: ReturnType<typeof setTimeout> | null = null
+let hoverRestTimer: ReturnType<typeof setTimeout> | null = null
 
 export function setHoverChain(view: BoardViewState, id: string | null): void {
   if (hoverClearTimer !== null) {
     clearTimeout(hoverClearTimer)
     hoverClearTimer = null
   }
+  if (hoverRestTimer !== null) {
+    clearTimeout(hoverRestTimer)
+    hoverRestTimer = null
+  }
   if (id === null) {
     hoverClearTimer = setTimeout(() => {
       hoverClearTimer = null
       view.hoverChainId = null
+      view.restChainId = null
     }, HOVER_CLEAR_GRACE_MS)
     return
   }
   view.hoverChainId = id
+  if (view.restChainId === id) return
+  hoverRestTimer = setTimeout(() => {
+    hoverRestTimer = null
+    view.restChainId = id
+  }, HOVER_REST_MS)
 }
 
-/** The hovered card's family line — itself, every ancestor, every descendant — as one id set.
- *  Null when nothing is hovered. `GoalCard.vue` binds the wash class off this; `Column.vue`
- *  reads it for the stack face swap. Pure client-side reads over the loaded board (HC-11).
- *  The store wraps this in a `computed`; called during evaluation, the reactive property reads
- *  below register the dependency tracking themselves. */
-export function hoverChainOf(view: BoardViewState): { id: string; set: Set<string> } | null {
-  const id = view.hoverChainId
+/** A card's family line — itself, every ancestor, every descendant — as one id set. Pure
+ *  client-side reads over the loaded board (HC-11). The store wraps these in a `computed`; called
+ *  during evaluation, the reactive property reads below register the dependency tracking
+ *  themselves. */
+function chainOf(view: BoardViewState, id: string | null): { id: string; set: Set<string> } | null {
   if (!id || !view.board) return null
   const set = subtreeIds(view.board, id)
   for (const ancestor of ancestorIds(view.board, id)) set.add(ancestor)
   return { id, set }
+}
+
+/** The hovered card's family line, null when nothing is hovered: the carried box reads it. */
+export function hoverChainOf(view: BoardViewState): { id: string; set: Set<string> } | null {
+  return chainOf(view, view.hoverChainId)
+}
+
+/** The family line of the card the pointer rests on: `GoalCard.vue` binds the wash class off it. */
+export function restChainOf(view: BoardViewState): { id: string; set: Set<string> } | null {
+  return chainOf(view, view.restChainId)
 }

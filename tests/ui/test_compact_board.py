@@ -36,6 +36,9 @@ WASH_CLASS = "goal-card--ancestor-hover"
 # setHoverChain's clear grace (store.ts HOVER_CLEAR_GRACE_MS) plus headroom: how long a test must
 # wait after moving the pointer away before asserting the wash is gone.
 HOVER_CLEAR_WAIT_MS = 450
+# The wash waits for the pointer to rest on a card (lib/boardViewState.ts HOVER_REST_MS, 250 ms, KK
+# 2026-10-03) plus headroom: how long a test must rest on a card before asserting the wash is there.
+HOVER_REST_WAIT_MS = 450
 
 
 def _create(conn, title: str, vertical: str, parent_id: str | None = None,
@@ -269,8 +272,16 @@ def test_chain_hover_wash(ui_f2: UiSession) -> None:
     expect(month.locator(f'[data-goal-id="{mparent.id}"]')).to_be_visible()
     expect(month.locator(f'[data-goal-id="{mchild.id}"]')).to_be_visible()
 
-    # --- hover the year member: wash on every board-visible chain member ------------------------
+    # --- a card the pointer only passes lights nothing: the wash waits for a rest ----------------
     year_row.hover()
+    page.mouse.move(5, 5)
+    assert not _has_wash(page, value.id), "a card the pointer only passed lit its chain"
+    page.wait_for_timeout(HOVER_CLEAR_WAIT_MS)
+    assert not _has_wash(page, value.id), "a card the pointer only passed lit its chain"
+
+    # --- rest on the year member: wash on every board-visible chain member ----------------------
+    year_row.hover()
+    page.wait_for_timeout(HOVER_REST_WAIT_MS)
     assert _has_wash(page, value.id), "life value card missed the chain wash"
     assert _has_wash(page, mparent.id), "month parent missed the chain wash"
     assert _has_wash(page, mchild.id), "month child missed the chain wash"

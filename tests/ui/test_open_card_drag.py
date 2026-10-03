@@ -101,13 +101,28 @@ def _goal_row(conn: psycopg.Connection, goal_id: str) -> tuple[str | None, str |
     ).fetchone()
 
 
+def _still_box(page: Page, locator) -> dict | None:
+    """The source's box once it holds still. An opening keeps the column's scroll on the open goal for its first 360 ms
+    or more (GoalDetail.vue's fitIntoView writes it every frame, at once under reduced motion), so the next frame puts
+    back a `scrollIntoView` made inside that window: a box read in between was 74 px off by the press, and OD-1 pressed
+    the open parent's title instead of its step (traced 4 Oct 2026, on main as on the motion branch)."""
+    box = locator.bounding_box()
+    for _ in range(20):
+        page.wait_for_timeout(50)
+        now = locator.bounding_box()
+        if box and now and abs(now["x"] - box["x"]) < 0.5 and abs(now["y"] - box["y"]) < 0.5:
+            return now
+        box = now
+    return box
+
+
 def _press(page: Page, source_locator, position: dict[str, float] = GRIP) -> None:
     """See test_hand_drag.py's own `_press` docstring for why this is a single down-then-move
     gesture rather than a separate stationary arm-move before travelling to a real target."""
     # The fixed bottom nav can cover a row that Playwright still considers "in viewport".
     # Centre the real pointer source in its scrolling period slide before pressing it.
     source_locator.evaluate("element => element.scrollIntoView({ block: 'center' })")
-    box = source_locator.bounding_box()
+    box = _still_box(page, source_locator)
     assert box is not None, "drag source has no live bounding box"
     sx = box["x"] + position["x"]
     sy = box["y"] + position["y"]
