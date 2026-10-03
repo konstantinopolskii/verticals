@@ -201,15 +201,33 @@ struct UpdateError: LocalizedError {
 
     struct Release {
         let version: String
+        let summary: String
+        let notes: [String]
         let full: Download
         let lite: Download?
         let info: URL?
+    }
+
+    // The release's text on GitHub: a line above the list is the summary beside the Update button, the list is
+    // the card's notes. Comments, headings and the rest are for people reading the release page.
+    static func words(_ body: String) -> (summary: String, notes: [String]) {
+        let text = body.replacingOccurrences(of: "<!--[\\s\\S]*?-->", with: "", options: .regularExpression)
+        var summary = "", notes: [String] = []
+        for line in text.split(whereSeparator: \.isNewline).map({ $0.trimmingCharacters(in: .whitespaces) }) where !line.isEmpty {
+            if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                notes.append(line.dropFirst(2).trimmingCharacters(in: .whitespaces))
+            } else if notes.isEmpty, summary.isEmpty, !line.hasPrefix("#") {
+                summary = line
+            }
+        }
+        return (summary, notes)
     }
 
     func latestRelease() async throws -> Release? {
         struct Wire: Decodable {
             struct Asset: Decodable { let name: String; let browserDownloadUrl: URL; let size: Int64; let digest: String? }
             let tagName: String
+            let body: String?
             let assets: [Asset]
         }
         var request = URLRequest(url: releasesAPI)
@@ -242,13 +260,14 @@ struct UpdateError: LocalizedError {
             throw UpdateError("Release \(wire.tagName) has no Verticals.zip.")
         }
         let version = wire.tagName.hasPrefix("v") ? String(wire.tagName.dropFirst()) : wire.tagName
-        return Release(version: version, full: full, lite: download("Verticals-lite.zip"),
-                       info: wire.assets.first { $0.name == "release.json" }?.browserDownloadUrl)
+        let words = Self.words(wire.body ?? "")
+        return Release(version: version, summary: words.summary, notes: words.notes, full: full,
+                       lite: download("Verticals-lite.zip"), info: wire.assets.first { $0.name == "release.json" }?.browserDownloadUrl)
     }
 
-    // A newer release replaces whatever was downloaded before; its words come from release.json.
+    // A newer release replaces whatever was downloaded before; release.json says what it needs and holds.
     private func adopt(_ release: Release) async throws {
-        struct Info: Decodable { let summary: String?; let notes: [String]?; let minMacos: String?; let runtime: String? }
+        struct Info: Decodable { let minMacos: String?; let runtime: String? }
         var info: Info?
         if let url = release.info {
             let decoder = JSONDecoder()
@@ -257,7 +276,7 @@ struct UpdateError: LocalizedError {
         }
         discardDownload()
         update {
-            $0 = UpdateState(version: release.version, summary: info?.summary ?? "", notes: info?.notes ?? [],
+            $0 = UpdateState(version: release.version, summary: release.summary, notes: release.notes,
                              full: release.full, lite: release.lite, runtime: info?.runtime, skipped: $0.skipped,
                              minimum: info?.minMacos)
         }

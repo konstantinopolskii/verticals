@@ -67,17 +67,23 @@ quarantine (the app is ad-hoc signed, not notarized):
 
 A release is started by hand: Actions → desktop release → Run workflow (or
 `gh workflow run desktop-release.yml -f version=0.4`). An empty version bumps the last number of the
-latest release. First add the version to `desktop/releases.json`; the workflow stops without it:
+latest release. `.github/workflows/desktop-release.yml` builds the UI and the app on a macOS runner
+and leaves a draft release `v<version>` on the chosen commit with `Verticals.zip`,
+`Verticals-lite.zip`, `release.json` (`min_macos` and the runtime's fingerprint) and `Verticals.dmg`.
+Apps see the release only once it is published, so the last step is on GitHub: edit the draft's
+text and press Publish.
 
-```json
-[{"version": "0.4", "summary": "Goals can repeat every week", "notes": ["Pick Every week in a goal's repeat menu"]}]
+The text starts as the merged PRs' titles. The app reads it this way:
+
+```markdown
+Goals can repeat every week
+
+- Pick Every week in a goal's repeat menu
 ```
 
-`summary` is one line on what gets better for the person, written by hand: the app shows it in the
-title bar. Leave it empty for a release with fixes only; that one installs at quit without a word.
-`notes` list the changes. `.github/workflows/desktop-release.yml` builds the UI and the app on a
-macOS runner and publishes release `v<version>` on the chosen commit with `Verticals.zip`,
-`release.json` (the entry plus `min_macos`) and `Verticals.dmg`.
+A line above the list is what gets better for the person, in a few words: the app shows it beside
+the Update button. Without it the release installs at quit without a word, for fixes only. The `- `
+items are the notes in the card. Headings, comments and other lines stay on the release page.
 
 Updates never interrupt work:
 
