@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "version": "0.3",
+    "summary": "The board starts right under the window buttons",
+    "notes": [
+      "The title bar is gone: only the window buttons stay, over the board",
+      "Updates download in the background; the Update button in the title bar's corner says what got better",
+      "Edits made a second before quitting are saved",
+      "Quitting takes about 2 seconds instead of 11",
+      "A drag across the board no longer selects its labels; card text, docs and chat still can be selected",
+      "Selected text in a goal is readable"
+    ]
+  }
+]
