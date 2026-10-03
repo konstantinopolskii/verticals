@@ -44,7 +44,7 @@ import Cocoa
         label.text = text
         if case .answered(let notice) = updater.activity { label.toolTip = notice.detail } else { label.toolTip = nil }
         button.isHidden = action == nil
-        button.attributedTitle = words(action == .tryAgain ? "Try Again" : "Update", weight: .medium)
+        button.attributedTitle = words(action == .tryAgain ? "Try Again" : "Update", weight: .medium, alignment: .center)
         let height = max(accessory.view.window.map { $0.frame.height - $0.contentLayoutRect.height } ?? 32, 28)
         let buttonWidth = action == nil ? 0 : ceil(button.attributedTitle.size().width) + 20
         let textWidth = min(ceil(text.size().width) + 4, 420 - buttonWidth)
@@ -90,8 +90,10 @@ import Cocoa
         return nil
     }
 
-    private func words(_ text: String, _ color: NSColor = .labelColor, weight: NSFont.Weight = .regular) -> NSAttributedString {
+    private func words(_ text: String, _ color: NSColor = .labelColor, weight: NSFont.Weight = .regular,
+                       alignment: NSTextAlignment = .natural) -> NSAttributedString {
         let style = NSMutableParagraphStyle()
+        style.alignment = alignment
         style.lineBreakMode = .byTruncatingTail
         return NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 12, weight: weight),
                                                              .foregroundColor: color, .paragraphStyle: style])
