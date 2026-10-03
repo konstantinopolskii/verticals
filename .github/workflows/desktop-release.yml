@@ -1,10 +1,11 @@
 name: desktop release
 
 # Run by hand: Actions → desktop release → Run workflow, or `gh workflow run desktop-release.yml`.
-# Builds Verticals.app from the chosen branch and publishes release v<version> with Verticals.zip
+# Builds Verticals.app from the chosen branch and leaves a draft release v<version> with Verticals.zip
 # (what the app downloads to update itself), Verticals-lite.zip (the same without the runtime, for an
-# app that already has it), release.json (the words the app shows, from desktop/releases.json, and the
-# runtime's fingerprint) and Verticals.dmg (first install).
+# app that already has it), release.json (the macOS it needs and the runtime's fingerprint) and
+# Verticals.dmg (first install). Its text starts from the merged PRs' titles: edit it on GitHub and
+# publish it; apps see the release only then.
 
 on:
   workflow_dispatch:
@@ -39,11 +40,9 @@ jobs:
             version="${last%.*}.$(( ${last##*.} + 1 ))"
           fi
           [[ "$version" =~ ^[0-9]+(\.[0-9]+)+$ ]] || { echo "::error::Not a version: $version"; exit 1; }
-          if gh release view "v$version" >/dev/null 2>&1; then
-            echo "::error::v$version is already released"; exit 1
+          if gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -qx "v$version"; then
+            echo "::error::v$version exists already, published or as a draft"; exit 1
           fi
-          python3 -c "import json, sys; sys.exit(not any(e['version'] == sys.argv[1] for e in json.load(open('desktop/releases.json'))))" "$version" \
-            || { echo "::error::Add $version to desktop/releases.json: a summary (empty for fixes only) and notes"; exit 1; }
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v7
@@ -76,23 +75,35 @@ jobs:
             echo "::notice::No earlier release to upgrade from"
           fi
 
-      - name: Release notes
+      - name: Release text
         run: |
           python3 - <<'EOF'
-          import json, os, plistlib
+          import json, os, plistlib, re, subprocess
           version = os.environ["VERSION"]
-          entry = next(e for e in json.load(open("desktop/releases.json")) if e["version"] == version)
           plist = plistlib.load(open("desktop/dist/Verticals.app/Contents/Info.plist", "rb"))
           runtime = open("desktop/dist/Verticals.app/Contents/Resources/RUNTIME").read().strip()
-          release = {"version": version, "summary": entry.get("summary", ""), "notes": entry.get("notes", []),
-                     "min_macos": plist["LSMinimumSystemVersion"], "runtime": runtime}
-          json.dump(release, open("desktop/dist/release.json", "w"), indent=2, ensure_ascii=False)
-          lines = ([release["summary"], ""] if release["summary"] else []) + [f"- {note}" for note in release["notes"]]
-          open("desktop/dist/notes.md", "w").write("\n".join(lines) + "\n")
+          json.dump({"version": version, "min_macos": plist["LSMinimumSystemVersion"], "runtime": runtime},
+                    open("desktop/dist/release.json", "w"), indent=2)
+          generated = subprocess.run(["gh", "api", f"repos/{os.environ['GH_REPO']}/releases/generate-notes",
+                                      "-f", f"tag_name=v{version}", "-f", f"target_commitish={os.environ['GITHUB_SHA']}",
+                                      "--jq", ".body"], check=True, capture_output=True, text=True).stdout
+          # The merged PRs' titles, without their authors, links and type prefixes: a start for the person.
+          notes, section = [], ""
+          for line in generated.splitlines():
+              if line.startswith("#"):
+                  section = line
+              elif "New Contributors" not in section and (m := re.match(r"\* (.+?)(?: by @\S+)?(?: in https://\S+)?$", line)):
+                  title = re.sub(r"^\w+(\([^)]*\))?!?:\s*", "", m.group(1))
+                  notes.append(f"- {title[:1].upper()}{title[1:]}")
+          open("desktop/dist/notes.md", "w").write(
+              "<!-- Verticals shows a line written above the list beside its Update button: what got better, in a\n"
+              "few words. Without it the update installs at quit without a word. The list is what the card shows. -->\n\n"
+              + "\n".join(notes) + "\n")
           EOF
 
       - name: Release
         run: |
           gh release create "v$VERSION" desktop/dist/Verticals.zip desktop/dist/Verticals-lite.zip \
             desktop/dist/release.json desktop/dist/Verticals.dmg \
-            --target "$GITHUB_SHA" --title "Verticals $VERSION" --notes-file desktop/dist/notes.md
+            --draft --target "$GITHUB_SHA" --title "Verticals $VERSION" --notes-file desktop/dist/notes.md
+          echo "::notice::Draft v$VERSION is ready: write its text on GitHub and publish it"
