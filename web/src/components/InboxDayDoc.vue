@@ -43,6 +43,7 @@ import {
   resetBodyHistory,
 } from '../lib/bodyTextarea'
 import { dayDocPath, dayDocTitle } from '../lib/dayDoc'
+import { onBeforeQuit } from '../lib/beforeQuit'
 
 const BODY_SAVE_DEBOUNCE_MS = 1000 // matches DocDetail.vue's own constant, same name, same value
 
@@ -176,6 +177,7 @@ function finishEdit(): void {
   renderCurrent()
 }
 
+onBeforeUnmount(onBeforeQuit(flush))
 onBeforeUnmount(() => void flush())
 </script>
 

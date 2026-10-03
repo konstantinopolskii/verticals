@@ -695,6 +695,11 @@ class Chat:
                 self.sessions[id] = Session(self, id)
             return self.sessions[id]
 
+    def busy(self):
+        """Whether an agent is in the middle of a turn: the app's Restart waits for it."""
+        with self.lock:
+            return any(s.running for s in self.sessions.values())
+
     # -- agents, models, usage
 
     def agents(self):

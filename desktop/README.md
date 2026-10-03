@@ -16,8 +16,9 @@ launcher has its own ports, database, state directory and UI build.
   (the system prompt is this intro plus `.agents/skills/verticals-operator`, read at startup),
   `ui/assets/` (the agents' and models' marks). The conversation itself is drawn by the app
   (`web/src/lib/agentChat.ts`, `AgentConversation.vue`).
-- `macos/` — `Verticals.swift` (native window, WKWebView) and `bundle.py` (self-contained
-  `Verticals.app` + `.dmg`).
+- `macos/` — `Verticals.swift` (native window, WKWebView), `Updater.swift` (checks, downloads and
+  installs updates), `UpdateIndicator.swift` (the Update button in the title bar) and `bundle.py`
+  (self-contained `Verticals.app` + `.dmg`).
 
 The agent picker follows Enjoy's (strings, model artwork).
 
@@ -47,7 +48,7 @@ After step 1 above, on an Apple Silicon Mac with Homebrew `postgresql@16`, uv (P
 Xcode Command Line Tools:
 
 ```sh
-python3 desktop/macos/bundle.py     # -> desktop/dist/Verticals.app, .dmg and .zip
+python3 desktop/macos/bundle.py     # -> desktop/dist/Verticals.app, .dmg, .zip and -lite.zip
 python3 desktop/macos/bundle.py --version 0.4   # version in Info.plist (default 0.2)
 ```
 
@@ -66,15 +67,48 @@ quarantine (the app is ad-hoc signed, not notarized):
 
 A release is started by hand: Actions → desktop release → Run workflow (or
 `gh workflow run desktop-release.yml -f version=0.4`). An empty version bumps the last number of the
-latest release. `.github/workflows/desktop-release.yml` builds the UI and the app on a macOS runner
-and publishes release `v<version>` on the chosen commit with `Verticals.zip` and `Verticals.dmg`.
+latest release. First add the version to `desktop/releases.json`; the workflow stops without it:
 
-The app asks the GitHub API for the latest release at launch and from Verticals → Check for
-Updates…; a newer version is offered, never installed without a click. It downloads
-`Verticals.zip`, checks the bundle id, the version and the signature, quits (stopping the backend),
-swaps the bundle and opens again. Data in Application Support stays. This needs the repository to
-be public: the app sends no GitHub token. `-ReleasesAPI <url>` on the command line points the
-check elsewhere, for testing.
+```json
+[{"version": "0.4", "summary": "Goals can repeat every week", "notes": ["Pick Every week in a goal's repeat menu"]}]
+```
+
+`summary` is one line on what gets better for the person, written by hand: the app shows it in the
+title bar. Leave it empty for a release with fixes only; that one installs at quit without a word.
+`notes` list the changes. `.github/workflows/desktop-release.yml` builds the UI and the app on a
+macOS runner and publishes release `v<version>` on the chosen commit with `Verticals.zip`,
+`release.json` (the entry plus `min_macos`) and `Verticals.dmg`.
+
+Updates never interrupt work:
+
+- The app asks the GitHub API for the latest release at launch and every 6 hours. A newer one
+  downloads at once in the background into `updates/` in the state folder; an interrupted download
+  continues where it stopped. When the release's runtime (`pg/`, `python/`, `site/`, fingerprinted
+  in `Resources/RUNTIME` by `bundle.py`) is the one the installed app has, it takes
+  `Verticals-lite.zip`, a few MB without the runtime, and clones the runtime in from itself; the
+  signature check then proves the result is the release byte for byte, and anything off falls back
+  to `Verticals.zip`. `.pyc` files are built hash-based, so an unchanged runtime builds to the same
+  bytes; a new Python, PostgreSQL or dependency changes the fingerprint and the next update is the
+  whole app. The release workflow runs `desktop/macos/lite_check.py` against the previous release.
+  The zip is checked against the asset's sha256, then the bundle id, the version and the
+  signature. A failed background check shows nothing and comes back later (15 min, doubling up to
+  6 h).
+- A downloaded release with a `summary` shows a grey Update button in the title bar's right corner,
+  the summary on its left. The button opens the notes, Restart and Skip This Version. Nothing else
+  asks: ignored, the update installs when Verticals quits, and the next launch is the new version.
+- Restart waits while an agent is answering (`/__chat/busy`), sends the edits still waiting to be
+  saved, quits and opens the new version on the same page. A Restart lost to a crash installs at the
+  next launch from the files already downloaded.
+- Skip This Version deletes the download; the next newer release starts over.
+- Verticals → Check for Updates… answers in the same line, never in a window: the progress, then
+  "Verticals 0.4 is the latest version" or the error, which opens to its reason and Try Again. A
+  found update opens its card. The check also brings back a skipped version.
+- The state (`updates/state.json`) survives quits and crashes. An install that fails keeps the old
+  app and says why in the title bar.
+
+This needs the repository to be public: the app sends no GitHub token. For testing,
+`-ReleasesAPI <url>` points the check elsewhere and `-StateDir <path>` keeps the data apart (both
+also work as `defaults write` keys, so a relaunched app keeps them).
 
 The database survives an update three ways:
 
@@ -83,9 +117,9 @@ The database survives an update three ways:
   come up, does not serve the board, or has fewer rows in any table. Run it by hand on a copy of
   real data before a risky migration (Verticals quit, the folder is only read):
   `python3 desktop/macos/upgrade_check.py /Applications/Verticals.app desktop/dist/Verticals.app --state ~/Library/Application\ Support/Verticals`
-- The swap waits for PostgreSQL to stop (up to a minute, otherwise the update is cancelled and the
-  old app opens), then copies `postgres/` to `backups/<date>-<old version>/`; the last three stay.
-  Steps go to `update.log`.
+- The install waits for PostgreSQL to stop (up to a minute, otherwise it waits for the next quit),
+  then copies `postgres/` to `backups/<date>-<old version>/`; the last three stay. The new bundle
+  goes in with one atomic rename. Steps go to `update.log`.
 - Migrations run in one transaction (`verticals/db/runner.py`): a failing one changes nothing.
 
 To roll back, quit Verticals, move `postgres/` aside, copy a backup to `postgres/` and install the

@@ -17,6 +17,7 @@ import { store } from '../store'
 import type { DocDetail as DocDetailWire } from '../lib/api'
 import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
+import { onBeforeQuit } from '../lib/beforeQuit'
 import {
   handleBodyBeforeInput,
   handleBodyKeydown,
@@ -115,6 +116,7 @@ function finishBodyEdit(): void {
   paintBody()
 }
 
+onBeforeUnmount(onBeforeQuit(flushBodySave))
 onBeforeUnmount(() => void flushBodySave())
 
 // docs/COMMENTS_SPEC.md WP-B: this instance IS one doc's whole lifetime (this file's own header

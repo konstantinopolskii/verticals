@@ -303,6 +303,8 @@ def make_gateway(token, chat):
                 return self.chat_events()
             if self.command == "GET" and path == "/__chat/agents":
                 return self.send_json({"agents": chat.agents()})
+            if self.command == "GET" and path == "/__chat/busy":
+                return self.send_json({"busy": chat.busy()})
             if self.command == "GET" and path == "/__chat/frame":
                 page = parse_qs(urlparse(self.path).query).get("url", [""])[0]
                 return self.send_json({"framable": framable(page)})

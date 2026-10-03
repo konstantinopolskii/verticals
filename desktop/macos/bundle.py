@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a self-contained Verticals.app (Apple Silicon) and a .dmg around it.
 
-    python3 desktop/macos/bundle.py              # -> desktop/dist/Verticals.app, desktop/dist/Verticals.dmg
+    python3 desktop/macos/bundle.py              # -> desktop/dist/Verticals.app, .dmg, .zip and -lite.zip
     python3 desktop/macos/bundle.py --out DIR    # build elsewhere (e.g. while an older build runs)
     python3 desktop/macos/bundle.py --dmg-only   # repackage the existing app
     python3 desktop/macos/bundle.py --version 0.4   # app version (CI passes the release's)
@@ -14,6 +14,7 @@ Python 3.12, Xcode Command Line Tools, and the UI built into desktop/build/web (
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -30,6 +31,9 @@ BREW = Path("/opt/homebrew")
 PG_OPT = BREW / "opt/postgresql@16"
 PG_KEEP_BINS = ["postgres", "initdb", "pg_ctl"]
 PG_KEEP_MODULES = ["plpgsql", "dict_snowball", "pg_trgm"]
+# What rarely changes between releases: a lite update zip leaves these out, and the app completes it
+# from its own copy when Resources/RUNTIME matches (Updater.swift).
+RUNTIME_DIRS = ["pg", "python", "site"]
 PY_DROP = ["lib/python3.12/idlelib", "lib/python3.12/tkinter", "lib/python3.12/turtledemo",
            "lib/python3.12/ensurepip", "lib/python3.12/test", "lib/python3.12/config-3.12-darwin",
            "lib/python3.12/lib-dynload/_tkinter.cpython-312-darwin.so", "include", "share",
@@ -137,8 +141,18 @@ def copy_python():
     sh("uv", "pip", "install", "--quiet", "--python", python, "--target", RES / "site", "-r", REPO / "pyproject.toml")
     for p in (RES / "site").glob("bin"):
         shutil.rmtree(p)
+    for record in (RES / "site").glob("*.dist-info/RECORD"):
+        # uv writes these lines in no fixed order, and the bin/ scripts removed above carry the build
+        # machine's Python path: sorted and without them, an unchanged runtime builds to the same bytes.
+        lines = [line for line in record.read_text().splitlines() if not line.startswith("bin/")]
+        record.write_text("\n".join(sorted(lines)) + "\n")
     log("precompiling")
-    subprocess.run([python, "-m", "compileall", "-q", "-j0", RES / "python/lib/python3.12", RES / "site",
+    # Hash-based .pyc files with one recorded path, wherever the build runs, all rewritten (-f: some
+    # were cached at import with the build path): an unchanged runtime builds to the same bytes.
+    # Python puts the real path back when it loads them.
+    subprocess.run([python, "-m", "compileall", "-q", "-f", "-j0", "--invalidation-mode", "unchecked-hash",
+                    "-s", RES, "-p", "Verticals.app/Contents/Resources",
+                    RES / "python/lib/python3.12", RES / "site",
                     RES / "verticals", RES / "desktop"], check=False)
 
 
@@ -205,8 +219,8 @@ def check_postgres(bindir):
 def build_launcher():
     log("launcher")
     (APP / "Contents/MacOS").mkdir(parents=True, exist_ok=True)
-    sh("swiftc", "-O", "-target", "arm64-apple-macos13.0", "-o", APP / "Contents/MacOS/Verticals",
-       ROOT / "macos/Verticals.swift")
+    sh("swiftc", "-O", "-parse-as-library", "-target", "arm64-apple-macos13.0", "-o", APP / "Contents/MacOS/Verticals",
+       *(ROOT / "macos" / name for name in ("Verticals.swift", "Updater.swift", "UpdateIndicator.swift")))
     (APP / "Contents/Info.plist").write_text(f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -236,8 +250,22 @@ def sign_all():
             with open(path, "rb") as f:
                 if f.read(4) in macho:
                     sign(path)
+    (RES / "RUNTIME").write_text(runtime_fingerprint() + "\n")
     sh("codesign", "--force", "--sign", "-", APP)
     sh("codesign", "--verify", "--deep", "--strict", APP)
+
+
+def runtime_fingerprint():
+    """One hash over every file and link of the runtime dirs, as signed: equal means byte-identical."""
+    total = hashlib.sha256()
+    for top in RUNTIME_DIRS:
+        for path in sorted((RES / top).rglob("*")):
+            rel = path.relative_to(RES).as_posix()
+            if path.is_symlink():
+                total.update(f"L {rel} {os.readlink(path)}\n".encode())
+            elif path.is_file():
+                total.update(f"F {rel} {hashlib.sha256(path.read_bytes()).hexdigest()}\n".encode())
+    return total.hexdigest()[:16]
 
 
 def make_dmg():
@@ -255,13 +283,23 @@ def make_dmg():
     return dmg
 
 
-def make_zip():
-    """What the app downloads to update itself (see Verticals.swift)."""
-    log("zip")
-    archive = DIST / "Verticals.zip"
-    archive.unlink(missing_ok=True)
-    sh("ditto", "-c", "-k", "--keepParent", APP, archive)
-    return archive
+def make_zips():
+    """What the app downloads to update itself (Updater.swift): the whole app, and a lite one without
+    the runtime dirs, which an installed app with the same RUNTIME completes from its own copy."""
+    log("zips")
+    full, lite = DIST / "Verticals.zip", DIST / "Verticals-lite.zip"
+    for archive in (full, lite):
+        archive.unlink(missing_ok=True)
+    sh("ditto", "-c", "-k", "--keepParent", APP, full)
+    stage = DIST / "lite"
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir()
+    sh("ditto", APP, stage / APP.name)
+    for top in RUNTIME_DIRS:
+        shutil.rmtree(stage / APP.name / "Contents/Resources" / top)
+    sh("ditto", "-c", "-k", "--keepParent", stage / APP.name, lite)
+    shutil.rmtree(stage)
+    return full, lite
 
 
 INSTALL_NOTE = """Verticals — установка
@@ -286,8 +324,9 @@ INSTALL_NOTE = """Verticals — установка
 MCP для своих агентов, пока приложение открыто: http://127.0.0.1:8281/mcp
 (токен и готовый конфиг: ~/Library/Application Support/Verticals/mcp.json)
 
-Обновления: при запуске Verticals проверяет новую версию на GitHub и предлагает обновиться.
-Вручную: меню Verticals → Check for Updates…
+Обновления скачиваются сами и ставятся, когда вы закрываете Verticals; справа в полосе
+заголовка видно, что стало лучше, и кнопка Update, а в ней Restart. Вручную: меню Verticals →
+Check for Updates…
 
 Требуется Mac на Apple Silicon (M1 и новее), macOS 13+.
 """
@@ -309,9 +348,10 @@ def main():
     sign_all()
     check_postgres(bindir)
     dmg = make_dmg()
-    archive = make_zip()
+    full, lite = make_zips()
     size = lambda p: sh("du", "-sh", p).split()[0]
-    log(f"done: {APP} {VERSION} ({size(APP)}), {dmg} ({size(dmg)}), {archive} ({size(archive)})")
+    log(f"done: {APP} {VERSION} ({size(APP)}), {dmg} ({size(dmg)}), {full} ({size(full)}), {lite} ({size(lite)}),"
+        f" runtime {(RES / 'RUNTIME').read_text().strip()}")
 
 
 if __name__ == "__main__":
