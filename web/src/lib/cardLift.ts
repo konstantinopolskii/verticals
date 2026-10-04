@@ -13,6 +13,10 @@
 // the clip line the clip shaves the colour's rim) and 4 px an end (plus the 2 px rise), so a wide or tall card grows
 // less and never reaches a neighbour's words.
 //
+// Leaving, the piece settles as one (KK, 4 Oct 2026, from a mockup): after LEAVE_GRACE_MS its colour, its size and its
+// subgoals go back together on one curve, and it keeps its layer until it has landed (`goal-card--settling`), so a
+// neighbour never covers its coloured edge on the way.
+//
 // A click keeps the lift, so a lifted card that opens stays lifted (KK: "if you hovered such big unselected card and
 // then clicked on it to open, scaling shouldn't disappear"); the opened card lifts like any other and follows its
 // column as it widens. Opening moves the card from under a still pointer, and the browser calls that a leave: after a
@@ -24,6 +28,7 @@
 import { onBeforeUnmount, ref, watch, type Ref } from 'vue'
 
 const LEAVE_GRACE_MS = 60 // the pointer crossing the gap between the card and its list must not drop the lift
+const SETTLE_MS = 240 // the way back (--motion-lift-out, 220 ms) and a frame: the piece keeps its layer until it lands
 const HOLD_MOVE_PX = 3 // after a click, the pointer has moved on once it is this far from where it clicked
 const MAX_SCALE = 1.06
 const SIDE_GROWTH_PX = 7 // most a side may grow: the column gives 8 px of room past the card's column
@@ -69,6 +74,7 @@ function wake(event: PointerEvent): void {
 }
 export const LIFTED_CLASS = 'goal-card--lifted'
 export const LIFTED_LIST_CLASS = 'goal-card__children--lifted'
+const SETTLING_CLASSES = ['goal-card--settling', 'goal-card__children--settling']
 /** On a card lifted by a click, and its list: its lift rides the move (goalCard.css), where any other lift waits. */
 const HELD_ATTR = 'data-lift-held'
 
@@ -112,12 +118,20 @@ export function useCardLift(options: {
   pinned?: () => boolean
 }) {
   const lifted = ref(false)
+  const settling = ref(false) // lifted no more, on its way back: still on its own layer
   const cardStyle = ref<LiftStyle>({})
   const listStyle = ref<LiftStyle>({})
   let leaveTimer: ReturnType<typeof setTimeout> | null = null
+  let settleTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTimers(): void {
     if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null }
+    if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null }
+  }
+  function settle(on: boolean): void {
+    if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null }
+    settling.value = on
+    if (on) settleTimer = setTimeout(() => { settleTimer = null; settling.value = false }, SETTLE_MS)
   }
 
   function measure(): boolean {
@@ -146,6 +160,7 @@ export function useCardLift(options: {
     if ((holder !== null && holder !== me) || quiet) { waiting.add(retry); return }
     if (!lifted.value && anyMenuOpen()) { whenMenuCloses(retry); return }
     if (lifted.value || !options.enabled() || !measure()) return
+    settle(false)
     lifted.value = true
   }
 
@@ -192,7 +207,9 @@ export function useCardLift(options: {
     if (held) return // the card moved, not the pointer: wait for the pointer to move on
     leaveTimer = setTimeout(() => {
       leaveTimer = null
+      if (!lifted.value) return
       lifted.value = false
+      settle(true)
     }, LEAVE_GRACE_MS)
   }
 
@@ -231,12 +248,14 @@ export function useCardLift(options: {
     window.removeEventListener('pointermove', moveOn)
     if (holder === me) releaseHold()
     mark(false)
-    if (!lifted.value) return
+    const away = lifted.value || settling.value
+    settle(false)
+    if (!away) return
     lifted.value = false
     for (const el of [options.card(), options.list.value]) {
       if (!el) continue
       el.style.setProperty('transition', 'none', 'important') // outranks the hover rules' !important transitions
-      el.classList.remove(LIFTED_CLASS, LIFTED_LIST_CLASS)
+      el.classList.remove(LIFTED_CLASS, LIFTED_LIST_CLASS, ...SETTLING_CLASSES)
       requestAnimationFrame(() => requestAnimationFrame(() => el.style.removeProperty('transition')))
     }
   }
@@ -279,5 +298,5 @@ export function useCardLift(options: {
     if (holder === me) releaseHold()
   })
 
-  return { lifted, cardStyle, listStyle, enter, leave, drop, atRest, hold }
+  return { lifted, settling, cardStyle, listStyle, enter, leave, drop, atRest, hold }
 }

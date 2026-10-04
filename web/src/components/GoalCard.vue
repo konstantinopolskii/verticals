@@ -369,6 +369,7 @@ const inWindow = computed(() => props.columnVertical === 'window')
 /* Hover lift (KK, 27 Sep 2026): a top-level goal and its subtasks rise as one piece, `lib/cardLift.ts`. */
 const {
   lifted,
+  settling: liftSettling,
   cardStyle: liftCardStyle,
   listStyle: liftListStyle,
   enter: liftEnter,
@@ -510,6 +511,7 @@ function onRowKeydown(event: KeyboardEvent) {
       [`goal-card--lit-${familyLit}`]: !!familyLit,
       'goal-card--ancestor-hover': !familyLit && isChainHovered && !isInsideOpen,
       'goal-card--lifted': lifted,
+      'goal-card--settling': liftSettling,
       'carryover-ghost': ghost,
     }"
     :data-goal-id="id"
@@ -623,6 +625,7 @@ function onRowKeydown(event: KeyboardEvent) {
     class="goal-card__children subgoal-recursive-list"
     :class="{
       'goal-card__children--lifted': lifted,
+      'goal-card__children--settling': liftSettling,
       'goal-card__children--open': isInlineDetailHost,
       'goal-card__children--path': isPathLine && depth > 0,
       'goal-card__children--family': isPathLine || (isInlineDetailHost && familyDepth >= 0),

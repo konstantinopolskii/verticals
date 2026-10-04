@@ -6,7 +6,7 @@
   box-shadow: none;
   background-color: var(--color-bg);
   transition: background-color var(--motion-hover) cubic-bezier(.165, .84, .44, 1),
-    transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1);
+    transform var(--motion-lift-out) var(--vt-ease-large);
 }
 /* A goal shows its subgoals a little closer under it (KK, 27 Sep 2026: "Bottom padding for the parent tasks should be
    just a little bit smaller to optically make subgoals closer"): 4 px under its words instead of the card's 6. */
@@ -16,8 +16,11 @@
 .goal-card.goal-card--detail-open,
 .goal-card.goal-card--detail-open:hover {
   border-radius: 8px; /* one highlight shape (KK, 27 Sep 2026): the colour is the row's layer, see below */
+  /* its size settles with its steps when the hand leaves: without it the goal and its colour jumped back in one frame
+     while the steps eased (KK, 4 Oct 2026: "it goes away buggy way") */
   transition: background-color var(--goal-focus-motion-duration, 360ms)
-    var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)) !important;
+    var(--goal-focus-motion-ease, cubic-bezier(.22, 1, .36, 1)),
+    transform var(--motion-lift-out) var(--vt-ease-large) !important;
 }
 /* An open goal never scrolls inside itself (KK, 27 Sep 2026: "We shouldn't have the scroll inside cards"): it is one
    piece in the column, title, facts, steps and notes, and the column scrolls. Its notes are the last thing in its
@@ -79,7 +82,7 @@
 .goal-card.goal-card--ancestor-hover,
 .goal-card.goal-card--open-related {
   background-color: transparent !important;
-  transition: background-color 0s, transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1) !important;
+  transition: background-color 0s, transform var(--motion-lift-out) var(--vt-ease-large) !important;
 }
 .goal-card > .goal-card__row { isolation: isolate; }
 .goal-card > .goal-card__row::before {
@@ -96,9 +99,15 @@
   opacity: 0;
   transition: opacity var(--motion-hover) cubic-bezier(.165, .84, .44, 1);
 }
-.goal-card:is(:hover, .goal-card--menu-open, .goal-card--landed-hover, .goal-card--ancestor-hover, .goal-card--open-related, .goal-card--detail-open) > .goal-card__row::before {
+/* A lifted piece keeps its colour until it settles (lib/cardLift.ts), then the colour goes back with the size: the same
+   time and curve, from the same moment (KK, 4 Oct 2026, from a mockup: the colour used to leave first, 62% gone when
+   the goal began to shrink). */
+.goal-card:is(:hover, .goal-card--menu-open, .goal-card--landed-hover, .goal-card--ancestor-hover, .goal-card--open-related, .goal-card--detail-open, .goal-card--lifted) > .goal-card__row::before {
   opacity: var(--goal-light-tint);
   transition: none;
+}
+.goal-card.goal-card--settling > .goal-card__row::before {
+  transition: opacity var(--motion-lift-out) var(--vt-ease-large);
 }
 /* While a menu is open the board holds still (`lib/cardLift.ts`): a card the pointer crosses on the way to a submenu or
    out of the menu doesn't light up. What was lit when the menu opened stays lit. */
@@ -128,16 +137,24 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 /* A lifted piece may reach a few px over its neighbours: its colour is solid there (the wash laid on the board's own
    background), so over a coloured neighbour it reads as one colour, not a darker band. */
 .goal-card.goal-card--lifted > .goal-card__row::before,
-.goal-card__children--lifted .goal-card > .goal-card__row::before {
+.goal-card__children--lifted .goal-card > .goal-card__row::before,
+.goal-card.goal-card--settling > .goal-card__row::before,
+.goal-card__children--settling .goal-card > .goal-card__row::before {
   background: linear-gradient(var(--goal-hover-background), var(--goal-hover-background)), var(--color-bg);
+}
+/* On its way back the piece stays over its neighbours until it lands, under one that lifts meanwhile. */
+.goal-card.goal-card--settling,
+.goal-card__children--settling {
+  position: relative;
+  z-index: 5;
 }
 .goal-card.goal-card.goal-card--lifted {
   transition: background-color 0s, transform var(--motion-lift-in) cubic-bezier(.2, 0, 0, 1) !important;
 }
 .goal-card__children {
-  transition: transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1);
+  transition: transform var(--motion-lift-out) var(--vt-ease-large);
 }
-.goal-card__children.goal-card__children--lifted { transition-duration: var(--motion-lift-in); }
+.goal-card__children.goal-card__children--lifted { transition: transform var(--motion-lift-in) var(--vt-ease-medium); }
 .goal-card__text {
   flex: 1 1 auto;
   min-width: 0;
@@ -731,7 +748,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
    whose colour runs down to the end of its piece and hid the steps, "Add…" and notes for as long as the pointer stayed
    on it (KK, 29 Sep 2026: "When the task is opened I have this empty bug"). */
 .pattern-vertical-board--family .goal-card:is([data-light], [data-holding]) > .goal-card__row,
-.pattern-vertical-board--family .goal-card[data-light] + .goal-card__children--open:not(.goal-card__children--lifted) {
+.pattern-vertical-board--family .goal-card[data-light] + .goal-card__children--open:not(.goal-card__children--lifted, .goal-card__children--settling) {
   position: relative;
   z-index: 2;
 }
