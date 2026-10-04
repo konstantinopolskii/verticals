@@ -68,7 +68,7 @@ const newestFirst = computed(() => [...props.goals].sort((a, b) => (b.anchorDate
 const root = ref<HTMLElement | null>(null)
 const place = ref<HTMLElement | null>(null)
 const mascot = ref<InstanceType<typeof CarriedMascot> | null>(null)
-const { hold, pinned, gap, lift, lit, visible, family, button, opened, more: onMore, openPlan, enter, leave } = useCarriedFilter({
+const { hold, pinned, gap, circle, lift, lit, visible, family, button, opened, more: onMore, openPlan, enter, leave } = useCarriedFilter({
   vertical: () => props.vertical,
   plans: () => newestFirst.value,
   box: root,
@@ -86,7 +86,7 @@ const { hold, pinned, gap, lift, lit, visible, family, button, opened, more: onM
 const words = computed(() => {
   const plans = family.value
   if (!plans) return null
-  if (!plans.length) return 'No plans for this goal'
+  if (!plans.length) return 'No due plans for this goal'
   return visible.value.length === plans.length ? "That's all for this goal" : null
 })
 
@@ -124,7 +124,7 @@ function cardProps(goal: GoalCardData) {
       <KCardStack dense data-section="carried">
         <GoalCard v-for="goal in visible" :key="goal.id" v-bind="cardProps(goal)" />
       </KCardStack>
-      <CarriedMascot ref="mascot" :on="gap && !openPlan && words !== null" :words="words" />
+      <CarriedMascot ref="mascot" :on="gap && !openPlan && words !== null" :words="words" :circle="circle" />
       <button v-if="button" type="button" class="carried-group__more" data-role="carried-more" @click="onMore">
         {{ button }}<AppIcon name="chevron-down" :size="12" :class="{ 'carried-group__chevron--open': opened }" />
       </button>

@@ -187,13 +187,35 @@ def test_a_goal_without_plans_in_its_own_column_leaves_the_header_and_see_all(ui
     assert not _lit(group)
     assert abs(place.bounding_box()["height"] - kept) <= 2
     expect(page.locator(GAP)).to_have_class(re.compile("carried-gap--on"))
-    expect(page.locator(f"{GAP} [data-role='carried-words']")).to_have_text("No plans for this goal")
+    expect(page.locator(f"{GAP} [data-role='carried-words']")).to_have_text("No due plans for this goal")
     box, see_all = group.bounding_box(), more.bounding_box()
     assert abs(box["height"] - kept) <= 2, "the box fills its place"
     assert box["y"] + box["height"] - (see_all["y"] + see_all["height"]) <= 8, "See all is the box's last line"
     more.click()
     expect(_carried_cards(group)).to_have_count(total)
     expect(more).to_have_text("Show fewer")
+
+
+def test_a_room_too_low_for_the_mascot_shows_its_words_alone(ui_f2: UiSession) -> None:
+    """KK 2026-10-04 ("Why empty? Simply show text then"): a goal of another column made the box short, showing its one
+    plan; a goal under the box with nothing due keeps that short place, and the room left is too low for the mascot's
+    circle, so its words stand there alone."""
+    with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
+        value, _plan = _value_with_plan(conn, "SYN value with one carried plan", "#278dea")
+        bare = goals.create(conn, owner="t1", title="SYN goal with nothing due", vertical="year", anchor_date=date.today()).goal.id
+        _others(conn)
+    page = ui_f2.page
+    _goto_today(page, ui_f2.base_url)
+    group = page.locator(GROUP)
+    page.locator(_row(value)).hover()
+    expect(_carried_cards(group)).to_have_count(1)
+    page.wait_for_timeout(400)
+    page.locator(_row(bare)).hover()
+    expect(_carried_cards(group)).to_have_count(0)
+    expect(page.locator(GAP)).to_have_class(re.compile("carried-gap--on"))
+    expect(page.locator(f"{GAP} [data-role='carried-words']")).to_have_text("No due plans for this goal")
+    expect(page.locator(f"{GAP} [data-role='carried-words']")).to_be_visible()
+    expect(page.locator(f"{GAP} [data-role='carried-mascot']")).to_be_hidden()
 
 
 def test_the_filter_stays_on_its_way_and_ends_off_it(ui_f2: UiSession) -> None:

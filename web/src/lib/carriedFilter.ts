@@ -28,7 +28,7 @@ export const SHOWN = 3
 const DWELL_MS = 250 // the pointer rests on a goal this long before a filtered box follows it
 const LEAVE_MS = 250 // the pointer is out of the filter's way this long before the box returns to everything
 const UNPIN_MS = 250 // a slip out of the box over a gap doesn't count as leaving it
-const MIN_GAP = 52 // the room the filter leaves holds the mascot from this height, or from what its words need
+const MIN_GAP = 52 // the room the filter leaves holds the mascot's circle from this height, or from what it needs
 
 const COLUMN = '.pattern-vertical-board__column[data-vertical]'
 
@@ -105,15 +105,16 @@ export function useCarriedFilter(o: {
   plans: () => GoalCardData[]
   box: Ref<HTMLElement | null>
   place: Ref<HTMLElement | null>
-  /** The mascot's room inside the box, and the height the mascot needs there. */
-  room?: () => { el: HTMLElement; need: number } | null
+  /** The mascot's room inside the box, and the heights the mascot needs there: with its circle, and its words alone. */
+  room?: () => { el: HTMLElement; need: { circle: number; words: number } } | null
 }) {
   track()
   const filter = ref<Filter | null>(null)
   const hold = ref(0) // px: the place the box keeps while a goal under it is pointed at; 0 when it keeps none
   const expanded = ref(false)
   const pinned = ref(false) // the pointer is in the box
-  const gap = ref(false) // the empty place is tall enough for the mascot
+  const gap = ref(false) // the room the filter leaves is tall enough for the mascot's words
+  const circle = ref(false) // ... and for its circle above them (KK 2026-10-04: where it isn't, the words stand alone)
   const dwelling = ref(false)
   const lift = ref<string | null>(null)
 
@@ -176,8 +177,9 @@ export function useCarriedFilter(o: {
     const toBox = heightOf(box)
     const toPlace = heightOf(place)
     const room = o.room?.() ?? null
-    gap.value = !!filter.value && hold.value > 0
-      && (room ? heightOf(room.el) >= Math.max(MIN_GAP, room.need) : hold.value - toBox >= MIN_GAP)
+    const space = room ? heightOf(room.el) : hold.value - toBox
+    gap.value = !!filter.value && hold.value > 0 && space >= (room ? room.need.words : MIN_GAP)
+    circle.value = gap.value && space >= Math.max(MIN_GAP, room ? room.need.circle : 0)
     ease(box, fromBox, toBox)
     ease(place, fromPlace, toPlace, Math.abs(fromBox - toBox) >= 1)
   }
@@ -259,6 +261,7 @@ export function useCarriedFilter(o: {
     clearDwell()
     hold.value = 0
     gap.value = false
+    circle.value = false
     const card = o.place.value?.querySelector<HTMLElement>(`[data-goal-id="${CSS.escape(plan.id)}"]`) ?? null
     const scroller = scrollerOf(card)
     if (!card || !scroller) return
@@ -332,7 +335,7 @@ export function useCarriedFilter(o: {
   })
 
   return {
-    filter, hold, expanded, pinned, gap, lift, lit, visible, family, button, opened, more, openPlan,
+    filter, hold, expanded, pinned, gap, circle, lift, lit, visible, family, button, opened, more, openPlan,
     enter, leave,
   }
 }

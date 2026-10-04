@@ -1,14 +1,15 @@
 <script setup lang="ts">
 // The mascot of the carried box's empty room (docs/design-handoff S4.P3, KK 2026-10-02): when the box keeps its place and
 // the filter leaves part of it empty, the space is not to be filled. A faint dashed circle with the mascot's line stands
-// there, and the line looks at the pointer. It says why the box is emptier ("No plans for this goal": KK 2026-10-04, its
-// shy openers like "Ignore me" didn't explain and frustrated). A click makes it blink (the line closes into a dot), hop
-// and squash, and say what it did ("Layout fix deployed"), then ask you to stop. Mouse only: it has no keyboard stop and
-// no label, and nothing it does touches the board.
+// there, and the line looks at the pointer. It says why the box is emptier ("No due plans for this goal": KK 2026-10-04,
+// its shy openers like "Ignore me" didn't explain and frustrated); where the room is too low for the circle, its words
+// stand alone (KK, same day: "Why empty? Simply show text then"). A click makes it blink (the line closes into a dot),
+// hop and squash, and say what it did ("Layout fix deployed"), then ask you to stop. Mouse only: it has no keyboard stop
+// and no label, and nothing it does touches the board.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { reducedMotion } from '../lib/motion'
 
-const props = defineProps<{ on: boolean; words: string | null }>()
+const props = defineProps<{ on: boolean; words: string | null; circle: boolean }>()
 
 const POKES = [
   'Layout fix deployed', 'Edge case, handled', 'Please stop clicking', 'Don\'t touch me, please', 'I am focused on the layout',
@@ -16,6 +17,7 @@ const POKES = [
 ]
 const LINE = 10.8 // px: the line is this tall; blinking it shrinks it to a dot as wide as it is
 const DOT = 1.8
+const ORB = 29 // px: the circle, as in the styles below
 
 const poked = ref<string | null>(null)
 const text = computed(() => poked.value ?? props.words ?? '')
@@ -25,11 +27,10 @@ const line = ref<HTMLElement | null>(null)
 const words = ref<HTMLElement | null>(null)
 let pokes = 0
 
-/** The height the mascot needs, its words included: the box shows it only where it fits. */
-function need(): number {
-  const o = orb.value
-  const w = words.value
-  return o && w ? o.offsetHeight + 4 + w.offsetHeight + 8 : 52
+/** The heights the mascot needs: with its circle, and its words alone. */
+function need(): { circle: number; words: number } {
+  const w = words.value?.offsetHeight ?? 16
+  return { circle: ORB + 4 + w + 8, words: w }
 }
 defineExpose({ need })
 
@@ -95,9 +96,9 @@ function poke(): void {
 </script>
 
 <template>
-  <div ref="gap" class="carried-gap" :class="{ 'carried-gap--on': on }" data-role="carried-gap" aria-hidden="true">
+  <div ref="gap" class="carried-gap" :class="{ 'carried-gap--on': on, 'carried-gap--words': !circle }" data-role="carried-gap" aria-hidden="true">
     <div class="carried-gap__mascot">
-      <div ref="orb" class="carried-gap__orb" data-role="carried-mascot" @click="poke"><i ref="line"></i></div>
+      <div v-show="circle" ref="orb" class="carried-gap__orb" data-role="carried-mascot" @click="poke"><i ref="line"></i></div>
       <p ref="words" class="carried-gap__words" data-role="carried-words">{{ text }}</p>
     </div>
   </div>
@@ -129,6 +130,8 @@ function poke(): void {
   pointer-events: auto;
   transition: opacity 180ms cubic-bezier(.2, 0, 0, 1), transform 240ms var(--vt-ease-large);
 }
+/* Words alone, in a room too low for the circle: they need no air above and below. */
+.carried-gap--words .carried-gap__mascot { padding-block: 0; }
 .carried-gap__orb {
   position: relative;
   flex: none;
