@@ -756,6 +756,27 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 /* The open card turns off as one piece while the pointer swaps the light (flow 4's frame 6): its colour stays under the
    veil, with its steps, "Add…" and notes. */
 .pattern-vertical-board--family .goal-card.goal-card--detail-open:not([data-light]) > .goal-card__row::before { opacity: 1; }
+/* The light swapping under the pointer moves the goals it takes or leaves through the veil's own look, in the swap's
+   time, instead of across the veil in one frame (KK, 4 Oct 2026, a recording: the board flipped from one family to the
+   other and back on every hover; lib/cardFamily.ts). A goal leaving stays over the veil while it turns to the veil's
+   look, the board's white over it and half its colour gone, then goes under the veil, where it looks the same; a goal
+   coming in rises over the veil in that look and turns to its own. An open goal moves with its list, as one piece. */
+@keyframes goal-light-in { from { opacity: var(--goal-off-opacity); filter: grayscale(var(--goal-off-grey)); } }
+@keyframes goal-light-out { to { opacity: var(--goal-off-opacity); filter: grayscale(var(--goal-off-grey)); } }
+.pattern-vertical-board--family .goal-card[data-light-move='in'] > .goal-card__row,
+.pattern-vertical-board--family .goal-card[data-light-move='in'] + .goal-card__children--open {
+  animation: goal-light-in var(--vt-light-ms) var(--vt-light-ease) both;
+}
+.pattern-vertical-board--family .goal-card[data-light-move='out'] > .goal-card__row,
+.pattern-vertical-board--family .goal-card[data-light-move='out'] + .goal-card__children--open {
+  position: relative;
+  z-index: 2;
+  animation: goal-light-out var(--vt-light-ms) var(--vt-light-ease) both;
+}
+.pattern-vertical-board--family .goal-card[data-light-move='out'] > .goal-card__row::before {
+  transition: opacity var(--vt-light-ms) var(--vt-light-ease);
+}
+.pattern-vertical-board--family .goal-card__children--open > .goal-card[data-light-move] > .goal-card__row { animation: none; }
 
 /* One edge in the wide column: a level stepped through is a step-size line on top (KK, 27 Sep 2026: "the parent of this
    subgoal should be size of a subgoal (so it will work as breadcrumb)"), every level stands on the column's one edge,

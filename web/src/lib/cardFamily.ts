@@ -4,12 +4,14 @@
 // `GoalCard.vue` when flow 4 took it past the 750-line module cap (ARCHITECTURE.md S-90a), in the shape of
 // `inlineTitleEdit.ts`: the component keeps its template bindings, this module owns the logic behind them.
 
-import { computed, nextTick, onBeforeUnmount } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { store } from '../store'
 import type { GoalCardData } from '../types'
 import { DEEPEST } from './familyView'
 import { familyMoving } from './familyMotion'
 import { curve, reducedMotion } from './motion'
+
+const LIGHT_SWAP_MS = 150 // a swap under the pointer: goalCard.css `--light-fast`
 
 export function useCardFamily(props: {
   readonly id: string
@@ -86,6 +88,19 @@ export function useCardFamily(props: {
   /** The open family's light on this goal (`lib/familyView.ts`); null while nothing is open, and for a goal turned off,
    *  which the board's veil covers: opening a goal re-renders its family, not the whole board. */
   const familyLit = computed(() => store.familyLight.value?.get(props.id) ?? null)
+  /* The light swapping under the pointer (a goal open, the hand resting on one outside its family, and back) moves this
+     goal in or out of it through the veil's own look, in the swap's time, instead of across the veil in one frame (KK,
+     4 Oct 2026, a recording: the board flipped from one family to the other and back on every hover). Only the goals
+     that change move: the veil itself, which the opening fades as one layer, stays one layer (goalCard.css). */
+  const lightMove = ref<'in' | 'out' | null>(null)
+  let lightMoveTimer: ReturnType<typeof setTimeout> | null = null
+  watch(familyLit, (now, was) => {
+    if (!store.state.lightFast || !now === !was) return
+    lightMove.value = now ? 'in' : 'out'
+    if (lightMoveTimer !== null) clearTimeout(lightMoveTimer)
+    lightMoveTimer = setTimeout(() => { lightMoveTimer = null; lightMove.value = null }, LIGHT_SWAP_MS + 20)
+  })
+  onBeforeUnmount(() => { if (lightMoveTimer !== null) clearTimeout(lightMoveTimer) })
   /* An open goal always has a list: its steps end with "Add…", and its notes follow them inside the same piece. */
   const showChildren = computed(() => isInlineDetailHost.value || isPathLine.value || (listKids.value.length > 0 && (
     inWideColumn.value
@@ -158,6 +173,6 @@ export function useCardFamily(props: {
 
   return {
     isInlineDetailHost, isOpenRelated, inWideColumn, isFocus, isInsideOpen, familyDepth, isPathLine, isDeepestStep,
-    familyKids, listKids, familyLit, showChildren, onOpenDetail, growList, foldList,
+    familyKids, listKids, familyLit, lightMove, showChildren, onOpenDetail, growList, foldList,
   }
 }

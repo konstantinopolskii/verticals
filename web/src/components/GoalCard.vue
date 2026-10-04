@@ -118,7 +118,7 @@ function onToggle(value: boolean) {
    further off (flow 4, `lib/cardFamily.ts`). */
 const {
   isInlineDetailHost, isOpenRelated, isFocus, isInsideOpen, familyDepth, isPathLine, isDeepestStep,
-  familyKids, listKids, familyLit, showChildren, onOpenDetail, growList, foldList,
+  familyKids, listKids, familyLit, lightMove, showChildren, onOpenDetail, growList, foldList,
 } = useCardFamily(props, rootElement)
 
 function onTitleClick(event: MouseEvent) {
@@ -517,6 +517,7 @@ function onRowKeydown(event: KeyboardEvent) {
     :data-goal-id="id"
     :data-row-key="[...chain, id].join('/') + (ghost ? '~' : '')"
     :data-light="familyLit ?? undefined"
+    :data-light-move="lightMove ?? undefined"
     :data-filter-context="filterContext ? true : undefined"
     :style="[cardStyle, liftCardStyle]"
     :data-parent-id="parentId ?? undefined"
