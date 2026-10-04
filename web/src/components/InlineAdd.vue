@@ -77,7 +77,7 @@ function onBlur() {
 .column-add-row {
   display: flex;
   width: 100%;
-  height: 34px;
+  min-height: 34px;
   min-width: 0;
   box-sizing: border-box;
   margin: 0;
