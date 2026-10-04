@@ -44,15 +44,23 @@ function releaseHold(): void {
   retries.forEach((retry) => retry())
 }
 
-/* A family's move takes the lifts off inside its own movement (`lib/familyMotion.ts`): the move reads the lifted card
+/* A family's move takes the other lifts off inside its own movement (`lib/familyMotion.ts`): it reads a lifted card
    where it stands and lands it at rest, so a lift that came back after the move was a second movement, 6-9 px at
    430 ms (the motion trace, 3 Oct 2026). Then nothing lifts until the hand moves: what slid under a still pointer is
-   not what the hand pointed at. */
+   not what the hand pointed at. The card the hand clicked keeps its lift through the move (KK, 4 Oct 2026: "keeping
+   it scaled"): the move reads it lifted and lands it lifted at its new size, its scale measured again for that size
+   (`refreshLifts`) before the move reads where it lands, so the lift changes inside the one movement. */
 const releases = new Set<() => void>()
+const refreshers = new Set<() => void>()
 let quiet: { x: number; y: number } | null = null
 export function releaseLifts(at: { x: number; y: number } | null): void {
   quiet = at ?? (Number.isNaN(pointer.x) ? null : { ...pointer })
   releases.forEach((release) => release())
+}
+/** Measures every lifted card again for the size it has now and writes its lift onto it at once, not on Vue's next
+ *  render: the move reads where things land right after the change. */
+export function refreshLifts(): void {
+  refreshers.forEach((refresh) => refresh())
 }
 function wake(event: PointerEvent): void {
   if (!quiet || Math.hypot(event.clientX - quiet.x, event.clientY - quiet.y) < HOLD_MOVE_PX) return
@@ -61,6 +69,8 @@ function wake(event: PointerEvent): void {
 }
 export const LIFTED_CLASS = 'goal-card--lifted'
 export const LIFTED_LIST_CLASS = 'goal-card__children--lifted'
+/** On a card lifted by a click, and its list: its lift rides the move (goalCard.css), where any other lift waits. */
+const HELD_ATTR = 'data-lift-held'
 
 /* A goal's "…" menu hangs from its dots (KK, 27 Sep 2026: "it jumps here and there if i click on menu icon"). Moving
    into the menu is leaving the card, so the card used to drop its lift under the open menu, the dots moved, and the
@@ -186,10 +196,19 @@ export function useCardLift(options: {
     }, LEAVE_GRACE_MS)
   }
 
+  function mark(on: boolean): void {
+    for (const el of [options.card(), options.list.value]) {
+      if (on) el?.setAttribute(HELD_ATTR, '')
+      else el?.removeAttribute(HELD_ATTR)
+    }
+  }
+  watch(lifted, (now) => { if (!now) mark(false) })
+
   function hold(event: MouseEvent): void {
     if (!lifted.value) return
     held = { x: event.clientX, y: event.clientY }
     holder = me
+    mark(true)
     window.addEventListener('pointermove', moveOn, { passive: true })
   }
 
@@ -211,6 +230,7 @@ export function useCardLift(options: {
     held = null
     window.removeEventListener('pointermove', moveOn)
     if (holder === me) releaseHold()
+    mark(false)
     if (!lifted.value) return
     lifted.value = false
     for (const el of [options.card(), options.list.value]) {
@@ -232,10 +252,24 @@ export function useCardLift(options: {
     clickHost?.addEventListener('click', hold, true)
   }, { flush: 'post' })
 
-  releases.add(drop)
+  const release = (): void => { if (holder !== me) drop() } // the clicked card keeps its lift through the move
+  releases.add(release)
+  const refresh = (): void => {
+    if (!lifted.value || !measure()) return
+    if (holder === me) mark(true) // the open card's list may be a new element
+    for (const [el, style] of [[options.card(), cardStyle.value], [options.list.value, listStyle.value]] as const) {
+      if (!el) continue
+      for (const [name, value] of Object.entries(style)) {
+        if (name.startsWith('--')) el.style.setProperty(name, value)
+        else if (name === 'transformOrigin') el.style.transformOrigin = value
+      }
+    }
+  }
+  refreshers.add(refresh)
 
   onBeforeUnmount(() => {
-    releases.delete(drop)
+    releases.delete(release)
+    refreshers.delete(refresh)
     clearTimers()
     observer.disconnect()
     clickHost?.removeEventListener('click', hold, true)

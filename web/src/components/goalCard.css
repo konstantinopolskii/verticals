@@ -787,10 +787,15 @@ body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
   z-index: 10; /* above a lifted card (z-index 6) */
   pointer-events: none;
 }
-/* The hover lift stays out of a move: the move reads where everything is without it. */
+/* A lift that starts while a family moves waits for the move to end; the card the hand clicked keeps its lift through
+   the move, which reads it lifted and lands it lifted at its new size (lib/cardLift.ts), so it runs no easing of its own. */
 body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
-  :is(.goal-card--lifted, .goal-card__children--lifted) {
+  :is(.goal-card--lifted, .goal-card__children--lifted):not([data-lift-held]) {
   transform: none !important;
+  transition: none !important;
+}
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
+  :is(.goal-card--lifted, .goal-card__children--lifted)[data-lift-held] {
   transition: none !important;
 }
 

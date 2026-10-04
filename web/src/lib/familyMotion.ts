@@ -30,7 +30,7 @@ import { placeAllWashes } from './goalWash'
 import { curve, reducedMotion } from './motion'
 import { contentTop, familyBlock, fitScroll } from './columnFit'
 import { roomFor } from './columnRoom'
-import { releaseLifts } from './cardLift'
+import { refreshLifts, releaseLifts } from './cardLift'
 
 const DURATION = 360 // the opening's time and curve (GoalCard.vue's OPENING, goalDetail.css), one rhythm
 const LEAVE_MS = 150 // what only was there fades out where it is, quicker than what arrives (exits are quicker),
@@ -63,6 +63,8 @@ interface Seen {
   title?: { el: HTMLElement; rect: DOMRect; size: number }
   wash?: { top: number; right: number; bottom: number; left: number; opacity: number }
   ghost?: HTMLElement
+  /** The scale of the lifted card it stands in (`lib/cardLift.ts`), 1 when none: its rect is drawn that much larger. */
+  lift: number
 }
 
 const ROW = '.goal-card[data-goal-id]'
@@ -104,6 +106,12 @@ function washOf(row: HTMLElement): Seen['wash'] {
   }
 }
 
+/** The scale of the lifted card, or lifted list, that an element stands in. */
+function liftOf(el: HTMLElement): number {
+  const piece = el.closest<HTMLElement>('.goal-card--lifted, .goal-card__children--lifted')
+  return piece ? parseFloat(getComputedStyle(piece).getPropertyValue('--goal-lift-scale')) || 1 : 1
+}
+
 function read(column: HTMLElement): Map<string, Seen> {
   const seen = new Map<string, Seen>()
   for (const el of column.querySelectorAll<HTMLElement>(`${ROW}, ${PARTS}`)) {
@@ -113,7 +121,7 @@ function read(column: HTMLElement): Map<string, Seen> {
     if (rect.width === 0 && rect.height === 0) continue
     const key = keyOf(el)
     if (seen.has(key)) continue
-    const entry: Seen = { id: el.dataset.goalId, el: target, rect, opacity: parseFloat(getComputedStyle(target).opacity) || 0 }
+    const entry: Seen = { id: el.dataset.goalId, el: target, rect, opacity: parseFloat(getComputedStyle(target).opacity) || 0, lift: liftOf(target) }
     if (el.matches(ROW)) {
       const title = target.querySelector<HTMLElement>(':scope .goal-card__title')
       if (title) entry.title = { el: title, rect: title.getBoundingClientRect(), size: parseFloat(getComputedStyle(title).fontSize) }
@@ -190,13 +198,16 @@ function clearLayers(): void {
   }
 }
 
-function place(copy: HTMLElement, rect: DOMRect, column: HTMLElement): void {
+function place(copy: HTMLElement, rect: DOMRect, column: HTMLElement, lift = 1): void {
   const home = column.getBoundingClientRect()
   copy.style.position = 'absolute'
   copy.style.left = `${rect.left - home.left}px`
   copy.style.top = `${rect.top - home.top}px`
-  copy.style.width = `${rect.width}px`
-  copy.style.height = `${rect.height}px`
+  // a copy of a lifted thing keeps its own size and is drawn as large as it was, so its words wrap as they did
+  copy.style.width = `${rect.width / lift}px`
+  copy.style.height = `${rect.height / lift}px`
+  copy.style.transformOrigin = '0 0'
+  copy.style.transform = lift === 1 ? 'none' : `scale(${lift})`
 }
 
 const timing = (extra: KeyframeAnimationOptions = {}): KeyframeAnimationOptions => ({ duration: DURATION, easing: curve('large'), ...extra })
@@ -433,7 +444,8 @@ async function move(plan: {
     }
   }
   const leaving = stop()
-  // the lifts end inside this movement: the rows were read lifted and land at rest (lib/cardLift.ts)
+  // the lifts end inside this movement: the rows were read lifted and land at rest, all but the clicked card's, which
+  // lands lifted (lib/cardLift.ts)
   releaseLifts(press && performance.now() - press.at < 2000 ? { x: press.x, y: press.y } : null)
   moving = true
   familyMovingNow.value = true
@@ -449,6 +461,7 @@ async function move(plan: {
     const target = (animation.effect as KeyframeEffect | null)?.target
     if (animation instanceof CSSAnimation && target instanceof Element && lanes.some((lane) => lane.column.contains(target))) animation.finish()
   }
+  refreshLifts() // the card the hand clicked lands lifted at its new size: its lift is read where it lands
   if (anchor) keepInPlace(lead, lanes[0].before, `row:${anchor}`)
   else land(lead.dataset.vertical ?? '', lead, held)
   placeAllWashes()
@@ -535,27 +548,27 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
     }
   }
   const ghosts = layer(column)
-  const fadeOut = (copy: HTMLElement, rect: DOMRect, to?: DOMRect, scale = 1) => {
-    place(copy, rect, column)
-    copy.style.transformOrigin = '0 0'
+  const fadeOut = (copy: HTMLElement, rect: DOMRect, to?: DOMRect, scale = 1, lift = 1) => {
+    place(copy, rect, column, lift)
     ghosts.append(copy)
     if (!to) {
       // gone where it was, quicker than the rest moves, and covered by the rows that move over it
       running.push(copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: LEAVE_MS, easing: curve('large'), fill: 'forwards' }))
-      const cover = curtain(rect)
+      const cover = curtain(rect, lift)
       if (cover) running.push(copy.animate(cover, timing({ fill: 'forwards' })))
       return
     }
     // a title's old look: gone early, on the same path as the look it turns into
     running.push(copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DURATION * TITLE_OUT, easing: curve('large'), fill: 'forwards' }))
     running.push(copy.animate(
-      [{ transform: 'none' }, { transform: `translate(${to.left - rect.left}px, ${to.top - rect.top}px) scale(${scale})` }],
+      [{ transform: lift === 1 ? 'none' : `scale(${lift})` },
+        { transform: `translate(${to.left - rect.left}px, ${to.top - rect.top}px) scale(${scale})` }],
       timing({ fill: 'forwards' }),
     ))
   }
   // a row that crosses another: gone early where it was
-  const crossOut = (copy: HTMLElement, rect: DOMRect) => {
-    place(copy, rect, column)
+  const crossOut = (copy: HTMLElement, rect: DOMRect, lift = 1) => {
+    place(copy, rect, column, lift)
     ghosts.append(copy)
     running.push(copy.animate([{ opacity: 1 }, { opacity: 0, offset: CROSS_OUT }, { opacity: 0 }], timing({ easing: 'linear', fill: 'forwards' })))
   }
@@ -592,7 +605,7 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
   }
   // What leaves lies under the rows that move over it, never text on text: the nearest row below it that rises takes its
   // bottom edge up with it, and the nearest row above it that sinks takes its top edge down, on the same path.
-  const curtain = (rect: DOMRect): Keyframe[] | null => {
+  const curtain = (rect: DOMRect, lift = 1): Keyframe[] | null => {
     let below: { was: DOMRect; now: DOMRect } | null = null
     let above: { was: DOMRect; now: DOMRect } | null = null
     for (const key of gliders) {
@@ -602,7 +615,7 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
       if (was.bottom <= rect.top + 1 && now.bottom > was.bottom + 0.5 && (!above || was.bottom > above.was.bottom)) above = { was, now }
     }
     if (!below && !above) return null
-    const edge = (v: number) => `${Math.min(rect.height, Math.max(0, v))}px`
+    const edge = (v: number) => `${Math.min(rect.height, Math.max(0, v)) / lift}px` // in the copy's own px
     const inset = (top: number, bottom: number) => `inset(${edge(top)} -40px ${edge(bottom)} -40px)`
     return [
       { clipPath: inset(above ? above.was.bottom - rect.top : 0, below ? rect.bottom - below.was.top : 0) },
@@ -622,9 +635,10 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
     const list = now.el.parentElement?.nextElementSibling as HTMLElement | null
     if (list?.classList.contains('goal-card__children--open') && was.wash && now.wash) {
       const box = list.getBoundingClientRect()
-      const edge = (rect: DOMRect, wash: NonNullable<Seen['wash']>) => rect.bottom - wash.bottom - box.top
-      const cut = (bottom: number) => `inset(-40px -40px ${Math.max(0, box.height - bottom)}px -40px)`
-      running.push(list.animate([{ clipPath: cut(edge(was.rect, was.wash)) }, { clipPath: cut(edge(now.rect, now.wash)) }], timing()))
+      const listLift = liftOf(list) // a lifted list clips in its own px
+      const edge = (seen: Seen, wash: NonNullable<Seen['wash']>) => seen.rect.bottom - wash.bottom * seen.lift - box.top
+      const cut = (bottom: number) => `inset(-40px -40px ${Math.max(0, (box.height - bottom) / listLift)}px -40px)`
+      running.push(list.animate([{ clipPath: cut(edge(was, was.wash)) }, { clipPath: cut(edge(now, now.wash)) }], timing()))
     }
   }
   const inNewCard = (el: HTMLElement) => {
@@ -636,17 +650,21 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
     if (!was) {
       fadeIn(now.el) // arrives: fades in where it is, after what left has gone
       if (sunMove && (Math.abs(sunMove.dy) > 0.5 || Math.abs(sunMove.dx) > 0.5) && inNewCard(now.el)) {
-        running.push(now.el.animate([{ transform: `translate(${sunMove.dx}px, ${sunMove.dy}px)` }, { transform: 'none' }], timing()))
+        running.push(now.el.animate([{ transform: `translate(${sunMove.dx / now.lift}px, ${sunMove.dy / now.lift}px)` }, { transform: 'none' }], timing()))
       }
       continue
     }
     if (faders.has(key)) {
-      if (was.ghost) crossOut(was.ghost, was.rect)
+      if (was.ghost) crossOut(was.ghost, was.rect, was.lift)
       fadeIn(now.el, CROSS_IN)
       continue
     }
-    const dx = was.rect.left - now.rect.left
-    const dy = was.rect.top - now.rect.top
+    // A row in a lifted card moves in the card's own px, which the lift draws larger: the clicked card was read lifted
+    // (j) and lands lifted at its new size (k); everything else stands at 1.
+    const j = was.lift
+    const k = now.lift
+    const dx = (was.rect.left - now.rect.left) / k
+    const dy = (was.rect.top - now.rect.top) / k
     if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
       running.push(now.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], timing()))
     }
@@ -658,10 +676,10 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
       const moved = [a.top - b.top, a.right - b.right, a.bottom - b.bottom, a.left - b.left].some((d) => Math.abs(d) > 0.5)
       // from where the shape was on screen, in the row's box as it now stands (the row itself glides from its old place)
       const from = {
-        top: `${a.top + (was.rect.top - now.rect.top) - dy}px`,
-        right: `${a.right - (was.rect.right - now.rect.right) + dx}px`,
-        bottom: `${a.bottom - (was.rect.bottom - now.rect.bottom) + dy}px`,
-        left: `${a.left + (was.rect.left - now.rect.left) - dx}px`,
+        top: `${(a.top * j + (was.rect.top - now.rect.top)) / k - dy}px`,
+        right: `${(a.right * j - (was.rect.right - now.rect.right)) / k + dx}px`,
+        bottom: `${(a.bottom * j - (was.rect.bottom - now.rect.bottom)) / k + dy}px`,
+        left: `${(a.left * j + (was.rect.left - now.rect.left)) / k - dx}px`,
       }
       if (moved || Math.abs(was.rect.height - now.rect.height) > 0.5 || Math.abs(was.rect.width - now.rect.width) > 0.5) {
         running.push(now.el.animate(
@@ -677,9 +695,9 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
     const resized = !!was.title && !!now.title && (Math.abs(was.title.size - now.title.size) > 0.5 || (reflow
       && (Math.abs(was.title.rect.width - now.title.rect.width) > 1 || Math.abs(was.title.rect.height - now.title.rect.height) > 1)))
     if (resized && was.title && now.title) {
-      const scale = was.title.size / now.title.size
-      const tx = was.title.rect.left - now.title.rect.left - dx
-      const ty = was.title.rect.top - now.title.rect.top - dy
+      const scale = (was.title.size * j) / (now.title.size * k)
+      const tx = (was.title.rect.left - now.title.rect.left) / k - dx
+      const ty = (was.title.rect.top - now.title.rect.top) / k - dy
       now.title.el.style.transformOrigin = '0 0'
       running.push(now.title.el.animate([{ transform: `translate(${tx}px, ${ty}px) scale(${scale})` }, { transform: 'none' }], timing()))
       const title = was.ghost?.querySelector<HTMLElement>('.goal-card__title')
@@ -689,7 +707,7 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
           delay: DURATION * TITLE_IN[0], duration: DURATION * TITLE_IN[1], easing: curve('large'), fill: 'backwards',
         }))
         titleCopy.style.margin = '0'
-        fadeOut(titleCopy, was.title.rect, now.title.rect, now.title.size / was.title.size)
+        fadeOut(titleCopy, was.title.rect, now.title.rect, (now.title.size * k) / was.title.size, j)
         // the rest of its old look (its facts line, its box) goes with the old row's copy, minus the title
         title.style.visibility = 'hidden'
       }
@@ -697,6 +715,6 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
   }
   for (const [key, was] of before) {
     if (after.has(key) || !was.ghost) continue
-    fadeOut(was.ghost, was.rect)
+    fadeOut(was.ghost, was.rect, undefined, 1, was.lift)
   }
 }
