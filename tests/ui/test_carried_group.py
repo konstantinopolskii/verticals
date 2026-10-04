@@ -1,6 +1,7 @@
 """Carried-over plans (docs/design-handoff scope 4): the group on top of a column opens in place, lights for the family
 under the pointer, keeps that filter until another goal takes it, the pointer leaves its way, or "N more" is clicked
-(S4.P3, KK 2026-10-02), keeps its place under a goal of its own column with a mascot in the empty space, and "Replan"
+(S4.P3, KK 2026-10-02), keeps its place under a goal of its own column and fills it, with a mascot in the room the
+filter leaves that says what is happening (KK 2026-10-04), and "Replan"
 opens the sorting task as a goal's window with our first message sent."""
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ from tests.ui.views import FIELD
 GROUP = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-group"]'
 PLACE = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-place"]'
 GAP = f'{PLACE} [data-role="carried-gap"]'
-SHY = ("Ignore me", "You didn't see this", "Nevermind")
 FIRST = "Read this task and help me sort these plans out: where each goes, based on when I planned it and what it belongs to."
 
 
@@ -125,8 +125,9 @@ def test_the_notice_counts_the_plans(ui_f2: UiSession) -> None:
 
 
 def test_a_goal_in_the_boxs_own_column_keeps_its_place_and_the_mascot_moves_in(ui_f2: UiSession) -> None:
-    """S4.P3.004, .022, .031: the goal stands under the box, so the box changes inside the place it had: shorter, with the empty
-    rest left clear, and the shy mascot in it; a click on it says something else and moves nothing."""
+    """S4.P3.004, .022, .031, KK 2026-10-04: the goal stands under the box, so the box fills the place it had; the room the
+    filter leaves in it, above "N more" at the very bottom, holds the mascot, which says the box shows all of this goal's
+    plans; a click on it says something else and moves nothing."""
     with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
         value = goals.create(conn, owner="t1", title="SYN value of a goal in the column", vertical="life", anchor_date=date.today(), color="#278dea").goal.id
         mine = goals.create(conn, owner="t1", title="SYN goal of this year", vertical="year", anchor_date=date.today(), parent_id=value).goal.id
@@ -145,11 +146,15 @@ def test_a_goal_in_the_boxs_own_column_keeps_its_place_and_the_mascot_moves_in(u
     expect(page.locator(f'{GROUP} [data-goal-id="{plan}"]')).to_have_count(1)
     page.wait_for_timeout(500)
     assert abs(place.bounding_box()["height"] - kept) <= 2, "the place keeps its height"
-    assert group.bounding_box()["height"] < kept - 52, "the box is shorter inside it"
+    assert abs(group.bounding_box()["height"] - kept) <= 2, "the box fills the place"
     assert below.evaluate("el => el.offsetTop") == below_at, "nothing under the box moved"
     expect(page.locator(GAP)).to_have_class(re.compile("carried-gap--on"))
     words = page.locator(f"{GAP} [data-role='carried-words']")
-    assert words.inner_text() in SHY
+    expect(words).to_have_text("That's all for this goal")
+    more = group.locator('[data-role="carried-more"]')
+    mascot, below_more, box = page.locator(f"{GAP} [data-role='carried-mascot']").bounding_box(), more.bounding_box(), group.bounding_box()
+    assert mascot["y"] + mascot["height"] < below_more["y"], "the mascot stands above N more"
+    assert box["y"] + box["height"] - (below_more["y"] + below_more["height"]) <= 8, "N more is the box's last line"
     page.locator(f"{GAP} [data-role='carried-mascot']").click()
     expect(words).to_have_text("Layout fix deployed")
     page.wait_for_timeout(700)
@@ -165,8 +170,8 @@ def test_a_goal_in_the_boxs_own_column_keeps_its_place_and_the_mascot_moves_in(u
 
 
 def test_a_goal_without_plans_in_its_own_column_leaves_the_header_and_see_all(ui_f2: UiSession) -> None:
-    """S4.P3.016, .029: nothing of this goal in the box: the box keeps its place with only its header and "See all", clear
-    of colour; "See all" shows everything."""
+    """S4.P3.016, .029, KK 2026-10-04: nothing of this goal in the box: the box fills its place, clear of colour, with its
+    header on top, the mascot saying so, and "See all" at the very bottom; "See all" shows everything."""
     with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
         bare = goals.create(conn, owner="t1", title="SYN goal with no carried plan", vertical="year", anchor_date=date.today()).goal.id
         _others(conn)
@@ -181,9 +186,36 @@ def test_a_goal_without_plans_in_its_own_column_leaves_the_header_and_see_all(ui
     expect(more).to_have_text("See all")
     assert not _lit(group)
     assert abs(place.bounding_box()["height"] - kept) <= 2
+    expect(page.locator(GAP)).to_have_class(re.compile("carried-gap--on"))
+    expect(page.locator(f"{GAP} [data-role='carried-words']")).to_have_text("No due plans for this goal")
+    box, see_all = group.bounding_box(), more.bounding_box()
+    assert abs(box["height"] - kept) <= 2, "the box fills its place"
+    assert box["y"] + box["height"] - (see_all["y"] + see_all["height"]) <= 8, "See all is the box's last line"
     more.click()
     expect(_carried_cards(group)).to_have_count(total)
     expect(more).to_have_text("Show fewer")
+
+
+def test_a_room_too_low_for_the_mascot_shows_its_words_alone(ui_f2: UiSession) -> None:
+    """KK 2026-10-04 ("Why empty? Simply show text then"): a goal of another column made the box short, showing its one
+    plan; a goal under the box with nothing due keeps that short place, and the room left is too low for the mascot's
+    circle, so its words stand there alone."""
+    with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
+        value, _plan = _value_with_plan(conn, "SYN value with one carried plan", "#278dea")
+        bare = goals.create(conn, owner="t1", title="SYN goal with nothing due", vertical="year", anchor_date=date.today()).goal.id
+        _others(conn)
+    page = ui_f2.page
+    _goto_today(page, ui_f2.base_url)
+    group = page.locator(GROUP)
+    page.locator(_row(value)).hover()
+    expect(_carried_cards(group)).to_have_count(1)
+    page.wait_for_timeout(400)
+    page.locator(_row(bare)).hover()
+    expect(_carried_cards(group)).to_have_count(0)
+    expect(page.locator(GAP)).to_have_class(re.compile("carried-gap--on"))
+    expect(page.locator(f"{GAP} [data-role='carried-words']")).to_have_text("No due plans for this goal")
+    expect(page.locator(f"{GAP} [data-role='carried-words']")).to_be_visible()
+    expect(page.locator(f"{GAP} [data-role='carried-mascot']")).to_be_hidden()
 
 
 def test_the_filter_stays_on_its_way_and_ends_off_it(ui_f2: UiSession) -> None:

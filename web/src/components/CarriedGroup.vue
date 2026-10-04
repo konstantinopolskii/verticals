@@ -62,15 +62,32 @@ const notice = computed(() => {
 
 const newestFirst = computed(() => [...props.goals].sort((a, b) => (b.anchorDate ?? '').localeCompare(a.anchorDate ?? '')))
 
-/* What the box shows and where its height goes (S4.P3): `lib/carriedFilter.ts`. The box is the tinted piece; the place
-   around it keeps its height while a goal under the box is pointed at, and the empty rest of it is the mascot's. */
+/* What the box shows and where its height goes (S4.P3): `lib/carriedFilter.ts`. The box is the tinted piece. While a goal
+   under it is pointed at, the place around it keeps its height and the box fills it; the room the filter leaves inside
+   the box is the mascot's (KK 2026-10-04: the white place under a box that got shorter looked broken). */
 const root = ref<HTMLElement | null>(null)
 const place = ref<HTMLElement | null>(null)
-const { hold, pinned, gap, lift, lit, visible, button, opened, more: onMore, openPlan, enter, leave } = useCarriedFilter({
+const mascot = ref<InstanceType<typeof CarriedMascot> | null>(null)
+const { hold, pinned, gap, circle, lift, lit, visible, family, button, opened, more: onMore, openPlan, enter, leave } = useCarriedFilter({
   vertical: () => props.vertical,
   plans: () => newestFirst.value,
   box: root,
   place,
+  room: () => {
+    const m = mascot.value
+    const el = m?.$el as HTMLElement | undefined
+    return m && el ? { el, need: m.need() } : null
+  },
+})
+
+/** What the mascot says: why the box is emptier than it was (KK 2026-10-04: its shy jokes didn't say). The count line
+ *  above it already says where the plans come from. It speaks only when that is all of the story: the goal has nothing
+ *  here, or the box shows everything it has. */
+const words = computed(() => {
+  const plans = family.value
+  if (!plans) return null
+  if (!plans.length) return 'No due plans for this goal'
+  return visible.value.length === plans.length ? "That's all for this goal" : null
 })
 
 /** A plan is open: the header line is the way back, anywhere on it but "Replan". */
@@ -107,17 +124,18 @@ function cardProps(goal: GoalCardData) {
       <KCardStack dense data-section="carried">
         <GoalCard v-for="goal in visible" :key="goal.id" v-bind="cardProps(goal)" />
       </KCardStack>
+      <CarriedMascot ref="mascot" :on="gap && !openPlan && words !== null" :words="words" :circle="circle" />
       <button v-if="button" type="button" class="carried-group__more" data-role="carried-more" @click="onMore">
         {{ button }}<AppIcon name="chevron-down" :size="12" :class="{ 'carried-group__chevron--open': opened }" />
       </button>
     </section>
-    <CarriedMascot :on="gap && !openPlan" :box="root" />
   </div>
 </template>
 
 <style>
-/* The place keeps its height while a goal under the box is pointed at (S4.P3.004): the box gets shorter inside it and
-   the rest is empty, for the mascot. */
+/* The place keeps its height while a goal under the box is pointed at (S4.P3.004), and the box fills it: what the filter
+   leaves empty inside the box is the mascot's room, above "See all" at the very bottom (KK 2026-10-04: an empty white
+   place under a box that got shorter looked broken). */
 .carried-place {
   display: flex;
   flex-direction: column;
@@ -126,13 +144,23 @@ function cardProps(goal: GoalCardData) {
 }
 .carried-group {
   box-sizing: border-box;
-  flex: none;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   padding: 8px 0 6px;
   border-radius: 8px;
   background: #f5f5f1;
-  transition: background-color 200ms var(--vt-ease-large), transform var(--motion-lift-out) cubic-bezier(.2, 0, 0, 1);
+  transition: background-color 200ms var(--vt-ease-large), transform var(--motion-lift-out) var(--vt-ease-medium);
 }
 .carried-group--lit { background: rgb(var(--vt-pale)); }
+/* A box in a family's colour stands above the column's veil with that family (goalCard.css): under it, its colour washed
+   out to a grey behind the family's bright plan (KK, 4 Oct 2026: "weird bug with the background of the due block"). */
+.pattern-vertical-board--family .carried-group--lit { position: relative; z-index: 2; }
+/* Out from under the veil, the box turns off what the veil would have: the steps of its plans that aren't in the family. */
+.pattern-vertical-board--family .carried-group--lit .goal-card:not([data-light], [data-holding]) > .goal-card__row {
+  opacity: var(--goal-off-opacity);
+  filter: grayscale(var(--goal-off-grey));
+}
 /* Pointing into the box lifts it as one piece, the way a goal lifts (`lib/cardLift.ts`), by the same room: a tall box
    grows only as much as the margin under it allows. */
 .carried-group--lifted {
@@ -161,16 +189,25 @@ function cardProps(goal: GoalCardData) {
 .pattern-vertical-board__column--active .carried-group__dot { width: 6px; height: 6px; }
 .carried-group__replan:hover .carried-group__dot { width: 7px; height: 7px; }
 .carried-group__replan:active .carried-group__dot { width: 4.5px; height: 4.5px; transition-duration: 90ms; }
-/* In the corner, under the notice: it is the way out of a filter, and says so ("See all"). */
-.carried-group__more { display: inline-flex; align-items: center; gap: 2px; padding: 2px 0 0 11px; border: 0; background: none; text-align: left; cursor: pointer; }
+.carried-group > * { flex: none; }
+.carried-group > .carried-gap { flex: 1 1 0; }
+/* In the bottom corner, the box's last line: it is the way out of a filter, and says so ("See all"). */
+.carried-group__more { display: inline-flex; align-self: flex-start; align-items: center; gap: 2px; padding: 2px 0 0 11px; border: 0; background: none; text-align: left; cursor: pointer; }
 .carried-group > [data-section='carried'] { margin: 0 1px 0 -3px; }
 /* The cards stand on the ground itself: the kit paints a stack's cards, the first one too, in the page's colour. */
 .carried-group > [data-section='carried'] { --color-bg: transparent; --color-surface-overlay: transparent; }
 .carried-group__chevron--open { transform: rotate(180deg); }
 .carried-group:not(.carried-group--open) .goal-card__row::before { opacity: 0 !important; }
 /* A plan open (KK 2026-10-02): the box is only its header, a line on top like a level stepped through, and the opened plan
-   stands under it on its own colour. */
-.carried-group--open { padding: 0; background: transparent; }
+   stands under it on its own colour. Opening ends the box's lift at once: a lift easing out made the box a layer of its
+   own for 220 ms, which kept the opened plan under the column's veil, pale, until it lit up in one frame (the motion
+   review of 3 Oct 2026); the move that opens the plan read it lifted and lands it at rest (lib/familyMotion.ts). */
+.carried-group--open {
+  padding: 0;
+  background: transparent;
+  transform: none;
+  transition: background-color 200ms var(--vt-ease-large);
+}
 .carried-group--open .carried-group__head {
   /* above the column's veil, like the column's name: it is not a goal, and it is the way back */
   position: relative;
@@ -181,6 +218,17 @@ function cardProps(goal: GoalCardData) {
   background: #f5f5f1;
   cursor: pointer;
 }
-/* A plan under the pointer takes the goal's hover tint on the box's own colour, the way a subtask does. */
-.carried-group .goal-card:hover > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
+/* Copies of what leaves the box while it changes (lib/carriedMotion.ts): laid over it where the originals stood, drawn on
+   the box's own ground like its plans, and never in the way of the pointer. */
+.carried-ghosts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --color-bg: transparent;
+  --color-surface-overlay: transparent;
+}
+.carried-ghosts > .carried-ghost { position: absolute; box-sizing: border-box; margin: 0; }
+/* A plan under the pointer takes the goal's hover tint on the box's own colour, the way a subtask does. An open plan
+   keeps its whole colour (KK, 27 Sep 2026): dimming only its row made a seam against its list, reported 4 Oct. */
+.carried-group .goal-card:not(.goal-card--detail-open):hover > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
 </style>

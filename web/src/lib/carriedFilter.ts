@@ -8,8 +8,9 @@
 //   · A plan is not a filter, and while the pointer is in the box its filter stands.
 //   · The filter lives on the way between its goal and its box: the columns from one to the other. Out of them, or off
 //     the board, the box returns to everything after LEAVE_MS (unless another goal is about to take it).
-//   · A goal in the box's own column keeps its place: the box changes inside the space it had, shorter, and the empty
-//     space belongs to the mascot. A list that doesn't fit shows what fits, and "N more".
+//   · A goal in the box's own column keeps its place: the box fills the space it had, and the room the filter leaves in
+//     it belongs to the mascot, above "N more" (KK 2026-10-04: a white place under a box that got shorter looked
+//     broken). A list that doesn't fit shows what fits, and "N more".
 //   · "N more", "See all": the way out. It shows everything and ends the filter.
 //   · A plan of the box opened: the box is only its header line (the count, "Replan"), and the opened plan stands under it,
 //     alone; the rest comes back when it closes, in the filter it had. The plan stays where it was clicked, by this
@@ -19,6 +20,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } 
 import { store } from '../store'
 import { findGoal } from './boardIndex'
 import { liftScale } from './cardLift'
+import { moveBox, readBox } from './carriedMotion'
 import { goalLight } from './look'
 import { reducedMotion, timing } from './motion'
 import type { GoalCardData } from '../types'
@@ -27,7 +29,7 @@ export const SHOWN = 3
 const DWELL_MS = 250 // the pointer rests on a goal this long before a filtered box follows it
 const LEAVE_MS = 250 // the pointer is out of the filter's way this long before the box returns to everything
 const UNPIN_MS = 250 // a slip out of the box over a gap doesn't count as leaving it
-const MIN_GAP = 52 // the empty place holds the mascot from this height
+const MIN_GAP = 52 // the room the filter leaves holds the mascot's circle from this height, or from what it needs
 
 const COLUMN = '.pattern-vertical-board__column[data-vertical]'
 
@@ -104,13 +106,16 @@ export function useCarriedFilter(o: {
   plans: () => GoalCardData[]
   box: Ref<HTMLElement | null>
   place: Ref<HTMLElement | null>
+  /** The mascot's room inside the box, and the heights the mascot needs there: with its circle, and its words alone. */
+  room?: () => { el: HTMLElement; need: { circle: number; words: number } } | null
 }) {
   track()
   const filter = ref<Filter | null>(null)
   const hold = ref(0) // px: the place the box keeps while a goal under it is pointed at; 0 when it keeps none
   const expanded = ref(false)
   const pinned = ref(false) // the pointer is in the box
-  const gap = ref(false) // the empty place is tall enough for the mascot
+  const gap = ref(false) // the room the filter leaves is tall enough for the mascot's words
+  const circle = ref(false) // ... and for its circle above them (KK 2026-10-04: where it isn't, the words stand alone)
   const dwelling = ref(false)
   const lift = ref<string | null>(null)
 
@@ -154,7 +159,8 @@ export function useCarriedFilter(o: {
   })
 
   /* One change of what the box shows, and the height it makes: the box and its place are both measured after the change,
-     before either starts to move, so the place follows its own height and not the box's animated one. */
+     before either starts to move, so the place follows its own height and not the box's animated one. What the box
+     shows moves with its height, as one movement (`lib/carriedMotion.ts`). */
   let pass = 0
   async function commit(change: () => void, fit = false): Promise<void> {
     const box = o.box.value
@@ -163,6 +169,7 @@ export function useCarriedFilter(o: {
     const mine = ++pass
     const fromBox = heightOf(box)
     const fromPlace = heightOf(place)
+    const before = readBox(box)
     change()
     await nextTick()
     if (mine !== pass) return
@@ -172,7 +179,13 @@ export function useCarriedFilter(o: {
     if (mine !== pass) return
     const toBox = heightOf(box)
     const toPlace = heightOf(place)
-    gap.value = !!filter.value && hold.value > 0 && hold.value - toBox >= MIN_GAP
+    const room = o.room?.() ?? null
+    const space = room ? heightOf(room.el) : hold.value - toBox
+    gap.value = !!filter.value && hold.value > 0 && space >= (room ? room.need.words : MIN_GAP)
+    circle.value = gap.value && space >= Math.max(MIN_GAP, room ? room.need.circle : 0)
+    await nextTick() // the mascot takes its place in this change before anything moves
+    if (mine !== pass) return
+    moveBox(box, before, toBox > fromBox + 0.5)
     ease(box, fromBox, toBox)
     ease(place, fromPlace, toPlace, Math.abs(fromBox - toBox) >= 1)
   }
@@ -254,6 +267,7 @@ export function useCarriedFilter(o: {
     clearDwell()
     hold.value = 0
     gap.value = false
+    circle.value = false
     const card = o.place.value?.querySelector<HTMLElement>(`[data-goal-id="${CSS.escape(plan.id)}"]`) ?? null
     const scroller = scrollerOf(card)
     if (!card || !scroller) return
@@ -327,7 +341,7 @@ export function useCarriedFilter(o: {
   })
 
   return {
-    filter, hold, expanded, pinned, gap, lift, lit, visible, family, button, opened, more, openPlan,
+    filter, hold, expanded, pinned, gap, circle, lift, lit, visible, family, button, opened, more, openPlan,
     enter, leave,
   }
 }

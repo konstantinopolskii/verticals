@@ -18,6 +18,8 @@ import { useCommentAnchoring } from '../lib/commentAnchoring'
 import { onBeforeQuit } from '../lib/beforeQuit'
 import { MONTH_NAMES } from '../lib/periods'
 import { leaveRoom, roomFor } from '../lib/columnRoom'
+import { contentTop, familyBlock, fitScroll, scrollerOf } from '../lib/columnFit'
+import { familyMoving } from '../lib/familyMotion'
 import {
   handleBodyBeforeInput,
   handleBodyKeydown,
@@ -394,12 +396,11 @@ function shortDate(iso: string | null): string {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0, 3)}`
 }
 
-/* The opened goal is seen whole. If it fits where it was clicked, the column stays; otherwise it scrolls just enough,
-   16 px from the window's edge or the board's bottom fade, and a goal taller than the window shows its top. A goal near
-   the column's end gets room after the last card (`lib/columnRoom.ts`). The goal grows while it opens, so the target
-   is read every frame until nothing moves; the glide takes 360-600 ms by distance. Once per opening; closing
-   scrolls back (`lib/familyView.ts`); any wheel, key or press takes over. */
-const GAP = 16
+/* The opened goal is seen whole (`lib/columnFit.ts`). A goal near the column's end gets room after the last card
+   (`lib/columnRoom.ts`). An opening the family's move draws lands the column in that same movement
+   (`lib/familyMotion.ts`); any other opening glides here: the goal grows while it opens, so the target is read every
+   frame until nothing moves, and the glide takes 360-600 ms by distance. Once per opening; closing scrolls back
+   (`lib/familyView.ts`); any wheel, key or press takes over. */
 let fitted = false
 let tween = 0
 function stopScroll(): void {
@@ -407,39 +408,26 @@ function stopScroll(): void {
   tween = 0
   for (const type of ['wheel', 'pointerdown', 'keydown', 'touchstart']) window.removeEventListener(type, stopScroll, true)
 }
-/** Where `el` starts inside `scroller`'s content, as laid out: the lift's scale and rise don't count. */
-function contentTop(el: HTMLElement, scroller: HTMLElement): number {
-  let y = 0
-  for (let e: HTMLElement | null = el; e && e !== scroller; e = e.offsetParent as HTMLElement | null) y += e.offsetTop
-  return y
-}
 function fitIntoView(): void {
   if (fitted || tween) return
-  if (store.state.drag.id !== null) { fitted = true; return } // flow 4: opened by a held drag, it stays under the hand
+  // Flow 4: opened by a held drag, it stays under the hand. Opened inside a moving family, the move has landed it.
+  if (store.state.drag.id !== null || familyMoving()) { fitted = true; return }
   const detail = rootEl.value
-  // Flow 4: the family counts from its first line, so the levels stepped through stay in view above the card.
-  let list = detail?.parentElement ?? null
-  while (list?.parentElement?.closest('.goal-card__children')) list = list.parentElement.closest<HTMLElement>('.goal-card__children')
-  const card = list?.previousElementSibling as HTMLElement | null
-  let scroller = list?.parentElement ?? null
-  while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
-  if (!detail || !list || !card || !scroller) return
+  const block = detail ? familyBlock(detail) : null
+  const scroller = block ? scrollerOf(block.list) : null
+  if (!block || !scroller) return
   fitted = true
   const el = scroller
-  const open = list
+  const { card, list: open } = block
   const body = el.querySelector<HTMLElement>(':scope > .pattern-vertical-board__body')
-  const fade = document.querySelector<HTMLElement>('[data-role="board-bottom-fade"]')
   // Where the goal ends once open: its list and notes still grow from nothing (`lib/cardFamily.ts`'s growList).
   const bottom = (): number => {
     const clip = open.querySelector<HTMLElement>('.goal-detail-inline__clip')
     const notes = clip ? Math.max(0, clip.scrollHeight - clip.getBoundingClientRect().height) : 0
     return contentTop(open, el) + Math.max(open.offsetHeight, open.scrollHeight + notes)
   }
-  const seen = (): number => Math.min(el.clientHeight, (fade?.getBoundingClientRect().top ?? window.innerHeight) - el.getBoundingClientRect().top)
   const target = (from: number): number => {
-    // The column's top padding lies under the desktop title bar (App.vue): the goal stops below it.
-    const top = contentTop(card, el) - GAP - (parseFloat(getComputedStyle(el).paddingTop) || 0)
-    const to = Math.max(0, Math.min(top, Math.max(from, bottom() + GAP - seen())))
+    const to = fitScroll(el, contentTop(card, el), bottom(), from)
     if (body) roomFor(el, body, to)
     return to
   }

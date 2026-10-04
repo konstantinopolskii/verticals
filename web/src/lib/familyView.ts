@@ -22,7 +22,8 @@
 import { computed, nextTick, watch, type ComputedRef } from 'vue'
 import type { BoardResponse } from './api'
 import { ancestorIds, findGoal, subtreeIds } from './boardIndex'
-import { columnPlace, moveFamily, scrollBack, type ColumnPlace } from './familyMotion'
+import { columnPlace, moveColumns, moveFamily, scrollBack, type ColumnPlace } from './familyMotion'
+import { reducedMotion } from './motion'
 
 /** Full: the open goal and its parent. Light: one level away. Faint: two. Far: related, further away. A goal the map
  *  leaves out is turned off, so the rest of the board needs no light of its own. */
@@ -127,6 +128,9 @@ function swappedLight(board: BoardResponse, id: string): Map<string, Light> {
   const light = new Map<string, Light>()
   for (const member of subtreeIds(board, id)) light.set(member, 'light')
   for (const member of ancestorIds(board, id)) light.set(member, 'light')
+  // Keep the pointed goal's full colour through the leave grace: dropping to the relatives' tint first made a
+  // second, unrelated fade before the light returned (KK's hover recording, 4 Oct 2026).
+  light.set(id, 'full')
   return light
 }
 
@@ -137,7 +141,8 @@ interface FamilyState {
   openGoalId: string | null
   openGoalVertical: string | null
   expandedVertical: string | null
-  hoverChainId: string | null
+  /** The goal the pointer rests on: a light swaps only to a goal the hand stops at (lib/boardViewState.ts). */
+  restChainId: string | null
   /** The light is swapping under the pointer: it moves in 150 ms instead of the opening's time. */
   lightFast: boolean
   drag: { id: string | null }
@@ -163,11 +168,11 @@ export function createFamilyView(
   })
   /** The pointer rests on a turned-off goal. */
   const swapped = computed(() => {
-    const hover = state.hoverChainId
-    return family.value !== null && hover !== null && !family.value.has(hover) && !!findGoal(state.board, hover)
+    const rest = state.restChainId
+    return family.value !== null && rest !== null && !family.value.has(rest) && !!findGoal(state.board, rest)
   })
   const light: ComputedRef<Map<string, Light> | null> = computed(() => (
-    swapped.value && state.board && state.hoverChainId ? swappedLight(state.board, state.hoverChainId) : family.value
+    swapped.value && state.board && state.restChainId ? swappedLight(state.board, state.restChainId) : family.value
   ))
   watch(swapped, () => { state.lightFast = true }, { flush: 'sync' })
   watch(() => state.openPath, () => { state.lightFast = false }, { flush: 'sync' })
@@ -198,18 +203,25 @@ export function createFamilyView(
       const place = columnPlace(vertical, path.join('/'))
       if (place) restPlace.set(vertical, place)
     }
+    const id = path[path.length - 1]
     const open = () => {
       if (vertical !== 'maybe') state.expandedVertical = vertical
-      void deps.openGoal(path[path.length - 1], vertical, hostKey(vertical, path, path.length - 1), path)
+      void deps.openGoal(id, vertical, hostKey(vertical, path, path.length - 1), path)
     }
-    // A change inside the wide column moves it (lib/familyMotion.ts); a column that widens has its own opening. The move
-    // reads where everything ends up once the card's notes are laid out: they fold after a few ticks, never a frame.
-    // Opened by a held drag, the goal stays under the hand.
-    if (state.openGoalId !== null && state.openGoalVertical === vertical && state.expandedVertical === vertical) {
-      const from = state.openGoalId
+    // Every opening is one movement (lib/familyMotion.ts): a change inside the wide column moves that column, and a goal
+    // opened in another column moves the wide column there. The move reads where everything ends up once the card's notes
+    // are laid out: they fold after a few ticks, never a frame. Opened by a held drag, the goal stays under the hand; a
+    // drag that opens a goal in another column keeps it pinned there (lib/dragActions.ts). With motion reduced, nothing
+    // moves, so a first opening or a goal in another column opens at once and its card holds it where it was clicked
+    // (lib/cardFamily.ts).
+    const from = state.openGoalId
+    const moves = !reducedMotion()
+    if (state.expandedVertical === vertical && (from === null ? moves : state.openGoalVertical === vertical)) {
       const anchor = state.drag.id !== null ? path.join('/') : undefined
-      return deps.ensureDetail(path[path.length - 1])
-        .then(() => moveFamily(vertical, [from, path[path.length - 1]], open, settled, anchor))
+      return deps.ensureDetail(id).then(() => moveFamily(vertical, [from, id], open, settled, anchor))
+    }
+    if (vertical !== 'maybe' && state.drag.id === null && moves) {
+      return deps.ensureDetail(id).then(() => moveColumns(vertical, [from, id], open, settled))
     }
     open()
     return Promise.resolve()

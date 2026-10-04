@@ -97,9 +97,10 @@ interface State {
   /** COMPACT_BOARD_HANDOFF.md §3: the one expanded column (at most one, toggle), or null for
    *  all-compact. Session-only view state by ruling — never persisted, never sent anywhere. */
   expandedVertical: string | null
-  /** §5 chain hover: the hovered card's id while a pointer rests on it. Drives the wash class
-   *  on every board-visible member of that card's tree. */
+  /** §5 chain hover: the hovered card's id, at once. The carried box and the mascot follow it. */
   hoverChainId: string | null
+  /** The card the pointer has rested on (`lib/boardViewState.ts`): the family light follows it. */
+  restChainId: string | null
   /** Pointer-drag gesture (AC-220/S-145) — see `lib/drag.ts::DragState`'s own doc comment. */
   drag: DragState
 }
@@ -128,6 +129,7 @@ const state = reactive<State>({
   collapsed: [],
   expandedVertical: null,
   hoverChainId: null,
+  restChainId: null,
   drag: {
     pending: null, id: null, x: 0, y: 0, offsetX: 0, offsetY: 0,
     width: 0, height: 0, previewWidth: 0, previewHeight: 0,
@@ -276,6 +278,7 @@ const setHoverChain = (id: string | null): void => viewState.setHoverChain(state
 const hoverChain: ComputedRef<{ id: string; set: Set<string> } | null> = computed(() =>
   viewState.hoverChainOf(state),
 )
+const restChain = computed(() => viewState.restChainOf(state))
 
 /** Show sample controls when any root goal belongs to sample data. */
 const hasSampleData: ComputedRef<boolean> = computed(() => {
@@ -732,6 +735,7 @@ export const store = {
   expandColumn,
   setHoverChain,
   hoverChain,
+  restChain,
   ...family,
   runSearch,
   loadRecentSearch,

@@ -25,9 +25,19 @@ export function reducedMotion(): boolean {
   return reducedQuery?.matches ?? false
 }
 
+/* A token is read once per task: a move asks for its curve for every thing it moves, and each read after the last
+   animation started made the browser restyle the page again (an opening on a full board: ~600 restyles, profiled
+   4 Oct 2026). */
+const tokens = new Map<string, string>()
 function token(name: string): string {
   if (typeof document === 'undefined') return ''
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  let value = tokens.get(name)
+  if (value === undefined) {
+    if (!tokens.size) setTimeout(() => tokens.clear())
+    value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    tokens.set(name, value)
+  }
+  return value
 }
 
 function ms(value: string): number | null {

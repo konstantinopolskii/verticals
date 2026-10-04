@@ -94,9 +94,11 @@ def test_dragging_ghost_into_current_column_reschedules_without_changing_identit
     ):
         session.gestures.drag(
             source,
-            '[data-vertical="week"] .pattern-vertical-board__body',
+            # The carried box changes height with its plans. A fixed offset in the whole body can land back
+            # on the source ghost; aim at the current period's planned area below that box.
+            '[data-vertical="week"] [data-section="planned"]',
             source_position={"x": 48, "y": 12},
-            target_position={"x": 80, "y": 120},
+            target_position={"x": 80, "y": 12},
         )
 
     card = session.page.locator(f'[data-goal-id="{ghost.id}"]')

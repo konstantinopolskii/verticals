@@ -13,6 +13,10 @@
 // the clip line the clip shaves the colour's rim) and 4 px an end (plus the 2 px rise), so a wide or tall card grows
 // less and never reaches a neighbour's words.
 //
+// Leaving, the piece settles as one (KK, 4 Oct 2026, from a mockup): after LEAVE_GRACE_MS its colour, its size and its
+// subgoals go back together on one curve, and it keeps its layer until it has landed (`goal-card--settling`), so a
+// neighbour never covers its coloured edge on the way.
+//
 // A click keeps the lift, so a lifted card that opens stays lifted (KK: "if you hovered such big unselected card and
 // then clicked on it to open, scaling shouldn't disappear"); the opened card lifts like any other and follows its
 // column as it widens. Opening moves the card from under a still pointer, and the browser calls that a leave: after a
@@ -24,6 +28,7 @@
 import { onBeforeUnmount, ref, watch, type Ref } from 'vue'
 
 const LEAVE_GRACE_MS = 60 // the pointer crossing the gap between the card and its list must not drop the lift
+const SETTLE_MS = 240 // the way back (--motion-lift-out, 220 ms) and a frame: the piece keeps its layer until it lands
 const HOLD_MOVE_PX = 3 // after a click, the pointer has moved on once it is this far from where it clicked
 const MAX_SCALE = 1.06
 const SIDE_GROWTH_PX = 7 // most a side may grow: the column gives 8 px of room past the card's column
@@ -43,8 +48,35 @@ function releaseHold(): void {
   waiting.clear()
   retries.forEach((retry) => retry())
 }
+
+/* A family's move takes the other lifts off inside its own movement (`lib/familyMotion.ts`): it reads a lifted card
+   where it stands and lands it at rest, so a lift that came back after the move was a second movement, 6-9 px at
+   430 ms (the motion trace, 3 Oct 2026). Then nothing lifts until the hand moves: what slid under a still pointer is
+   not what the hand pointed at. The card the hand clicked keeps its lift through the move (KK, 4 Oct 2026: "keeping
+   it scaled"): the move reads it lifted and lands it lifted at its new size, its scale measured again for that size
+   (`refreshLifts`) before the move reads where it lands, so the lift changes inside the one movement. */
+const releases = new Set<() => void>()
+const refreshers = new Set<() => void>()
+let quiet: { x: number; y: number } | null = null
+export function releaseLifts(at: { x: number; y: number } | null): void {
+  quiet = at ?? (Number.isNaN(pointer.x) ? null : { ...pointer })
+  releases.forEach((release) => release())
+}
+/** Measures every lifted card again for the size it has now and writes its lift onto it at once, not on Vue's next
+ *  render: the move reads where things land right after the change. */
+export function refreshLifts(): void {
+  refreshers.forEach((refresh) => refresh())
+}
+function wake(event: PointerEvent): void {
+  if (!quiet || Math.hypot(event.clientX - quiet.x, event.clientY - quiet.y) < HOLD_MOVE_PX) return
+  quiet = null
+  if (holder === null) releaseHold()
+}
 export const LIFTED_CLASS = 'goal-card--lifted'
 export const LIFTED_LIST_CLASS = 'goal-card__children--lifted'
+const SETTLING_CLASSES = ['goal-card--settling', 'goal-card__children--settling']
+/** On a card lifted by a click, and its list: its lift rides the move (goalCard.css), where any other lift waits. */
+const HELD_ATTR = 'data-lift-held'
 
 /* A goal's "…" menu hangs from its dots (KK, 27 Sep 2026: "it jumps here and there if i click on menu icon"). Moving
    into the menu is leaving the card, so the card used to drop its lift under the open menu, the dots moved, and the
@@ -61,7 +93,7 @@ export function whenMenuCloses(fn: () => void): void {
 }
 let pointer = { x: Number.NaN, y: Number.NaN } // where the pointer last was: a card settles by it when its menu closes
 if (typeof window !== 'undefined') {
-  window.addEventListener('pointermove', (event) => { pointer = { x: event.clientX, y: event.clientY } }, { capture: true, passive: true })
+  window.addEventListener('pointermove', (event) => { pointer = { x: event.clientX, y: event.clientY }; wake(event) }, { capture: true, passive: true })
   window.addEventListener('verticals:root-popover-close', () => {
     const retries = [...afterMenu]
     afterMenu.clear()
@@ -86,12 +118,20 @@ export function useCardLift(options: {
   pinned?: () => boolean
 }) {
   const lifted = ref(false)
+  const settling = ref(false) // lifted no more, on its way back: still on its own layer
   const cardStyle = ref<LiftStyle>({})
   const listStyle = ref<LiftStyle>({})
   let leaveTimer: ReturnType<typeof setTimeout> | null = null
+  let settleTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTimers(): void {
     if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null }
+    if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null }
+  }
+  function settle(on: boolean): void {
+    if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null }
+    settling.value = on
+    if (on) settleTimer = setTimeout(() => { settleTimer = null; settling.value = false }, SETTLE_MS)
   }
 
   function measure(): boolean {
@@ -117,9 +157,10 @@ export function useCardLift(options: {
 
   function enter(): void {
     if (leaveTimer !== null) { clearTimeout(leaveTimer); leaveTimer = null }
-    if (holder !== null && holder !== me) { waiting.add(retry); return }
+    if ((holder !== null && holder !== me) || quiet) { waiting.add(retry); return }
     if (!lifted.value && anyMenuOpen()) { whenMenuCloses(retry); return }
     if (lifted.value || !options.enabled() || !measure()) return
+    settle(false)
     lifted.value = true
   }
 
@@ -166,14 +207,25 @@ export function useCardLift(options: {
     if (held) return // the card moved, not the pointer: wait for the pointer to move on
     leaveTimer = setTimeout(() => {
       leaveTimer = null
+      if (!lifted.value) return
       lifted.value = false
+      settle(true)
     }, LEAVE_GRACE_MS)
   }
+
+  function mark(on: boolean): void {
+    for (const el of [options.card(), options.list.value]) {
+      if (on) el?.setAttribute(HELD_ATTR, '')
+      else el?.removeAttribute(HELD_ATTR)
+    }
+  }
+  watch(lifted, (now) => { if (!now) mark(false) })
 
   function hold(event: MouseEvent): void {
     if (!lifted.value) return
     held = { x: event.clientX, y: event.clientY }
     holder = me
+    mark(true)
     window.addEventListener('pointermove', moveOn, { passive: true })
   }
 
@@ -195,12 +247,15 @@ export function useCardLift(options: {
     held = null
     window.removeEventListener('pointermove', moveOn)
     if (holder === me) releaseHold()
-    if (!lifted.value) return
+    mark(false)
+    const away = lifted.value || settling.value
+    settle(false)
+    if (!away) return
     lifted.value = false
     for (const el of [options.card(), options.list.value]) {
       if (!el) continue
       el.style.setProperty('transition', 'none', 'important') // outranks the hover rules' !important transitions
-      el.classList.remove(LIFTED_CLASS, LIFTED_LIST_CLASS)
+      el.classList.remove(LIFTED_CLASS, LIFTED_LIST_CLASS, ...SETTLING_CLASSES)
       requestAnimationFrame(() => requestAnimationFrame(() => el.style.removeProperty('transition')))
     }
   }
@@ -216,7 +271,24 @@ export function useCardLift(options: {
     clickHost?.addEventListener('click', hold, true)
   }, { flush: 'post' })
 
+  const release = (): void => { if (holder !== me) drop() } // the clicked card keeps its lift through the move
+  releases.add(release)
+  const refresh = (): void => {
+    if (!lifted.value || !measure()) return
+    if (holder === me) mark(true) // the open card's list may be a new element
+    for (const [el, style] of [[options.card(), cardStyle.value], [options.list.value, listStyle.value]] as const) {
+      if (!el) continue
+      for (const [name, value] of Object.entries(style)) {
+        if (name.startsWith('--')) el.style.setProperty(name, value)
+        else if (name === 'transformOrigin') el.style.transformOrigin = value
+      }
+    }
+  }
+  refreshers.add(refresh)
+
   onBeforeUnmount(() => {
+    releases.delete(release)
+    refreshers.delete(refresh)
     clearTimers()
     observer.disconnect()
     clickHost?.removeEventListener('click', hold, true)
@@ -226,5 +298,5 @@ export function useCardLift(options: {
     if (holder === me) releaseHold()
   })
 
-  return { lifted, cardStyle, listStyle, enter, leave, drop, atRest, hold }
+  return { lifted, settling, cardStyle, listStyle, enter, leave, drop, atRest, hold }
 }
