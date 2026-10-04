@@ -228,6 +228,7 @@ function cardProps(goal: GoalCardData) {
   --color-surface-overlay: transparent;
 }
 .carried-ghosts > .carried-ghost { position: absolute; box-sizing: border-box; margin: 0; }
-/* A plan under the pointer takes the goal's hover tint on the box's own colour, the way a subtask does. */
-.carried-group .goal-card:hover > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
+/* A plan under the pointer takes the goal's hover tint on the box's own colour, the way a subtask does. An open plan
+   keeps its whole colour (KK, 27 Sep 2026): dimming only its row made a seam against its list, reported 4 Oct. */
+.carried-group .goal-card:not(.goal-card--detail-open):hover > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
 </style>

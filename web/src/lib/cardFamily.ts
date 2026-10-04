@@ -10,8 +10,7 @@ import type { GoalCardData } from '../types'
 import { DEEPEST } from './familyView'
 import { familyMoving } from './familyMotion'
 import { curve, reducedMotion } from './motion'
-
-const LIGHT_SWAP_MS = 150 // a swap under the pointer: goalCard.css `--light-fast`
+import { finishLightMove } from './lightMotion'
 
 export function useCardFamily(props: {
   readonly id: string
@@ -93,14 +92,14 @@ export function useCardFamily(props: {
      4 Oct 2026, a recording: the board flipped from one family to the other and back on every hover). Only the goals
      that change move: the veil itself, which the opening fades as one layer, stays one layer (goalCard.css). */
   const lightMove = ref<'in' | 'out' | null>(null)
-  let lightMoveTimer: ReturnType<typeof setTimeout> | null = null
+  let lightMoveToken = 0
   watch(familyLit, (now, was) => {
     if (!store.state.lightFast || !now === !was) return
     lightMove.value = now ? 'in' : 'out'
-    if (lightMoveTimer !== null) clearTimeout(lightMoveTimer)
-    lightMoveTimer = setTimeout(() => { lightMoveTimer = null; lightMove.value = null }, LIGHT_SWAP_MS + 20)
+    const token = ++lightMoveToken
+    finishLightMove(rootElement(), () => { if (token === lightMoveToken) lightMove.value = null })
   })
-  onBeforeUnmount(() => { if (lightMoveTimer !== null) clearTimeout(lightMoveTimer) })
+  onBeforeUnmount(() => { lightMoveToken++ })
   /* An open goal always has a list: its steps end with "Add…", and its notes follow them inside the same piece. */
   const showChildren = computed(() => isInlineDetailHost.value || isPathLine.value || (listKids.value.length > 0 && (
     inWideColumn.value

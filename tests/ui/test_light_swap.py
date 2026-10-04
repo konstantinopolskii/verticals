@@ -20,8 +20,11 @@ SAMPLER = r"""(ids) => {
     const card = document.querySelector(sel);
     const row = card.querySelector(':scope > .goal-card__row');
     const cs = getComputedStyle(row);
-    return { light: card.dataset.light ?? null, o: Math.round(parseFloat(cs.opacity) * 100) / 100, z: cs.zIndex,
+    return { time: Number(document.timeline.currentTime), light: card.dataset.light ?? null, move: card.dataset.lightMove ?? null,
+      o: Math.round(parseFloat(cs.opacity) * 100) / 100, z: cs.zIndex,
       wash: Math.round(parseFloat(getComputedStyle(row, '::before').opacity) * 100) / 100,
+      list: card.classList.contains('goal-card--detail-open')
+        ? Number(getComputedStyle(card.nextElementSibling).opacity) : null,
       lifted: card.classList.contains('goal-card--lifted') };
   };
   function frame() {

@@ -128,6 +128,9 @@ function swappedLight(board: BoardResponse, id: string): Map<string, Light> {
   const light = new Map<string, Light>()
   for (const member of subtreeIds(board, id)) light.set(member, 'light')
   for (const member of ancestorIds(board, id)) light.set(member, 'light')
+  // Keep the pointed goal's full colour through the leave grace: dropping to the relatives' tint first made a
+  // second, unrelated fade before the light returned (KK's hover recording, 4 Oct 2026).
+  light.set(id, 'full')
   return light
 }
 

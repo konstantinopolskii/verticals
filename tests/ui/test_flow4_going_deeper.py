@@ -243,7 +243,7 @@ def test_the_goal_under_the_pointer_takes_the_open_cards_colour(ui_f2: UiSession
 
     # A goal that's off swaps the light as before, and is full in its lit chain.
     point("quarter", fam.unrelated)
-    expect(page.locator(_card("quarter", fam.unrelated)).first).to_have_attribute("data-light", "light")
+    expect(page.locator(_card("quarter", fam.unrelated)).first).to_have_attribute("data-light", "full")
     assert _tint(page, "quarter", fam.unrelated) == 1
     assert page.locator(_card("year", fam.parent)).first.get_attribute("data-light") is None
 
