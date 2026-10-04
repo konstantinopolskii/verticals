@@ -46,6 +46,7 @@ function comment() {
   closeMenu()
 }
 const fixedSameVerticalParent = computed(() => store.sameVerticalParentId(props.id))
+const repeatVertical = computed(() => (props.vertical && props.vertical !== 'life' ? props.vertical : null))
 function onOpen() {
   open.value = true
   emit('open-change', true)
@@ -228,14 +229,14 @@ defineExpose({ openMenu })
     </PopoverEngine>
 
     <RepeatPopover
-      v-if="vertical && vertical !== 'life'"
+      v-if="repeatVertical"
       :id="id"
-      :vertical="vertical"
+      :vertical="repeatVertical"
       :repeat="repeat ?? null"
       :has-children="hasChildren"
     />
 
-    <hr>
+    <hr v-if="props.open || repeatVertical">
 
     <button
       type="button"
