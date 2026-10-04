@@ -3,7 +3,7 @@
 // letting go lands the goal as a drop does and then gives the board back.
 import { nextTick, reactive } from 'vue'
 import { knob } from './tuning'
-import { closeSpans, openSpans, spans, stepSpans, swapSide, type SpanScale } from './spans'
+import { closeSpans, homeSpans, openSpans, spans, stepSpans, swapSide, type SpanScale } from './spans'
 import { moving, park, unpark } from './moving'
 import type { DragState } from './drag'
 
@@ -13,6 +13,8 @@ export const dots = reactive({
   goalId: null as string | null,
   /** The held goal has melted into the dots and not yet grown back (S5.P2.013, .015). */
   melted: false,
+  /** Let go in the spans: the goal lands and the board comes back, the move is over. */
+  landing: false,
 })
 
 export interface SpansDragPorts {
@@ -45,6 +47,13 @@ function wait(ms: number): Promise<void> {
 function afterLayout(): void {
   void nextTick(() => requestAnimationFrame(() => ports?.retarget()))
 }
+/* The rows slide in or over for a while: read them again once they stand still, so the drop lands where it shows. */
+let settleTimer = 0
+function afterMotion(ms: number): void {
+  afterLayout()
+  window.clearTimeout(settleTimer)
+  settleTimer = window.setTimeout(afterLayout, ms + 20)
+}
 
 /** Every move of an armed drag. */
 export function onDragMove(x: number, y: number): void {
@@ -69,11 +78,10 @@ async function melt(scale: SpanScale): Promise<void> {
   dots.melted = true
   await wait(200)
   if (version !== meltVersion || !drag.id) return
-  const corner = dotsEl?.closest('.pattern-vertical-board__column')?.getBoundingClientRect().right ?? null
-  await openSpans(scale, drag.sourceVertical ?? 'maybe', drag.sourcePeriodKey, ports!.today(), corner)
+  await openSpans(scale, drag.sourceVertical ?? 'maybe', drag.sourcePeriodKey, ports!.today())
   if (version !== meltVersion) return
   dots.held = null
-  afterLayout()
+  afterMotion(400)
   await wait(400)
   if (version === meltVersion) dots.melted = false
 }
@@ -92,18 +100,21 @@ function edgeTick(dir: 1 | -1): void {
   if (!spans.vertical) return
   if ((spans.side === 'right' ? 1 : -1) === dir) swapSide()
   else stepSpans(dir)
-  afterLayout()
+  afterMotion(300)
 }
 
 function stopTimers(): void {
   window.clearTimeout(dotsTimer)
+  window.clearTimeout(settleTimer)
   window.clearInterval(edgeTimer)
   dotsEl = null
   edgeDir = 0
 }
 
 /** Let go over the field while the spans are open: the goal waits above it instead of landing (S5.P3.037). */
+let cancelledRelease = false
 export function beforeRelease(cancelled: boolean): boolean {
+  cancelledRelease = cancelled
   const drag = ports?.drag
   if (cancelled || !drag?.id || !spans.vertical) return false
   if (!document.elementFromPoint(drag.x, drag.y)?.closest('.circle-field')) return false
@@ -124,11 +135,16 @@ export function afterRelease(settleMs: number, parked = false): void {
   expandedBefore = undefined
   if (moving.goalId) unpark()
   if (!spans.vertical) return
+  // Cancelled: the spans scroll back to the goal's period while it flies home, then the board returns (S5.P1.027).
+  const homing = cancelledRelease && spans.offset !== 0
+  if (homing) homeSpans()
+  dots.landing = true
   window.setTimeout(() => {
+    dots.landing = false
     closeSpans()
     ports?.setExpanded(before)
     void ports?.reload()
-  }, settleMs)
+  }, homing ? Math.max(settleMs, 320) : settleMs)
 }
 
 /** Esc or a cancelled view: the spans go and nothing moves. */
@@ -137,5 +153,6 @@ export function cancelSpans(): void {
   meltVersion += 1
   dots.held = null
   dots.melted = false
+  dots.landing = false
   closeSpans()
 }

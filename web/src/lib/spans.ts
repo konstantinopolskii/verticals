@@ -1,9 +1,11 @@
 // The weeks under your hand (docs/design-handoff S5.P1): while you move a goal the board can turn into one vertical's
-// periods in a row, this one first, with one column of the regular board floating wide at a side. Spans load one beyond
-// each edge, so stepping never shows one loading (S5.P1.051).
+// periods in a row at the regular columns' width, the last one's edge showing and this one next, with one column of the
+// regular board floating wide over them at a side. Spans render and load one beyond each edge, so stepping never shows
+// one loading or leaving (S5.P1.051).
 import { computed, reactive } from 'vue'
 import { fetchSpans, type BoardResponse, type GoalCard } from './api'
 import { toColumnData } from './boardProjection'
+import { ghostOf } from './ghost'
 import { adjacentPeriodAnchor, type AdjustableVertical } from './periodNavigation'
 import { VERTICAL_SCALES, MONTH_NAMES, verticalRank, type VerticalScale } from './periods'
 import { localDate } from './schedule'
@@ -23,8 +25,13 @@ defineKnobs('Moving a goal', [
   { key: 'dotsHold', label: 'Rest over the dots', value: 150, min: 0, max: 600, step: 10, unit: 'ms' },
 ])
 
-const FLOAT_WIDTH = 400
-const EDGE_GAP = 2
+export const FLOAT_WIDTH = 400
+export const EDGE_GAP = 2
+/** How much of the last span shows before this one (drawn: "last week shows its last 40 px"). */
+const SLIVER = 40
+
+/** The regular board the spans came out of, caught just before they replace it (S5.P1.023, .024). */
+export interface SpansIntro { ghost: HTMLElement; float: DOMRect | null; held: DOMRect | null }
 
 export const spans = reactive({
   /** The vertical laid out as spans, or null for the regular board. */
@@ -40,8 +47,8 @@ export const spans = reactive({
   board: null as BoardResponse | null,
   first: 0,
   starts: [] as string[],
-  /** The right edge of the held column's corner, where the spans come in from (S5.P1.023). */
-  heldAt: null as number | null,
+  /** The regular board as it was, for the spans to come out of (S5.P1.023). */
+  intro: null as SpansIntro | null,
   /** Where the goal came from, to fly back to (S5.P6.006). */
   from: null as { vertical: string; periodKey: string | null } | null,
 })
@@ -66,8 +73,8 @@ export function floatingFor(scale: SpanScale, fromVertical: string): string {
 
 async function load(scale: SpanScale | null = spans.vertical): Promise<boolean> {
   if (!scale) return false
-  const first = spans.offset - 1
-  const count = spans.shown + 2
+  const first = spans.offset - 2
+  const count = spans.shown + 3
   const cached = spans.board && spans.vertical === scale
   if (cached && first >= spans.first && first + count <= spans.first + spans.board!.columns.length) return true
   const version = ++loading
@@ -82,10 +89,9 @@ async function load(scale: SpanScale | null = spans.vertical): Promise<boolean> 
 
 /** Open a vertical's spans: this period first, the goal's own column (or the next one up) floating (S5.P1.044). */
 export async function openSpans(
-  scale: SpanScale, fromVertical: string, fromPeriodKey: string | null, day: string, heldAt: number | null = null,
+  scale: SpanScale, fromVertical: string, fromPeriodKey: string | null, day: string,
 ): Promise<void> {
   today = day
-  spans.heldAt = heldAt
   spans.offset = 0
   spans.shown = fitCount()
   // The view changes once its spans are here, so they come in whole (S5.P1.051).
@@ -95,11 +101,25 @@ export async function openSpans(
   spans.side = floatRank >= 0 && floatRank < verticalRank(scale) ? 'left' : 'right'
   spans.floating = floating
   spans.from = { vertical: fromVertical, periodKey: fromPeriodKey }
+  spans.intro = catchIntro(scale, floating)
   spans.vertical = scale
+}
+
+function catchIntro(scale: SpanScale, floating: string): SpansIntro | null {
+  const strip = document.querySelector<HTMLElement>('[data-role="column-strip"]')
+  if (!strip) return null
+  const column = (vertical: string) => strip.querySelector<HTMLElement>(`:scope > .pattern-vertical-board__column[data-vertical="${vertical}"]`)
+  const ghost = ghostOf(strip)
+  // The floating column lifts out of its place, so the copy leaves that place empty.
+  const lifted = ghost.querySelector<HTMLElement>(`:scope > .pattern-vertical-board__column[data-vertical="${floating}"]`)
+  if (lifted) lifted.style.visibility = 'hidden'
+  for (const dots of ghost.querySelectorAll<HTMLElement>('.column-dots')) dots.style.visibility = 'hidden'
+  return { ghost, float: column(floating)?.getBoundingClientRect() ?? null, held: column(scale)?.getBoundingClientRect() ?? null }
 }
 
 export function closeSpans(): void {
   loading += 1
+  spans.intro = null
   spans.vertical = null
   spans.floating = null
   spans.board = null
@@ -114,21 +134,36 @@ export function stepSpans(direction: 1 | -1): void {
   void load()
 }
 
+/** Back to this period, where a cancelled goal flies home (S5.P1.027). */
+export function homeSpans(): void {
+  if (!spans.vertical || spans.offset === 0) return
+  spans.offset = 0
+  void load()
+}
+
 /** The floating column goes to the other side (S5.P1.052). */
 export function swapSide(): void {
   spans.side = spans.side === 'right' ? 'left' : 'right'
 }
 
+function windowWidth(): number {
+  return typeof window === 'undefined' ? 1458 : window.innerWidth
+}
 /** Spans at the regular columns' width: the board's seven share the window when none is wide (S5.P1.003). */
-function viewWidth(): number {
-  return (typeof window === 'undefined' ? 1458 : window.innerWidth) - FLOAT_WIDTH - 2 * EDGE_GAP
-}
-export function fitCount(): number {
-  const columnWidth = (typeof window === 'undefined' ? 1458 : window.innerWidth) / 7
-  return Math.max(1, Math.round(viewWidth() / columnWidth))
-}
 export function spanWidth(): number {
-  return viewWidth() / Math.max(1, spans.shown)
+  return windowWidth() / 7
+}
+/** Where the floating column leaves room on the left. */
+function lead(): number {
+  return spans.side === 'left' ? FLOAT_WIDTH + 2 * EDGE_GAP : 0
+}
+/** The spans from this one to the window's right edge; the ones at the right run on under the floating column. */
+export function fitCount(): number {
+  return Math.max(1, Math.ceil((windowWidth() - SLIVER) / spanWidth()))
+}
+/** The row's left edge: two spans before this one, the nearer showing its last 40 px. */
+export function rowLeft(): number {
+  return lead() + SLIVER - 2 * spanWidth()
 }
 
 /** The start day of a loaded span's period, for the schedule write (S5.P6.003). */
@@ -172,26 +207,44 @@ export function spanDates(scale: SpanScale, start: string): { date: string; end:
   }
 }
 
-export interface SpanColumn { column: BoardColumnData; how: string; date: string; end: string; start: string }
+export interface SpanColumn {
+  n: number
+  column: BoardColumnData | null
+  how: string
+  date: string
+  end: string
+  start: string
+  /** Out of view: 'before' the last one's edge and the one past it, 'after' the window or under the floating column. */
+  edge: 'before' | 'after' | null
+}
 
-/** The spans in view, each a regular column of the board with its header's words. */
-export const spanColumns = computed<SpanColumn[]>(() => {
+/** Every rendered span, one beyond each edge; one not loaded yet keeps its place empty. */
+export const spanRow = computed<SpanColumn[]>(() => {
   const scale = spans.vertical
   const board = spans.board
   if (!scale || !board) return []
   const now = new Date()
+  const width = spanWidth()
+  const left = rowLeft()
+  const right = windowWidth() - (spans.side === 'right' ? FLOAT_WIDTH + 2 * EDGE_GAP : 0)
   const out: SpanColumn[] = []
-  for (let n = spans.offset; n < spans.offset + spans.shown; n += 1) {
+  for (let n = spans.offset - 2; n <= spans.offset + spans.shown; n += 1) {
     const index = n - spans.first
     const col = board.columns[index]
-    const start = spans.starts[index]
-    if (!col || !start) continue
-    const column = toColumnData(col, board, localDate(start), now)
-    const { date, end } = spanDates(scale, start)
-    out.push({ column, how: howFar(scale, n), date, end: knob('spanEnds') ? end : '', start })
+    const start = spans.starts[index] ?? ''
+    const x = left + (n - spans.offset + 2) * width
+    const edge = n < spans.offset ? 'before' : x >= right ? 'after' : null
+    const { date, end } = start ? spanDates(scale, start) : { date: '', end: '' }
+    out.push({
+      n, column: col && start ? toColumnData(col, board, localDate(start), now) : null, how: howFar(scale, n), date,
+      end: knob('spanEnds') ? end : '', start, edge,
+    })
   }
   return out
 })
+
+/** The spans in view. */
+export const spanColumns = computed(() => spanRow.value.filter((span) => !span.edge && span.column))
 
 /** The board the drag reads while spans are open: the regular board with the loaded spans' goals beside it. */
 export function withSpans(board: BoardResponse | null): BoardResponse | null {

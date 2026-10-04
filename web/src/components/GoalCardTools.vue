@@ -310,6 +310,7 @@ defineExpose({ openMenu })
 .goal-actions__legacy-content {
   display: flex;
   flex-direction: column;
+  min-width: 300px;
 }
 /* One small grey "Move" over the three dates; Under and Inbox after a gap, not a line (S5.P5.003, .005). */
 .goal-actions__move { display: flex; flex-direction: column; }
@@ -327,7 +328,9 @@ defineExpose({ openMenu })
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 14px;
+  /* The menu's row style, 17 px at weight 500, as the week table's rows (docs/design-handoff S5.P5.016). */
+  font-size: 17px;
+  font-weight: 500;
   line-height: 24px;
   text-align: left;
   cursor: pointer;
