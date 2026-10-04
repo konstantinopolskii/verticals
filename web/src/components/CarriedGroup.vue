@@ -153,6 +153,14 @@ function cardProps(goal: GoalCardData) {
   transition: background-color 200ms var(--vt-ease-large), transform var(--motion-lift-out) var(--vt-ease-medium);
 }
 .carried-group--lit { background: rgb(var(--vt-pale)); }
+/* A box in a family's colour stands above the column's veil with that family (goalCard.css): under it, its colour washed
+   out to a grey behind the family's bright plan (KK, 4 Oct 2026: "weird bug with the background of the due block"). */
+.pattern-vertical-board--family .carried-group--lit { position: relative; z-index: 2; }
+/* Out from under the veil, the box turns off what the veil would have: the steps of its plans that aren't in the family. */
+.pattern-vertical-board--family .carried-group--lit .goal-card:not([data-light], [data-holding]) > .goal-card__row {
+  opacity: var(--goal-off-opacity);
+  filter: grayscale(var(--goal-off-grey));
+}
 /* Pointing into the box lifts it as one piece, the way a goal lifts (`lib/cardLift.ts`), by the same room: a tall box
    grows only as much as the margin under it allows. */
 .carried-group--lifted {
