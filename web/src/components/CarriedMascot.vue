@@ -1,20 +1,15 @@
-<script lang="ts">
-// Which of the shy opening words comes next: shared, so each time the mascot wakes it says another.
-let woke = 0
-</script>
-
 <script setup lang="ts">
-// The mascot of the carried box's empty place (docs/design-handoff S4.P3, KK 2026-10-02): when the box keeps its place and
-// gets shorter, the space it leaves is not to be filled. A faint dashed circle with the mascot's line stands there,
-// and the line looks at the pointer. It starts shy ("Ignore me"); a click makes it blink (the line closes into a dot),
-// hop and squash, and say what it did ("Layout fix deployed"), then ask you to stop. Mouse only: it has no keyboard
-// stop and no label, and nothing it does touches the board.
-import { onBeforeUnmount, ref, watch } from 'vue'
+// The mascot of the carried box's empty room (docs/design-handoff S4.P3, KK 2026-10-02): when the box keeps its place and
+// the filter leaves part of it empty, the space is not to be filled. A faint dashed circle with the mascot's line stands
+// there, and the line looks at the pointer. It says why the box is emptier ("No plans for this goal": KK 2026-10-04, its
+// shy openers like "Ignore me" didn't explain and frustrated). A click makes it blink (the line closes into a dot), hop
+// and squash, and say what it did ("Layout fix deployed"), then ask you to stop. Mouse only: it has no keyboard stop and
+// no label, and nothing it does touches the board.
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { reducedMotion } from '../lib/motion'
 
-const props = defineProps<{ on: boolean; box: HTMLElement | null }>()
+const props = defineProps<{ on: boolean; words: string | null }>()
 
-const START = ['Ignore me', 'You didn\'t see this', 'Nevermind']
 const POKES = [
   'Layout fix deployed', 'Edge case, handled', 'Please stop clicking', 'Don\'t touch me, please', 'I am focused on the layout',
   'Please', 'Don\'t', 'It can ruin the layout', 'Please', 'I can see you clicking',
@@ -22,11 +17,21 @@ const POKES = [
 const LINE = 10.8 // px: the line is this tall; blinking it shrinks it to a dot as wide as it is
 const DOT = 1.8
 
-const text = ref('')
+const poked = ref<string | null>(null)
+const text = computed(() => poked.value ?? props.words ?? '')
+const gap = ref<HTMLElement | null>(null)
 const orb = ref<HTMLElement | null>(null)
 const line = ref<HTMLElement | null>(null)
 const words = ref<HTMLElement | null>(null)
 let pokes = 0
+
+/** The height the mascot needs, its words included: the box shows it only where it fits. */
+function need(): number {
+  const o = orb.value
+  const w = words.value
+  return o && w ? o.offsetHeight + 4 + w.offsetHeight + 8 : 52
+}
+defineExpose({ need })
 
 /** The line leans toward the pointer, up to 5 px, the farther the pointer the more. */
 function look(event: PointerEvent): void {
@@ -43,20 +48,22 @@ function look(event: PointerEvent): void {
 
 watch(() => props.on, (on) => {
   if (on) {
-    text.value = START[woke++ % START.length]!
+    poked.value = null
     pokes = 0
     window.addEventListener('pointermove', look, { passive: true })
   } else {
     window.removeEventListener('pointermove', look)
   }
 }, { immediate: true })
+// another goal, another story: it tells that first again
+watch(() => props.words, () => { poked.value = null; pokes = 0 })
 onBeforeUnmount(() => window.removeEventListener('pointermove', look))
 
 function poke(): void {
   const i = pokes
   pokes += 1
   // it explains first, then keeps asking: from the third line on, the asking goes round
-  text.value = POKES[i < POKES.length ? i : 2 + ((i - 2) % (POKES.length - 2))]!
+  poked.value = POKES[i < POKES.length ? i : 2 + ((i - 2) % (POKES.length - 2))]!
   const el = orb.value
   const mark = line.value
   if (reducedMotion() || !el || !mark) return
@@ -69,9 +76,9 @@ function poke(): void {
     { height: `${DOT}px`, marginTop: `${-DOT / 2}px`, offset: 0.5 },
     { height: `${LINE}px`, marginTop: `${-LINE / 2}px` },
   ], { duration: 300, easing: 'cubic-bezier(.2, 0, 0, 1)' })
-  // the hop: as high as the room over the circle allows, never into the box above; a tight place only squashes
+  // the hop: as high as the room over the circle allows, never into the plans above; a tight place only squashes
   const from = getComputedStyle(el).transform
-  const room = props.box ? el.getBoundingClientRect().top - props.box.getBoundingClientRect().bottom : 12
+  const room = gap.value ? el.getBoundingClientRect().top - gap.value.getBoundingClientRect().top : 12
   const tight = room < 9
   const up = tight ? 0 : Math.min(12, room - 6)
   const out = 'cubic-bezier(.2, .7, .3, 1)'
@@ -88,7 +95,7 @@ function poke(): void {
 </script>
 
 <template>
-  <div class="carried-gap" :class="{ 'carried-gap--on': on }" data-role="carried-gap" aria-hidden="true">
+  <div ref="gap" class="carried-gap" :class="{ 'carried-gap--on': on }" data-role="carried-gap" aria-hidden="true">
     <div class="carried-gap__mascot">
       <div ref="orb" class="carried-gap__orb" data-role="carried-mascot" @click="poke"><i ref="line"></i></div>
       <p ref="words" class="carried-gap__words" data-role="carried-words">{{ text }}</p>
@@ -97,7 +104,7 @@ function poke(): void {
 </template>
 
 <style>
-/* The place the box keeps is empty and clear; the mascot is there, almost invisible (KK: "even a bit more lighter"). */
+/* The room the filter leaves in the box is clear; the mascot's circle is almost invisible there (KK: "even a bit more lighter"). */
 .carried-gap { --carried-ghost: rgb(45 48 54 / 20%); flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; }
 .carried-gap__mascot {
   width: 100%;
@@ -114,12 +121,13 @@ function poke(): void {
   -webkit-user-select: none;
   transition: opacity 100ms cubic-bezier(.2, 0, 0, 1), transform 100ms cubic-bezier(.2, 0, 0, 1);
 }
-/* In after the box has settled, out at once, so it never stands in the way of the box growing back. */
+/* In as the plans go (the box keeps its height, so nothing settles first), out at once, so it never stands in the way of
+   the plans coming back. */
 .carried-gap--on .carried-gap__mascot {
   opacity: 1;
   transform: none;
   pointer-events: auto;
-  transition: opacity 180ms cubic-bezier(.2, 0, 0, 1) 140ms, transform 240ms var(--vt-ease-large) 140ms;
+  transition: opacity 180ms cubic-bezier(.2, 0, 0, 1), transform 240ms var(--vt-ease-large);
 }
 .carried-gap__orb {
   position: relative;
@@ -144,5 +152,7 @@ function poke(): void {
   background: var(--carried-ghost);
   transition: transform 140ms cubic-bezier(.2, 0, 0, 1);
 }
-.carried-gap__words { margin: 0; color: var(--carried-ghost); font: 400 10.8px/14px var(--font-body); text-align: center; white-space: nowrap; }
+/* The words say what is happening, so they read like the box's other words (the count, "See all"); the circle stays faint. */
+.carried-gap__words { max-width: 100%; margin: 0; color: rgb(45 48 54 / 52%); font: 400 12px/16px var(--font-body); text-align: center; text-wrap: balance; }
+.pattern-vertical-board__column--active .carried-gap__words { font-size: 15px; line-height: 20px; }
 </style>

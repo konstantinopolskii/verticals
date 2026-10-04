@@ -8,8 +8,9 @@
 //   · A plan is not a filter, and while the pointer is in the box its filter stands.
 //   · The filter lives on the way between its goal and its box: the columns from one to the other. Out of them, or off
 //     the board, the box returns to everything after LEAVE_MS (unless another goal is about to take it).
-//   · A goal in the box's own column keeps its place: the box changes inside the space it had, shorter, and the empty
-//     space belongs to the mascot. A list that doesn't fit shows what fits, and "N more".
+//   · A goal in the box's own column keeps its place: the box fills the space it had, and the room the filter leaves in
+//     it belongs to the mascot, above "N more" (KK 2026-10-04: a white place under a box that got shorter looked
+//     broken). A list that doesn't fit shows what fits, and "N more".
 //   · "N more", "See all": the way out. It shows everything and ends the filter.
 //   · A plan of the box opened: the box is only its header line (the count, "Replan"), and the opened plan stands under it,
 //     alone; the rest comes back when it closes, in the filter it had. The plan stays where it was clicked, by this
@@ -27,7 +28,7 @@ export const SHOWN = 3
 const DWELL_MS = 250 // the pointer rests on a goal this long before a filtered box follows it
 const LEAVE_MS = 250 // the pointer is out of the filter's way this long before the box returns to everything
 const UNPIN_MS = 250 // a slip out of the box over a gap doesn't count as leaving it
-const MIN_GAP = 52 // the empty place holds the mascot from this height
+const MIN_GAP = 52 // the room the filter leaves holds the mascot from this height, or from what its words need
 
 const COLUMN = '.pattern-vertical-board__column[data-vertical]'
 
@@ -104,6 +105,8 @@ export function useCarriedFilter(o: {
   plans: () => GoalCardData[]
   box: Ref<HTMLElement | null>
   place: Ref<HTMLElement | null>
+  /** The mascot's room inside the box, and the height the mascot needs there. */
+  room?: () => { el: HTMLElement; need: number } | null
 }) {
   track()
   const filter = ref<Filter | null>(null)
@@ -172,7 +175,9 @@ export function useCarriedFilter(o: {
     if (mine !== pass) return
     const toBox = heightOf(box)
     const toPlace = heightOf(place)
-    gap.value = !!filter.value && hold.value > 0 && hold.value - toBox >= MIN_GAP
+    const room = o.room?.() ?? null
+    gap.value = !!filter.value && hold.value > 0
+      && (room ? heightOf(room.el) >= Math.max(MIN_GAP, room.need) : hold.value - toBox >= MIN_GAP)
     ease(box, fromBox, toBox)
     ease(place, fromPlace, toPlace, Math.abs(fromBox - toBox) >= 1)
   }
