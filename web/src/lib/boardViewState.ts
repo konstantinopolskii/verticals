@@ -8,6 +8,7 @@
  */
 
 import { ancestorIds, subtreeIds } from './boardIndex'
+import { whenPointerRests } from './pointerRest'
 import type { BoardResponse } from './api'
 
 /** The slice of the store's `State` these helpers touch. `store.ts`'s own reactive `state`
@@ -60,15 +61,17 @@ export function expandColumn(view: BoardViewState, vertical: string): void {
  *  before the click lands. Any card entered during the window cancels the pending clear, so
  *  moving within the family keeps the swap and moving to an unrelated card retargets instantly.
  *
- *  The family light waits for the pointer to rest (KK, the board motion review of 3 Oct 2026): `restChainId` takes a
- *  card only once the pointer has stayed on it HOVER_REST_MS, so a hand crossing the board no longer relights three
- *  columns on every card it passes; leaving the card first cancels it. The carried box rests as long before it follows
- *  a goal (`lib/carriedFilter.ts`). The card's own lift stays instant, and so does `hoverChainId`, which the box and
- *  the mascot read with rests of their own. */
+ *  The family light waits for the pointer to rest (KK, the board motion review of 3 Oct 2026), so a hand crossing the
+ *  board no longer relights three columns on every card it passes. A rest is the hand slowing down on the card
+ *  (`lib/pointerRest.ts`), not a fixed wait: a fixed 250 ms after entering made the light come late and trail the hand
+ *  (KK, 4 Oct 2026). `restChainId` takes the card the moment the pointer settles on it, or HOVER_REST_MS after it
+ *  entered when it keeps moving over it; leaving the card first calls it off. The card's own lift stays instant, and
+ *  so does `hoverChainId`, which the carried box and the mascot read with rests of their own (`lib/carriedFilter.ts`). */
 const HOVER_CLEAR_GRACE_MS = 250
 const HOVER_REST_MS = 250
 let hoverClearTimer: ReturnType<typeof setTimeout> | null = null
 let hoverRestTimer: ReturnType<typeof setTimeout> | null = null
+let hoverRestWatch: (() => void) | null = null
 
 export function setHoverChain(view: BoardViewState, id: string | null): void {
   if (hoverClearTimer !== null) {
@@ -79,6 +82,8 @@ export function setHoverChain(view: BoardViewState, id: string | null): void {
     clearTimeout(hoverRestTimer)
     hoverRestTimer = null
   }
+  hoverRestWatch?.()
+  hoverRestWatch = null
   if (id === null) {
     hoverClearTimer = setTimeout(() => {
       hoverClearTimer = null
@@ -89,10 +94,15 @@ export function setHoverChain(view: BoardViewState, id: string | null): void {
   }
   view.hoverChainId = id
   if (view.restChainId === id) return
-  hoverRestTimer = setTimeout(() => {
+  const rest = (): void => {
+    if (hoverRestTimer !== null) clearTimeout(hoverRestTimer)
     hoverRestTimer = null
+    hoverRestWatch?.()
+    hoverRestWatch = null
     view.restChainId = id
-  }, HOVER_REST_MS)
+  }
+  hoverRestTimer = setTimeout(rest, HOVER_REST_MS)
+  hoverRestWatch = whenPointerRests(rest)
 }
 
 /** A card's family line — itself, every ancestor, every descendant — as one id set. Pure

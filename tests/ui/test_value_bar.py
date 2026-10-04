@@ -43,7 +43,7 @@ def test_hover_highlights_ancestors_and_descendants(ui_f2: UiSession) -> None:
     # quarter column expands — activate_column is that move now.
     activate_column(page, "quarter")
     page.hover('[data-goal-id="SYNQ2R01"] .goal-card__title')
-    page.wait_for_timeout(450)  # the light waits for the pointer to rest 250 ms (lib/boardViewState.ts HOVER_REST_MS)
+    page.wait_for_timeout(450)  # the light waits for the pointer to rest (lib/pointerRest.ts, at most 250 ms)
     assert _has_hover_class(page, "SYNLIF01"), "ancestor must light up"
     assert _has_hover_class(page, "SYNDAY01"), "descendant must light up"
     assert not _has_hover_class(page, "SYNCOL01"), "unrelated card must stay neutral"
