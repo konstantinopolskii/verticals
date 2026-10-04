@@ -120,10 +120,12 @@ function poke(): void {
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-  transition: opacity 100ms cubic-bezier(.2, 0, 0, 1), transform 100ms cubic-bezier(.2, 0, 0, 1);
+  /* out at once: the box fades a copy of it out where it stood (lib/carriedMotion.ts), while its room may already be
+     closing for the plans that come back */
+  transition: none;
 }
-/* In as the plans go (the box keeps its height, so nothing settles first), out at once, so it never stands in the way of
-   the plans coming back. */
+/* In with the plans that arrive, as the plans that leave go (lib/carriedMotion.ts fades it in from 50 ms; the box keeps
+   its height, so nothing settles first). */
 .carried-gap--on .carried-gap__mascot {
   opacity: 1;
   transform: none;

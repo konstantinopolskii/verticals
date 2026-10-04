@@ -218,6 +218,16 @@ function cardProps(goal: GoalCardData) {
   background: #f5f5f1;
   cursor: pointer;
 }
+/* Copies of what leaves the box while it changes (lib/carriedMotion.ts): laid over it where the originals stood, drawn on
+   the box's own ground like its plans, and never in the way of the pointer. */
+.carried-ghosts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --color-bg: transparent;
+  --color-surface-overlay: transparent;
+}
+.carried-ghosts > .carried-ghost { position: absolute; box-sizing: border-box; margin: 0; }
 /* A plan under the pointer takes the goal's hover tint on the box's own colour, the way a subtask does. */
 .carried-group .goal-card:hover > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
 </style>

@@ -20,6 +20,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } 
 import { store } from '../store'
 import { findGoal } from './boardIndex'
 import { liftScale } from './cardLift'
+import { moveBox, readBox } from './carriedMotion'
 import { goalLight } from './look'
 import { reducedMotion, timing } from './motion'
 import type { GoalCardData } from '../types'
@@ -158,7 +159,8 @@ export function useCarriedFilter(o: {
   })
 
   /* One change of what the box shows, and the height it makes: the box and its place are both measured after the change,
-     before either starts to move, so the place follows its own height and not the box's animated one. */
+     before either starts to move, so the place follows its own height and not the box's animated one. What the box
+     shows moves with its height, as one movement (`lib/carriedMotion.ts`). */
   let pass = 0
   async function commit(change: () => void, fit = false): Promise<void> {
     const box = o.box.value
@@ -167,6 +169,7 @@ export function useCarriedFilter(o: {
     const mine = ++pass
     const fromBox = heightOf(box)
     const fromPlace = heightOf(place)
+    const before = readBox(box)
     change()
     await nextTick()
     if (mine !== pass) return
@@ -180,6 +183,9 @@ export function useCarriedFilter(o: {
     const space = room ? heightOf(room.el) : hold.value - toBox
     gap.value = !!filter.value && hold.value > 0 && space >= (room ? room.need.words : MIN_GAP)
     circle.value = gap.value && space >= Math.max(MIN_GAP, room ? room.need.circle : 0)
+    await nextTick() // the mascot takes its place in this change before anything moves
+    if (mine !== pass) return
+    moveBox(box, before, toBox > fromBox + 0.5)
     ease(box, fromBox, toBox)
     ease(place, fromPlace, toPlace, Math.abs(fromBox - toBox) >= 1)
   }
