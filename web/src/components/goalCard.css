@@ -743,7 +743,8 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 /* The rest of the board turns off under one veil per column: the board's white at 1 − the off opacity, over half its
    colour gone. The family stands above it. Fading every turned-off row one by one stalled WebKit, the engine of
    Verticals' own window, for about 100 ms on the first opening (29 Sep 2026: "first opening of the goal lags pretty
-   hard"); one layer per column fades for free. A goal turned off shows no colour of its own, hover's included. */
+   hard"); one layer per column fades for free. A goal turned off shows no colour of its own until the hand lifts it
+   (below). */
 .pattern-vertical-board__body { position: relative; }
 .pattern-vertical-board__body::after {
   content: '';
@@ -773,7 +774,21 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   position: relative;
   z-index: 2;
 }
-.pattern-vertical-board--family .goal-card:not([data-light], [data-holding]) > .goal-card__row::before { opacity: 0; }
+.pattern-vertical-board--family .goal-card:not([data-light], [data-holding], .goal-card--lifted, .goal-card--settling) > .goal-card__row::before { opacity: 0; }
+/* The goal under the hand answers at once, on its own (KK, 4 Oct 2026, a recording: "immediately light the one that is
+   hovered right now and decouple the animation of the others"): lifted, it stands over the veil in its full colour, as a
+   lit goal under the pointer does, before the light reaches its family (lib/boardViewState.ts). It used to wait for the
+   board's whole light swap and light in that one late frame. Settling back unlit, it takes the veil's look on its way
+   down, its colour going with its size, and goes under the veil where it lands. */
+.pattern-vertical-board--family .goal-card.goal-card--lifted:not([data-light]) > .goal-card__row::before {
+  opacity: 1;
+  transition: none;
+}
+.pattern-vertical-board--family .goal-card.goal-card--settling:not([data-light]) > .goal-card__row {
+  opacity: var(--goal-off-opacity);
+  filter: grayscale(var(--goal-off-grey));
+  transition: opacity var(--motion-lift-out) var(--vt-ease-large), filter var(--motion-lift-out) var(--vt-ease-large);
+}
 /* The open card turns off as one piece while the pointer swaps the light (flow 4's frame 6): it keeps its colour, with its
    steps, "Add…" and notes, and takes the veil's look itself (below). */
 .pattern-vertical-board--family .goal-card.goal-card--detail-open:not([data-light]) > .goal-card__row::before { opacity: 1; }
@@ -798,6 +813,11 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   transition: opacity var(--vt-light-ms) var(--vt-light-ease);
 }
 .pattern-vertical-board--family .goal-card__children--open > .goal-card[data-light-move] > .goal-card__row { animation: none; }
+/* When the light reaches its family, the goal under the hand, lit already, and the steps lifted with it don't pass
+   through the veil's look again: that was a blink in the middle of every such hover. */
+.pattern-vertical-board--family :is(.goal-card--lifted, .goal-card__children--lifted .goal-card)[data-light-move='in'] > .goal-card__row {
+  animation: none;
+}
 /* The open goal stands over the veil for as long as it is open, lit or not: the light swapping under the pointer never
    moves it across the veil, the move WebKit drew wrongly for a goal this large (its first frame showed the whole swap,
    and at its end the card flashed lit; filmed in the system WebKit, 4 Oct 2026). Turned off, it takes the veil's look

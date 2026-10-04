@@ -1,8 +1,11 @@
 """While a goal is open, resting on a goal outside its family moves the light to that goal's family, and leaving moves it
 back (`web/src/lib/familyView.ts`). The light used to jump across the column's veil in one frame, both ways (KK, 4 Oct
 2026, a recording: the board flipped from one family to the other and back on every hover); now each goal it takes or
-leaves passes through the veil's own look in the swap's 150 ms (`lib/cardFamily.ts`, goalCard.css). Traced frame by
-frame in the page, motion on."""
+leaves passes through the veil's own look in the swap's 150 ms (`lib/cardFamily.ts`, goalCard.css). The goal under the
+hand answers first, on its own: it lifts in its full colour at once, before the light reaches its family, and the swap
+leaves it alone (KK, the same evening, a recording: "immediately light the one that is hovered right now and decouple
+the animation of the others"; it used to wait for the swap and blink through the veil's look). Traced frame by frame in
+the page, motion on."""
 
 from __future__ import annotations
 
@@ -17,7 +20,9 @@ SAMPLER = r"""(ids) => {
     const card = document.querySelector(sel);
     const row = card.querySelector(':scope > .goal-card__row');
     const cs = getComputedStyle(row);
-    return { light: card.dataset.light ?? null, o: Math.round(parseFloat(cs.opacity) * 100) / 100, z: cs.zIndex };
+    return { light: card.dataset.light ?? null, o: Math.round(parseFloat(cs.opacity) * 100) / 100, z: cs.zIndex,
+      wash: Math.round(parseFloat(getComputedStyle(row, '::before').opacity) * 100) / 100,
+      lifted: card.classList.contains('goal-card--lifted') };
   };
   function frame() {
     if (!s.on) return;
@@ -54,11 +59,14 @@ def test_the_light_passes_through_the_veil_when_it_swaps_under_the_pointer(ui_f2
         return page.evaluate("window.__swap.stop()")
 
     frames = trace(lambda: page.locator(_title("quarter", fam.unrelated)).first.hover(), 900)
-    swap = frames[next(i for i, f in enumerate(frames) if f["other"]["light"] is not None):]
-    # the goal it takes rises over the veil in the veil's look and turns to its own over several frames
-    assert swap[0]["other"]["o"] < 0.6, swap[0]
-    assert any(0.6 < f["other"]["o"] < 0.99 for f in swap), [f["other"]["o"] for f in swap[:10]]
-    assert swap[-1]["other"]["o"] == 1
+    lifted = next(i for i, f in enumerate(frames) if f["other"]["lifted"])
+    taken = next(i for i, f in enumerate(frames) if f["other"]["light"] is not None)
+    swap = frames[taken:]
+    # the goal under the hand lights at once, lifted in its full colour, before the light reaches its family
+    assert lifted < taken, (lifted, taken)
+    hovered = frames[lifted:]
+    assert all(f["other"]["o"] == 1 and f["other"]["wash"] >= 0.99 for f in hovered), [
+        (f["other"]["o"], f["other"]["wash"]) for f in hovered[:12]]
     # the goal it leaves stays over the veil while it turns to the veil's look, then goes under it
     assert swap[0]["family"]["light"] is None and swap[0]["family"]["z"] == "2" and swap[0]["family"]["o"] > 0.6, swap[0]
     assert any(f["family"]["z"] == "2" and f["family"]["o"] < 0.45 for f in swap), [f["family"] for f in swap[:12]]
