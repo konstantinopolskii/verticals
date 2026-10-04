@@ -16,14 +16,15 @@
 //   out on its way within the first quarter of the time while the new one fades in from 8%, growing from where the old
 //   one was; a word never hops between lines, and the two looks never stand at full strength together.
 // - What only was there (the old card's steps, notes and "Add…") fades out where it was in 150 ms, drawn as a still
-//   copy; what only is there now fades in from a quarter of the time and lands with the rest. A row that would pass
-//   through another fades out and comes back later.
+//   copy (lib/stillCopy.ts); what only is there now fades in from a quarter of the time and lands with the rest. A row
+//   that would pass through another fades out and comes back later.
 // - The column's scroll is part of the same movement (one driver per click: the motion review of 3 Oct 2026, where the
 //   scroll ran its own glide and every click played as two to four jerks). The goal the hand pressed stays where it was
 //   pressed, then the open goal is seen whole (`lib/columnFit.ts`, Kirill's rule); the scroll is written before the
 //   second read, so every row, the column's name and the box's header travel there by the same transform.
 // A change during a movement starts from wherever everything is at that moment: the positions and the opacity read
 // include the running animations, and what was on its way out keeps fading from where it is.
+// The clocks start together once the change's first frame is on screen (lib/startTogether.ts).
 
 import { shallowRef } from 'vue'
 import { placeAllWashes } from './goalWash'
@@ -31,6 +32,8 @@ import { curve, reducedMotion } from './motion'
 import { contentTop, familyBlock, fitScroll } from './columnFit'
 import { roomFor } from './columnRoom'
 import { refreshLifts, releaseLifts } from './cardLift'
+import { clearLayers, copies, layer, place, stillCopy } from './stillCopy'
+import { startTogether, unlayer } from './startTogether'
 
 const DURATION = 360 // the opening's time and curve (GoalCard.vue's OPENING, goalDetail.css), one rhythm
 const LEAVE_MS = 150 // what only was there fades out where it is, quicker than what arrives (exits are quicker),
@@ -60,7 +63,7 @@ interface Seen {
   el: HTMLElement
   rect: DOMRect
   opacity: number
-  title?: { el: HTMLElement; rect: DOMRect; size: number }
+  title?: { el: HTMLElement; rect: DOMRect; size: number; look: string; lines: number[] }
   wash?: { top: number; right: number; bottom: number; left: number; opacity: number }
   ghost?: HTMLElement
   /** The scale of the lifted card it stands in (`lib/cardLift.ts`), 1 when none: its rect is drawn that much larger. */
@@ -112,8 +115,25 @@ function liftOf(el: HTMLElement): number {
   return piece ? parseFloat(getComputedStyle(piece).getPropertyValue('--goal-lift-scale')) || 1 : 1
 }
 
+/** The width of each line of a title as laid out, on screen. */
+function linesOf(title: HTMLElement): number[] {
+  const range = document.createRange()
+  range.selectNodeContents(title)
+  const lines: Array<{ top: number; bottom: number; left: number; right: number }> = []
+  for (const r of [...range.getClientRects()].filter((r) => r.width > 0).sort((a, b) => a.top - b.top)) {
+    const line = lines[lines.length - 1]
+    if (line && r.top < line.bottom - 2) {
+      line.left = Math.min(line.left, r.left)
+      line.right = Math.max(line.right, r.right)
+      line.bottom = Math.max(line.bottom, r.bottom)
+    } else lines.push({ top: r.top, bottom: r.bottom, left: r.left, right: r.right })
+  }
+  return lines.map((line) => line.right - line.left)
+}
+
 function read(column: HTMLElement): Map<string, Seen> {
   const seen = new Map<string, Seen>()
+  const view = column.getBoundingClientRect()
   for (const el of column.querySelectorAll<HTMLElement>(`${ROW}, ${PARTS}`)) {
     if (el.closest('[data-state="outgoing"], .family-ghosts')) continue
     const target = mover(el)
@@ -124,7 +144,14 @@ function read(column: HTMLElement): Map<string, Seen> {
     const entry: Seen = { id: el.dataset.goalId, el: target, rect, opacity: parseFloat(getComputedStyle(target).opacity) || 0, lift: liftOf(target) }
     if (el.matches(ROW)) {
       const title = target.querySelector<HTMLElement>(':scope .goal-card__title')
-      if (title) entry.title = { el: title, rect: title.getBoundingClientRect(), size: parseFloat(getComputedStyle(title).fontSize) }
+      if (title) {
+        const look = getComputedStyle(title)
+        entry.title = {
+          el: title, rect: title.getBoundingClientRect(), size: parseFloat(look.fontSize),
+          look: `${look.fontFamily}|${look.fontWeight}|${look.fontStyle}|${look.letterSpacing}|${look.color}`,
+          lines: rect.bottom > view.top && rect.top < view.bottom ? linesOf(title) : [],
+        }
+      }
       entry.wash = washOf(target)
     }
     seen.set(key, entry)
@@ -132,90 +159,13 @@ function read(column: HTMLElement): Map<string, Seen> {
   return seen
 }
 
-/* A still copy of something as it looks now, for fading it out where it was after it is gone from the page. Its look is
-   written onto it, since the rules that drew it depend on where it stood; a row's colour becomes a plain box. */
-const LOOK = [
-  'display', 'flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis', 'align-items', 'align-self',
-  'justify-content', 'gap', 'row-gap', 'column-gap', 'box-sizing', 'width', 'height', 'min-width', 'min-height',
-  'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'margin-top', 'margin-right', 'margin-bottom',
-  'margin-left', 'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width', 'border-top-style',
-  'border-right-style', 'border-bottom-style', 'border-left-style', 'border-top-color', 'border-right-color',
-  'border-bottom-color', 'border-left-color', 'border-radius', 'background-color', 'background-image', 'box-shadow',
-  'color', 'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant-numeric', 'line-height',
-  'letter-spacing', 'text-align', 'text-decoration-line', 'text-decoration-color', 'text-decoration-thickness',
-  'white-space', 'word-break', 'overflow-wrap', 'opacity', 'visibility', 'position', 'top', 'right', 'bottom', 'left',
-  'vertical-align', 'fill', 'stroke', 'filter', 'overflow',
-]
-function copyLook(from: Element, to: Element): void {
-  const look = getComputedStyle(from)
-  const style = (to as HTMLElement).style
-  if (!style) return
-  for (const property of LOOK) style.setProperty(property, look.getPropertyValue(property))
-  for (let i = 0; i < from.children.length && i < to.children.length; i++) copyLook(from.children[i], to.children[i])
-}
-function stillCopy(entry: Seen): HTMLElement {
-  const copy = entry.el.cloneNode(true) as HTMLElement
-  copy.removeAttribute('id')
-  for (const el of copy.querySelectorAll('[id]')) el.removeAttribute('id')
-  copyLook(entry.el, copy)
-  if (entry.wash && entry.wash.opacity > 0.01) {
-    const s = getComputedStyle(entry.el, '::before')
-    const shape = document.createElement('div')
-    shape.style.cssText = `position:absolute;z-index:-1;top:${entry.wash.top}px;right:${entry.wash.right}px;`
-      + `bottom:${entry.wash.bottom}px;left:${entry.wash.left}px;border-radius:${s.borderRadius};`
-      + `background:${s.backgroundImage !== 'none' ? `${s.backgroundImage}, ` : ''}${s.backgroundColor};opacity:${entry.wash.opacity}`
-    copy.style.isolation = 'isolate'
-    copy.prepend(shape)
-  }
-  for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) {
-    el.style.animation = 'none' // a copy keeps its look: no opening of its own
-    el.style.transition = 'none'
-  }
-  copy.setAttribute('aria-hidden', 'true')
-  copy.style.pointerEvents = 'none'
-  copy.style.transform = 'none'
-  copy.style.margin = '0'
-  return copy
-}
-
-/** Each moving column draws its copies on a layer of its own, clipped with the column. */
-const layers = new Map<HTMLElement, HTMLElement>()
-function layer(column: HTMLElement): HTMLElement {
-  let ghosts = layers.get(column)
-  if (!ghosts) {
-    ghosts = document.createElement('div')
-    ghosts.className = 'family-ghosts'
-    ghosts.setAttribute('aria-hidden', 'true')
-    layers.set(column, ghosts)
-  }
-  if (ghosts.parentElement !== column) column.append(ghosts)
-  return ghosts
-}
-function clearLayers(): void {
-  for (const [column, ghosts] of layers) {
-    ghosts.replaceChildren()
-    if (!column.isConnected) layers.delete(column)
-  }
-}
-
-function place(copy: HTMLElement, rect: DOMRect, column: HTMLElement, lift = 1): void {
-  const home = column.getBoundingClientRect()
-  copy.style.position = 'absolute'
-  copy.style.left = `${rect.left - home.left}px`
-  copy.style.top = `${rect.top - home.top}px`
-  // a copy of a lifted thing keeps its own size and is drawn as large as it was, so its words wrap as they did
-  copy.style.width = `${rect.width / lift}px`
-  copy.style.height = `${rect.height / lift}px`
-  copy.style.transformOrigin = '0 0'
-  copy.style.transform = lift === 1 ? 'none' : `scale(${lift})`
-}
-
 const timing = (extra: KeyframeAnimationOptions = {}): KeyframeAnimationOptions => ({ duration: DURATION, easing: curve('large'), ...extra })
 
 /** Drop the running move. The copies still on their way out keep their look and fade from there; returns those fades. */
 function stop(): Animation[] {
   unwiden()
-  const leaving = new Set<Element>([...layers.values()].flatMap((ghosts) => [...ghosts.children]))
+  unlayer()
+  const leaving = new Set<Element>(copies())
   for (const animation of running) {
     const target = (animation.effect as KeyframeEffect | null)?.target
     if (target && leaving.has(target)) {
@@ -490,12 +440,15 @@ async function move(plan: {
     }
   }
   for (const lane of lanes) drawLane(lane, titles, plan.reflow)
+  const mine = running
+  await startTogether()
   // settles when its own animations end (a newer move takes over and settles itself)
-  await Promise.all(running.map((animation) => animation.finished.catch(() => undefined)))
+  await Promise.all(mine.map((animation) => animation.finished.catch(() => undefined)))
   if (token !== moveToken) return
   moving = false
   familyMovingNow.value = false
   delete document.body.dataset.familyMoving
+  unlayer()
   for (const column of columns) delete column.dataset.familyLane
   unwiden()
   clearLayers()
@@ -548,8 +501,9 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
     }
   }
   const ghosts = layer(column)
+  const home = column.getBoundingClientRect() // read once: the copies' layer lies over the column and moves nothing in it
   const fadeOut = (copy: HTMLElement, rect: DOMRect, to?: DOMRect, scale = 1, lift = 1) => {
-    place(copy, rect, column, lift)
+    place(copy, rect, home, lift)
     ghosts.append(copy)
     if (!to) {
       // gone where it was, quicker than the rest moves, and covered by the rows that move over it
@@ -568,7 +522,7 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
   }
   // a row that crosses another: gone early where it was
   const crossOut = (copy: HTMLElement, rect: DOMRect, lift = 1) => {
-    place(copy, rect, column, lift)
+    place(copy, rect, home, lift)
     ghosts.append(copy)
     running.push(copy.animate([{ opacity: 1 }, { opacity: 0, offset: CROSS_OUT }, { opacity: 0 }], timing({ easing: 'linear', fill: 'forwards' })))
   }
@@ -628,28 +582,63 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
     dx: before.get(sunKey)!.rect.left - after.get(sunKey)!.rect.left,
     dy: before.get(sunKey)!.rect.top - after.get(sunKey)!.rect.top,
   } : null
-  // ...and show only inside the card's colour while it grows: its list is clipped to the colour's bottom edge
-  if (sunKey) {
+  // ...and show only inside the card's colour while it grows: its list is clipped to the colour's bottom edge, from the
+  // old shape's to its own end, where the list's own share of the colour ends (lib/goalWash.ts)
+  let carried: HTMLElement | null = null
+  if (sunKey && sunMove) {
     const was = before.get(sunKey)!
     const now = after.get(sunKey)!
     const list = now.el.parentElement?.nextElementSibling as HTMLElement | null
     if (list?.classList.contains('goal-card__children--open') && was.wash && now.wash) {
       const box = list.getBoundingClientRect()
       const listLift = liftOf(list) // a lifted list clips in its own px
-      const edge = (seen: Seen, wash: NonNullable<Seen['wash']>) => seen.rect.bottom - wash.bottom * seen.lift - box.top
-      const cut = (bottom: number) => `inset(-40px -40px ${Math.max(0, (box.height - bottom) / listLift)}px -40px)`
-      running.push(list.animate([{ clipPath: cut(edge(was, was.wash)) }, { clipPath: cut(edge(now, now.wash)) }], timing()))
+      /* The list travels with its row as one piece, by the same kind of transform, and its rows travel inside it. A
+         transform runs on the compositor and the colour's edges on the main thread, which falls behind on a heavy frame:
+         when the list stood still, the row's colour drew ahead of the list's share with a white band between them
+         (filmed 4 Oct 2026). Moved alike, the two edges meet on every frame. */
+      carried = list
+      const { dx, dy } = sunMove
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        running.push(list.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0px 0px' }], timing()))
+      }
+      // where the old shape's edges stood, in the list's own px as the list sets out
+      const a = was.wash
+      const j = was.lift
+      const start = {
+        top: (was.rect.bottom - a.bottom * j - box.top - dy) / listLift,
+        left: (was.rect.left + a.left * j - box.left - dx) / listLift,
+        right: (box.right + dx - (was.rect.right - a.right * j)) / listLift,
+      }
+      const share = getComputedStyle(list, '::before')
+      const piece = share.content !== 'none'
+      const out = (v: number) => `${Math.min(-40, Math.floor(v) - 40)}px` // never cuts the colour's start
+      const cut = (bottom: number) => `inset(${out(start.top)} ${out(start.right)} ${box.height / listLift - bottom}px ${out(start.left)})`
+      // to the colour's end, which may reach below the list
+      const end = box.height / listLift - (piece ? parseFloat(share.bottom) || 0 : 0)
+      running.push(list.animate([{ clipPath: cut(start.top) }, { clipPath: cut(end) }], timing()))
+      // the list's share of the colour starts where the row's does on its way, from the old shape's edges, so the two
+      // move as one shape (both run on the same curve, and a gliding edge and a morphing one add up on it)
+      if (piece) {
+        running.push(list.animate([
+          { top: `${start.top}px`, left: `${start.left}px`, right: `${start.right}px`, opacity: a.opacity },
+          { top: share.top, left: share.left, right: share.right, opacity: share.opacity },
+        ], timing({ pseudoElement: '::before' })))
+      }
     }
   }
   const inNewCard = (el: HTMLElement) => {
     const list = el.closest<HTMLElement>('.goal-card__children--open')
     return !!list && (list.previousElementSibling as HTMLElement | null)?.dataset.goalId === newSun
   }
+  // What stays out of the column's window for the whole move is never seen: it gets no animation, so it costs nothing
+  // (an opening on a full board started some 600, most of them out of sight, and WebKit drew the first frame late).
+  const unseen = (...rects: DOMRect[]) => Math.max(...rects.map((r) => r.bottom)) <= home.top || Math.min(...rects.map((r) => r.top)) >= home.bottom
   for (const [key, now] of after) {
     const was = before.get(key)
+    if (unseen(now.rect, ...(was ? [was.rect] : []))) continue
     if (!was) {
       fadeIn(now.el) // arrives: fades in where it is, after what left has gone
-      if (sunMove && (Math.abs(sunMove.dy) > 0.5 || Math.abs(sunMove.dx) > 0.5) && inNewCard(now.el)) {
+      if (!carried && sunMove && (Math.abs(sunMove.dy) > 0.5 || Math.abs(sunMove.dx) > 0.5) && inNewCard(now.el)) {
         running.push(now.el.animate([{ transform: `translate(${sunMove.dx / now.lift}px, ${sunMove.dy / now.lift}px)` }, { transform: 'none' }], timing()))
       }
       continue
@@ -665,12 +654,15 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
     const k = now.lift
     const dx = (was.rect.left - now.rect.left) / k
     const dy = (was.rect.top - now.rect.top) / k
-    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-      running.push(now.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], timing()))
+    // a row in the carried list glides by what the list doesn't carry
+    const own = carried && sunMove && carried.contains(now.el) ? { x: dx - sunMove.dx / k, y: dy - sunMove.dy / k } : { x: dx, y: dy }
+    if (Math.abs(own.x) > 0.5 || Math.abs(own.y) > 0.5) {
+      running.push(now.el.animate([{ transform: `translate(${own.x}px, ${own.y}px)` }, { transform: 'none' }], timing()))
     }
     // caught halfway in by this move, it goes on from the opacity it had
     if (was.opacity < now.opacity - 0.02) running.push(now.el.animate([{ opacity: was.opacity }, { opacity: now.opacity }], timing()))
-    if (was.wash && now.wash) {
+    // a shape with no colour on either side is never seen
+    if (was.wash && now.wash && (was.wash.opacity > 0.01 || now.wash.opacity > 0.01)) {
       const a = was.wash
       const b = now.wash
       const moved = [a.top - b.top, a.right - b.right, a.bottom - b.bottom, a.left - b.left].some((d) => Math.abs(d) > 0.5)
@@ -699,6 +691,19 @@ function drawLane(lane: Lane, titles: readonly (string | null)[], reflow: boolea
       const tx = (was.title.rect.left - now.title.rect.left) / k - dx
       const ty = (was.title.rect.top - now.title.rect.top) / k - dy
       now.title.el.style.transformOrigin = '0 0'
+      /* A title that keeps its lines and its look only changes size: the new one drawn at the old size is the old one, so
+         it grows from it with no copy and no fade, three animations fewer (each one costs the system WebKit time to
+         start, lib/startTogether.ts). Its lines' spacing may scale differently, so the block is centred on the old one. */
+      const a = was.title
+      const b = now.title
+      if (a.look === b.look && a.lines.length > 0 && a.lines.length === b.lines.length
+        && a.lines.every((w, i) => Math.abs(w - b.lines[i]! * scale) <= Math.max(1.5, w * 0.01))) {
+        const centre = (a.rect.height - b.rect.height * scale) / 2 / k
+        if (Math.abs(scale - 1) > 0.002 || Math.abs(tx) > 0.5 || Math.abs(ty + centre) > 0.5) {
+          running.push(b.el.animate([{ transform: `translate(${tx}px, ${ty + centre}px) scale(${scale})` }, { transform: 'none' }], timing()))
+        }
+        continue
+      }
       running.push(now.title.el.animate([{ transform: `translate(${tx}px, ${ty}px) scale(${scale})` }, { transform: 'none' }], timing()))
       const title = was.ghost?.querySelector<HTMLElement>('.goal-card__title')
       const titleCopy = title?.cloneNode(true) as HTMLElement | undefined

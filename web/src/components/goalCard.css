@@ -122,6 +122,25 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
    "too dimmed compared to the active one" (KK, same day): .7 now, tunable in the dev Layout panel (Highlight). */
 .goal-card { --goal-light-tint: var(--kkov-light-tint, .7); }
 .goal-card.goal-card--detail-open > .goal-card__row::before { opacity: 1; }
+/* An open goal's colour is two shapes that meet (lib/goalWash.ts): its row's, down to where its steps start, and its
+   list's, on down its steps, "Add…" and notes to the end of its piece. */
+.goal-card.goal-card--detail-open > .goal-card__row::before {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.goal-card__children--open { isolation: isolate; }
+.goal-card__children--open::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: calc(-1 * var(--piece-t, 0px));
+  bottom: calc(-1 * var(--piece-b, 0px));
+  left: calc(-1 * var(--piece-l, 0px));
+  right: calc(-1 * var(--piece-r, 0px));
+  border-radius: 0 0 8px 8px;
+  background: var(--goal-hover-background);
+  pointer-events: none;
+}
 /* Subgoal boxes overlap their neighbours by 2 px; a plain one painted white would bite the corner off a coloured shape
    next to it. On the board's own background, clear is the same as white. */
 .goal-card__children > .goal-card.goal-card { background-color: transparent; }
@@ -138,8 +157,10 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
    background), so over a coloured neighbour it reads as one colour, not a darker band. */
 .goal-card.goal-card--lifted > .goal-card__row::before,
 .goal-card__children--lifted .goal-card > .goal-card__row::before,
+.goal-card__children--open.goal-card__children--lifted::before,
 .goal-card.goal-card--settling > .goal-card__row::before,
-.goal-card__children--settling .goal-card > .goal-card__row::before {
+.goal-card__children--settling .goal-card > .goal-card__row::before,
+.goal-card__children--open.goal-card__children--settling::before {
   background: linear-gradient(var(--goal-hover-background), var(--goal-hover-background)), var(--color-bg);
 }
 /* On its way back the piece stays over its neighbours until it lands, under one that lifts meanwhile. */
@@ -753,14 +774,14 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   z-index: 2;
 }
 .pattern-vertical-board--family .goal-card:not([data-light], [data-holding]) > .goal-card__row::before { opacity: 0; }
-/* The open card turns off as one piece while the pointer swaps the light (flow 4's frame 6): its colour stays under the
-   veil, with its steps, "Add…" and notes. */
+/* The open card turns off as one piece while the pointer swaps the light (flow 4's frame 6): it keeps its colour, with its
+   steps, "Add…" and notes, and takes the veil's look itself (below). */
 .pattern-vertical-board--family .goal-card.goal-card--detail-open:not([data-light]) > .goal-card__row::before { opacity: 1; }
 /* The light swapping under the pointer moves the goals it takes or leaves through the veil's own look, in the swap's
    time, instead of across the veil in one frame (KK, 4 Oct 2026, a recording: the board flipped from one family to the
    other and back on every hover; lib/cardFamily.ts). A goal leaving stays over the veil while it turns to the veil's
    look, the board's white over it and half its colour gone, then goes under the veil, where it looks the same; a goal
-   coming in rises over the veil in that look and turns to its own. An open goal moves with its list, as one piece. */
+   coming in rises over the veil in that look and turns to its own. The open goal stays over the veil (below). */
 @keyframes goal-light-in { from { opacity: var(--goal-off-opacity); filter: grayscale(var(--goal-off-grey)); } }
 @keyframes goal-light-out { to { opacity: var(--goal-off-opacity); filter: grayscale(var(--goal-off-grey)); } }
 .pattern-vertical-board--family .goal-card[data-light-move='in'] > .goal-card__row,
@@ -777,6 +798,35 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   transition: opacity var(--vt-light-ms) var(--vt-light-ease);
 }
 .pattern-vertical-board--family .goal-card__children--open > .goal-card[data-light-move] > .goal-card__row { animation: none; }
+/* The open goal stands over the veil for as long as it is open, lit or not: the light swapping under the pointer never
+   moves it across the veil, the move WebKit drew wrongly for a goal this large (its first frame showed the whole swap,
+   and at its end the card flashed lit; filmed in the system WebKit, 4 Oct 2026). Turned off, it takes the veil's look
+   itself, the board's white over it and half its colour gone, in the light's time, and turns back from wherever it is. */
+.pattern-vertical-board--family .goal-card.goal-card--detail-open > .goal-card__row,
+.pattern-vertical-board--family .goal-card.goal-card--detail-open + .goal-card__children--open:not(.goal-card__children--lifted, .goal-card__children--settling) {
+  position: relative;
+  z-index: 2;
+}
+.pattern-vertical-board--family .goal-card.goal-card--detail-open > .goal-card__row {
+  transition: opacity var(--vt-light-ms) var(--vt-light-ease), filter var(--vt-light-ms) var(--vt-light-ease);
+}
+.pattern-vertical-board--family .goal-card.goal-card--detail-open + .goal-card__children--open {
+  transition: transform var(--motion-lift-out) var(--vt-ease-large),
+    opacity var(--vt-light-ms) var(--vt-light-ease), filter var(--vt-light-ms) var(--vt-light-ease);
+}
+.pattern-vertical-board--family .goal-card.goal-card--detail-open + .goal-card__children--open.goal-card__children--lifted {
+  transition: transform var(--motion-lift-in) var(--vt-ease-medium),
+    opacity var(--vt-light-ms) var(--vt-light-ease), filter var(--vt-light-ms) var(--vt-light-ease);
+}
+.pattern-vertical-board--family .goal-card.goal-card--detail-open:not([data-light]) > .goal-card__row,
+.pattern-vertical-board--family .goal-card.goal-card--detail-open:not([data-light]) + .goal-card__children--open {
+  opacity: var(--goal-off-opacity);
+  filter: grayscale(var(--goal-off-grey));
+}
+.pattern-vertical-board--family .goal-card.goal-card--detail-open[data-light-move] > .goal-card__row,
+.pattern-vertical-board--family .goal-card.goal-card--detail-open[data-light-move] + .goal-card__children--open {
+  animation: none;
+}
 
 /* One edge in the wide column: a level stepped through is a step-size line on top (KK, 27 Sep 2026: "the parent of this
    subgoal should be size of a subgoal (so it will work as breadcrumb)"), every level stands on the column's one edge,
@@ -808,7 +858,8 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card > .goal-card__row {
   mix-blend-mode: darken;
 }
-body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card > .goal-card__row::before {
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card > .goal-card__row::before,
+body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card__children--open::before {
   background: linear-gradient(var(--goal-hover-background), var(--goal-hover-background)), var(--color-bg);
 }
 body[data-family-moving] .pattern-vertical-board__column[data-family-lane] .goal-card.goal-card {

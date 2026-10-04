@@ -14,9 +14,12 @@
 // without subgoals, and the next card is as far as after any goal (KK, 27 Sep 2026: the vertical gaps were
 // "questionable and inconsistent"). Titles and checkboxes never move: the layer pushes nothing.
 //
-// An open goal is one piece (the cleaned-up card, KK 27 Sep 2026): its shape runs down its steps and its notes to the
+// An open goal is one piece (the cleaned-up card, KK 27 Sep 2026): its colour runs down its steps and its notes to the
 // end of its list. Its "Add…" row and its notes have no shape of their own; they only bound their neighbours', so a
-// step's shape stops at them and the goal after the piece starts below it.
+// step's shape stops at them and the goal after the piece starts below it. The piece's colour is two shapes that meet:
+// the goal's row's, down to where its steps start, and its list's, from there to the end (--piece-t/-b/-l/-r on the
+// list, goalCard.css). One shape from the row reaching down under the list let WebKit, the engine of Verticals' own
+// window, stack the row and the list wrongly whenever either changed layers (filmed in the system WebKit, 4 Oct 2026).
 //
 // A shape depends on layout only, so it is measured when the group's size or its subgoals change, never when the colour
 // moves: colour shows or hides a shape already in place. Positions come from layout boxes (offset*), which a lift's
@@ -69,7 +72,7 @@ const written = new WeakMap<HTMLElement, string>()
  *  shape and only bounds its neighbours' ("Add…", the notes). `shift`: how far its list steps in from the first one. */
 type Box = {
   el: HTMLElement; top: number; bottom: number; end: number; left: number; right: number; row: Rect
-  bound: boolean; shift: number
+  bound: boolean; shift: number; piece: (Rect & { el: HTMLElement }) | null
 }
 type Rect = { top: number; bottom: number; left: number; right: number }
 
@@ -108,12 +111,16 @@ export function useGroupWash(options: {
       const rowLeft = at.left + (row?.offsetLeft ?? 0)
       const own = el.classList.contains('goal-card--detail-open') ? el.nextElementSibling : null
       const piece = own instanceof HTMLElement && own.classList.contains('goal-card__children') ? own : null
+      const pieceAt = piece ? offsetIn(piece, ref) : null
       const home = el.parentElement?.closest<HTMLElement>('.goal-card__children') ?? null
       return {
         el,
         top: at.top,
         bottom: at.top + el.offsetHeight,
-        end: piece ? offsetIn(piece, ref).top + piece.offsetHeight : -Infinity,
+        end: piece && pieceAt ? pieceAt.top + piece.offsetHeight : -Infinity,
+        piece: piece && pieceAt ? {
+          el: piece, top: pieceAt.top, bottom: pieceAt.top + piece.offsetHeight, left: pieceAt.left, right: pieceAt.left + piece.offsetWidth,
+        } : null,
         left: at.left,
         right: at.left + el.offsetWidth,
         row: { top: rowTop, bottom: rowTop + (row?.offsetHeight ?? 0), left: rowLeft, right: rowLeft + (row?.offsetWidth ?? 0) },
@@ -134,17 +141,30 @@ export function useGroupWash(options: {
       const prev = all[i - 1]
       const next = all[i + 1]
       const top = prev ? (prev.bottom + box.top + gap) / 2 : box.top
-      // an open goal's colour runs on down its steps and notes to the end of its piece
-      const bottom = Math.max(box.end, next ? (box.bottom + next.top - gap) / 2 : Math.max(box.bottom, end))
+      const bottom = next ? (box.bottom + next.top - gap) / 2 : Math.max(box.bottom, end)
       const shape = [box.row.top - top, bottom - box.row.bottom, box.row.left - lane.left - box.shift, lane.right - box.row.right]
         .map((px) => `${px.toFixed(2)}px`)
-      if (written.get(box.el) === shape.join()) return
-      written.set(box.el, shape.join())
+      // an open goal's colour runs on down its steps and notes to the end of its piece, drawn by its list from where the
+      // row's shape stops
+      const piece = box.piece
+        ? [box.piece.top - bottom, Math.max(box.end, bottom) - box.piece.bottom, box.piece.left - lane.left - box.shift, lane.right - box.piece.right]
+          .map((px) => `${px.toFixed(2)}px`)
+        : null
+      const key = piece ? `${shape.join()}|${piece.join()}` : shape.join()
+      if (written.get(box.el) === key) return
+      written.set(box.el, key)
       const style = box.el.style
       style.setProperty('--wash-t', shape[0])
       style.setProperty('--wash-b', shape[1])
       style.setProperty('--wash-l', shape[2])
       style.setProperty('--wash-r', shape[3])
+      if (piece && box.piece) {
+        const list = box.piece.el.style
+        list.setProperty('--piece-t', piece[0])
+        list.setProperty('--piece-b', piece[1])
+        list.setProperty('--piece-l', piece[2])
+        list.setProperty('--piece-r', piece[3])
+      }
     })
   }
 
