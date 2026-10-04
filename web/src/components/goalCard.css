@@ -508,8 +508,8 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 /* "Add…" ends the steps, drawn as one more step: an empty checkbox and a muted word at the steps' size. The wide
    column's lists stand their group margin in on the left and run that far past the column on the right, where the open
    card's colour has ended: "Add…" stops at the colour, so its band doesn't stick out as a grey tab. */
-.goal-card__children--open > .subgoal-add-row.goal-card__add-step,
-.goal-card__children--open > .subgoal-add-editor-shell.goal-card__add-step {
+.goal-card__children--open > .goal-card__add-step > .subgoal-add-row,
+.goal-card__children--open > .goal-card__add-step > .subgoal-add-editor-shell {
   width: auto;
   height: auto;
   margin: 0 calc(var(--kkov-expanded-subtask-group-margin-left, 0px) - var(--kkov-expanded-subtask-group-margin-right, 0px)) 0 0;
@@ -524,8 +524,8 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   font-weight: 400;
   gap: var(--kkov-expanded-subtask-checkbox-text-gap);
 }
-.goal-card__children--open > .subgoal-add-row.goal-card__add-step:hover,
-.goal-card__children--open > .subgoal-add-row.goal-card__add-step:focus-visible {
+.goal-card__children--open > .goal-card__add-step > .subgoal-add-row:hover,
+.goal-card__children--open > .goal-card__add-step > .subgoal-add-row:focus-visible {
   background: rgba(0, 0, 0, .04);
   color: rgba(45, 48, 54, .8);
 }

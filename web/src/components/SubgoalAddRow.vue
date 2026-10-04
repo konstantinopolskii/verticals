@@ -43,41 +43,45 @@ defineExpose({ openEditor })
 </script>
 
 <template>
-  <!-- The checkbox stays while the step is typed, as in a column's own add row (KK, 29 Sep 2026: "the checkbox doesn't
-       disappear"). -->
-  <div v-if="editing" class="subgoal-add-editor-shell">
-    <label class="checkbox checkbox--size-s subgoal-add-row__checkbox" aria-hidden="true">
-      <input class="checkbox__input" type="checkbox" disabled />
-      <span class="checkbox__box" />
-    </label>
-    <textarea
-      ref="editor"
-      v-model="draft"
-      data-role="subgoal-add-editor"
-      class="subgoal-add-editor"
-      rows="1"
-      aria-label="Add subgoal"
-      placeholder="Subtask"
-      @keydown.enter.prevent="onEnter"
-      @keydown.esc.stop.prevent="cancelEditor"
-      @blur="onBlur"
-    />
-  </div>
-  <div
-    v-else-if="props.showTrigger"
-    data-role="subgoal-add"
-    class="subgoal-add-row"
-    role="button"
-    tabindex="0"
-    @click="openEditor"
-    @keydown.enter.prevent="openEditor"
-    @keydown.space.prevent="openEditor"
-  >
-    <label class="checkbox checkbox--size-s subgoal-add-row__checkbox" aria-hidden="true">
-      <input class="checkbox__input" type="checkbox" disabled />
-      <span class="checkbox__box" />
-    </label>
-    <span class="subgoal-add-row__text">Add...</span>
+  <div class="subgoal-add">
+    <!-- One root for both states: the open goal's <Transition> plays the row coming and going, not the switch to typing.
+         Comments stay inside it: one at the root makes a fragment in dev, and the editor never entered. -->
+    <!-- The checkbox stays while the step is typed, as in a column's own add row (KK, 29 Sep 2026: "the checkbox doesn't
+         disappear"). -->
+    <div v-if="editing" class="subgoal-add-editor-shell">
+      <label class="checkbox checkbox--size-s subgoal-add-row__checkbox" aria-hidden="true">
+        <input class="checkbox__input" type="checkbox" disabled />
+        <span class="checkbox__box" />
+      </label>
+      <textarea
+        ref="editor"
+        v-model="draft"
+        data-role="subgoal-add-editor"
+        class="subgoal-add-editor"
+        rows="1"
+        aria-label="Add subgoal"
+        placeholder="Subtask"
+        @keydown.enter.prevent="onEnter"
+        @keydown.esc.stop.prevent="cancelEditor"
+        @blur="onBlur"
+      />
+    </div>
+    <div
+      v-else-if="props.showTrigger"
+      data-role="subgoal-add"
+      class="subgoal-add-row"
+      role="button"
+      tabindex="0"
+      @click="openEditor"
+      @keydown.enter.prevent="openEditor"
+      @keydown.space.prevent="openEditor"
+    >
+      <label class="checkbox checkbox--size-s subgoal-add-row__checkbox" aria-hidden="true">
+        <input class="checkbox__input" type="checkbox" disabled />
+        <span class="checkbox__box" />
+      </label>
+      <span class="subgoal-add-row__text">Add...</span>
+    </div>
   </div>
 </template>
 
