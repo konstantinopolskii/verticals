@@ -1,11 +1,11 @@
 """The Verticals app icon: the mascot (the board's black circle with its upright line, `circleField.css`: an 84 px
-circle, a 3 x 24 px line with round ends, here twice as bold) on a macOS icon tile. `AppIcon`: a white tile and a white
-line. `AppIcon-dev`: the yellow of a yellow goal's checkbox (#ffe45c, `lib/devPalette.ts`) for the tile and the line,
-so a dev build never looks like the app people use.
+circle, a 3 x 24 px line with round ends, here 1.5 times as wide and 1.1 times as tall) on a macOS icon tile.
+`AppIcon`: a white tile and a white line. `AppIcon-dev`: the yellow of a yellow goal's checkbox (#ffe45c,
+`lib/devPalette.ts`) for the tile and the line, so a dev build never looks like the app people use.
 
 The tile follows Apple's macOS icon grid: a 1024 px canvas, an 824 px tile centred on it with continuous corners
-(radius 185.4, smoothed like Apple's), and the grid's shadow under it. At 16 px the line would be thinner than a pixel,
-so it keeps at least 1.5 px of width there.
+(radius 185.4, smoothed like Apple's), and the grid's shadow under it. In the 16 and 32 px images the line would come
+out too thin to read, so it keeps at least 1.375 px of width and 3.85 px of height there.
 
 Usage: .venv/bin/python desktop/macos/icon/make_icon.py   -> AppIcon.svg/.icns and AppIcon-dev.svg/.icns next to it,
 which bundle.py puts in the app (`--dev` takes the dev one). Renders through Playwright's Chrome (the repository's test
@@ -14,9 +14,10 @@ import math, pathlib, shutil, subprocess, tempfile
 
 CANVAS, TILE, RADIUS, SMOOTHING = 1024, 824, 185.4, 0.6
 CIRCLE = 0.84 * TILE          # the mascot fills the tile like Telegram's circle (KK, 5 Oct 2026)
-# The line, as a share of the circle: the board's height (circleField.css: 24 px on an 84 px circle) at twice its
-# 3 px width, with round ends: at icon size the board's own line read too thin (KK, 5 Oct 2026: "2 times bolder").
-LINE_W, LINE_H = 6 / 84, 24 / 84
+# The line, as a share of the circle: the board's line (circleField.css: 3 x 24 px on an 84 px circle) at 1.5 times its
+# width and 1.1 times its height, with round ends. At icon size the board's own width read too thin and twice it too
+# bold (KK, 5 Oct 2026: "Find the middle line between. And make height 10% bigger of the I").
+LINE_W, LINE_H = 4.5 / 84, 26.4 / 84
 LOOKS = {
     'AppIcon': {'tile': '#ffffff', 'circle': '#000000', 'line': '#ffffff'},
     'AppIcon-dev': {'tile': '#ffe45c', 'circle': '#000000', 'line': '#ffe45c'},
@@ -64,8 +65,8 @@ def svg(look, px=CANVAS):
     tile = squircle(off, off, TILE, TILE, RADIUS, SMOOTHING)
     cx = cy = CANVAS / 2
     unit = CANVAS / px                       # one rendered pixel, in grid units
-    lw = max(CIRCLE * LINE_W, 1.5 * unit)
-    lh = max(CIRCLE * LINE_H, 3.5 * unit)
+    lw = max(CIRCLE * LINE_W, 1.375 * unit)
+    lh = max(CIRCLE * LINE_H, 3.85 * unit)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CANVAS} {CANVAS}" width="{px}" height="{px}">
   <defs>
     <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
