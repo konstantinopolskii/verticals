@@ -22,8 +22,8 @@
 }
 .circle-field__above > * { pointer-events: auto; }
 .circle-field__above > .circle-tags:not(.is-shown) { pointer-events: none; }
-/* The 8 px between the tags and the field still counts as the field (S2.P2.012). */
-.circle-field__bridge { position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; pointer-events: none; }
+/* The tags' row and the 8 px under it count as the field (S2.P2.012), so the hand reaches a tag from anywhere on it. */
+.circle-field__bridge { position: absolute; left: 0; right: 0; top: 0; bottom: -8px; z-index: -1; pointer-events: none; }
 .circle-field__bridge.is-shown { pointer-events: auto; }
 .circle-field__body { margin-top: 8px; }
 .circle-field__shape {
