@@ -8,7 +8,8 @@ The tile follows Apple's macOS icon grid: a 1024 px canvas, an 824 px tile centr
 out too thin to read, so it keeps at least 1.375 px of width and 3.85 px of height there.
 
 Usage: .venv/bin/python desktop/macos/icon/make_icon.py   -> AppIcon.svg/.icns and AppIcon-dev.svg/.icns next to it,
-which bundle.py puts in the app (`--dev` takes the dev one). Renders through Playwright's Chrome (the repository's test
+which bundle.py puts in the app (`--dev` takes the dev one), and the web's `web/public/favicon.svg`: the white tile
+cropped to its edges, without the shadow. Renders through Playwright's Chrome (the repository's test
 browser) and builds the .icns with macOS's own iconutil."""
 import math, pathlib, shutil, subprocess, tempfile
 
@@ -58,25 +59,41 @@ def squircle(x, y, w, h, r, s):
     ])
 
 
-def svg(look, px=CANVAS):
-    """The icon on the 1024 grid, drawn for a render `px` wide (only the line's minimum width depends on it)."""
+def mascot(look, unit):
+    """The tile, circle and line on the 1024 grid; `unit` is one rendered pixel in grid units."""
     colours = LOOKS[look]
     off = (CANVAS - TILE) / 2
     tile = squircle(off, off, TILE, TILE, RADIUS, SMOOTHING)
     cx = cy = CANVAS / 2
-    unit = CANVAS / px                       # one rendered pixel, in grid units
     lw = max(CIRCLE * LINE_W, 1.375 * unit)
     lh = max(CIRCLE * LINE_H, 3.85 * unit)
+    return tile, f"""<circle cx="{cx}" cy="{cy}" r="{CIRCLE / 2:.3f}" fill="{colours['circle']}"/>
+  <rect x="{cx - lw / 2:.3f}" y="{cy - lh / 2:.3f}" width="{lw:.3f}" height="{lh:.3f}" rx="{lw / 2:.3f}"
+    fill="{colours['line']}"/>"""
+
+
+def svg(look, px=CANVAS):
+    """The icon on the 1024 grid, drawn for a render `px` wide (only the line's minimum width depends on it)."""
+    tile, mark = mascot(look, CANVAS / px)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CANVAS} {CANVAS}" width="{px}" height="{px}">
   <defs>
     <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
       <feDropShadow dx="0" dy="10" stdDeviation="5" flood-color="#000" flood-opacity="0.3"/>
     </filter>
   </defs>
-  <path d="{tile}" fill="{colours['tile']}" filter="url(#shadow)"/>
-  <circle cx="{cx}" cy="{cy}" r="{CIRCLE / 2:.3f}" fill="{colours['circle']}"/>
-  <rect x="{cx - lw / 2:.3f}" y="{cy - lh / 2:.3f}" width="{lw:.3f}" height="{lh:.3f}" rx="{lw / 2:.3f}"
-    fill="{colours['line']}"/>
+  <path d="{tile}" fill="{LOOKS[look]['tile']}" filter="url(#shadow)"/>
+  {mark}
+</svg>
+"""
+
+
+def favicon(look='AppIcon'):
+    """The tile alone, cropped to its edges: a browser tab has no room for the grid's margin and shadow."""
+    off = (CANVAS - TILE) / 2
+    tile, mark = mascot(look, TILE / 16)
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="{off:g} {off:g} {TILE} {TILE}">
+  <path d="{tile}" fill="{LOOKS[look]['tile']}"/>
+  {mark}
 </svg>
 """
 
@@ -88,6 +105,7 @@ SIZES = [('icon_16x16', 16), ('icon_16x16@2x', 32), ('icon_32x32', 32), ('icon_3
 
 
 def main(out):
+    (out.parents[2] / 'web/public/favicon.svg').write_text(favicon())
     from playwright.sync_api import sync_playwright
     tmp = pathlib.Path(tempfile.mkdtemp())
     with sync_playwright() as pw:
