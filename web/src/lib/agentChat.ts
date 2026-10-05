@@ -4,6 +4,7 @@
 // the agent is unavailable there and the field only finds.
 import { computed, reactive } from 'vue'
 import { stepPhrase } from './agentSteps'
+import { commandFilter } from './commandFilter'
 import { goalChangesSince } from './goalChanges'
 
 export interface AgentInfo {
@@ -349,8 +350,9 @@ function follow(event: ChatEvent): void {
       // The server's clock, the one the goal's record keeps.
       if (currentThread.value?.goal) goalSince = typeof event.at === 'number' ? event.at * 1000 : Date.now()
       touchThread({ status: event.error ? 'failed' : 'idle' })
-      // With the conversation open the answer is its balloon at once; only a hidden one lands in the circle (S2.P4.034).
-      if (!event.error && reply.trim() && awaitingReplies > 0 && !agentChat.open) agentChat.answer = { text: reply, at: Date.now() }
+      // With the conversation open the answer is its balloon at once; only a hidden one lands in the circle (S2.P4.034),
+      // and not while you type: then it waits in the conversation and your words stay (S2.P4.025).
+      if (!event.error && reply.trim() && awaitingReplies > 0 && !agentChat.open && !commandFilter.text) agentChat.answer = { text: reply, at: Date.now() }
       awaitingReplies = Math.max(0, awaitingReplies - 1)
       reply = ''
       break

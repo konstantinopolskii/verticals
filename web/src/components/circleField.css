@@ -37,6 +37,8 @@
 .circle-field[data-state='typing'] .circle-field__shape { transition: none; }
 .circle-field[data-pong] .circle-field__shape { transition-duration: var(--vt-dur-shape); }
 .circle-field[data-focused] .circle-field__shape { cursor: text; }
+.circle-field[data-flying='sent'] .circle-field__shape { transition-duration: var(--vt-dur-sent); transition-delay: 0ms; }
+.circle-field[data-flying='reply'] .circle-field__shape { transition-duration: var(--vt-dur-shape); transition-delay: 90ms; }
 .circle-field__surface {
   position: absolute;
   inset: 0;
@@ -166,6 +168,16 @@
   -webkit-line-clamp: 3;
   overflow-wrap: anywhere;
 }
+.circle-field__answer-lead {
+  display: -webkit-box;
+  margin: 0 0 8px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  color: rgb(255 255 255 / 64%);
+}
+.circle-field__answer-measure--lead { width: 376px; }
 .circle-field__answer-caret {
   display: inline-block;
   width: 2px;
@@ -197,7 +209,10 @@
   overflow-wrap: anywhere;
   pointer-events: none;
 }
-.circle-field[data-state='answer'] .circle-field__shape { transition-duration: var(--vt-dur-shape); cursor: pointer; }
+.circle-field[data-state='answer'] .circle-field__shape { transition-duration: var(--vt-dur-shape); transition-delay: 165ms; cursor: pointer; }
+/* The line stands up first (165 ms), then the shape grows around the answer (300 ms), then its words come in (S2.P4.013, .014). */
+.circle-field__answer { animation: circle-field-answer-in 170ms linear 295ms backwards; }
+@keyframes circle-field-answer-in { from { opacity: 0; } }
 
 /* Pong (S1.P1.067): the oval, two lines and a ball. */
 .circle-field[data-pong] .circle-field__line { animation: circle-field-paddle 1300ms var(--vt-ease-breath) infinite alternate; --side: -50px; }
@@ -227,5 +242,7 @@
 @media (prefers-reduced-motion: reduce) {
   .circle-field__shape, .circle-field[data-state='open'] .circle-field__shape { transition: none; }
   .circle-field__words { transition: opacity var(--vt-crossfade) linear; }
+  .circle-field[data-state='answer'] .circle-field__shape { transition: width var(--vt-crossfade) linear, height var(--vt-crossfade) linear; }
+  .circle-field__answer { animation-duration: var(--vt-crossfade); animation-delay: 0ms; }
   .circle-field__line.is-blinking, .circle-field__pivot.is-turning, .circle-field__answer-caret { animation: none; }
 }

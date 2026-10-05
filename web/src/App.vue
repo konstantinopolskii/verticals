@@ -238,14 +238,14 @@ onUnmounted(() => {
   <div class="app-shell">
     <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus" class="board-top-fade" aria-hidden="true"></div>
     <div v-if="store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus" class="board-bottom-fade" data-role="board-bottom-fade" aria-hidden="true"></div>
-    <div class="app-veil" :class="{ 'is-shown': outOfFocus }" data-role="out-of-focus" aria-hidden="true" @click="onVeilClick"></div>
+    <div class="app-veil" :class="{ 'is-shown': outOfFocus, 'app-veil--window': windows.list.length }" data-role="out-of-focus" aria-hidden="true" @click="onVeilClick"></div>
     <WindowStack />
     <AgentConversation @link="onConversationLink" />
     <AgentStep />
     <SearchBar id="verticals-command-bar" ref="searchBar" :agent-available="agentChat.available" @submit="onSubmit">
       <template #agent-tag><AgentTag /></template>
     </SearchBar>
-    <div class="app-content" :class="{ 'app-content--out-of-focus': outOfFocus }">
+    <div class="app-content" :class="{ 'app-content--out-of-focus': outOfFocus, 'app-content--window': windows.list.length }">
       <!-- Mutually exclusive (`v-if`/`v-else`), not `v-show`: before ruling 1 (owner, 2026-08-09),
            `InboxView` rendered the same Maybe-bucket goals as Board's own eighth column
            (deliberately — see InboxView.vue's header comment), so keeping both mounted at once
@@ -314,8 +314,12 @@ onUnmounted(() => {
 .app-veil { position: fixed; inset: 0; z-index: 280; background: var(--vt-focus-veil); opacity: 0; visibility: hidden;
   transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s linear var(--vt-dur-sent); }
 .app-veil.is-shown { opacity: 1; visibility: visible; transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s; }
+/* A window takes the board out of focus in 400 ms, a message in 280 (S2.P6.010). */
+.app-content--window, .app-veil--window, .app-veil--window.is-shown { transition-duration: var(--vt-dur-window-focus); }
 @media (prefers-reduced-motion: reduce) {
-  .app-content, .app-veil, .app-veil.is-shown { transition-duration: var(--vt-crossfade); }
+  .app-content, .app-veil, .app-veil.is-shown, .app-content--window, .app-veil--window, .app-veil--window.is-shown {
+    transition-duration: var(--vt-crossfade);
+  }
 }
 .search-goal-surface { box-sizing: border-box; max-width: 720px; height: 100%; margin: 0 auto; padding: 32px 16px 80px; overflow-y: auto; }
 </style>

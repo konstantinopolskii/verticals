@@ -121,6 +121,16 @@ onBeforeUnmount(() => {
   background: linear-gradient(to bottom, rgba(var(--pale), .04) 0, rgba(var(--pale), .16) 12%, rgba(var(--pale), .44) 40%,
     rgba(var(--pale), .6) 60%, rgba(var(--pale), .6));
 }
+/* Stepping back, the copies and the veil come in: 80 ms under the conversation, 300 ms at the side (S2.P6.011). */
+.pblur--under > .pblur__copy, .pblur--under > .pblur__veil { animation: pblur-in 80ms var(--vt-ease-large) backwards; }
+.pblur--side > .pblur__copy, .pblur--side > .pblur__veil { animation: pblur-in 300ms var(--vt-ease-large) backwards; }
+.pblur--under > .pblur__live { transition: filter 80ms var(--vt-ease-large); }
+@keyframes pblur-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .pblur--under > .pblur__copy, .pblur--under > .pblur__veil, .pblur--side > .pblur__copy, .pblur--side > .pblur__veil {
+    animation-duration: var(--vt-crossfade);
+  }
+}
 .pblur__veil--side {
   background: linear-gradient(to bottom, rgba(var(--pale), 0) var(--pblur-head), rgba(var(--pale), .6) calc(var(--pblur-head) + 12px));
 }

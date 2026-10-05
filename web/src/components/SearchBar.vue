@@ -11,7 +11,8 @@ import { plainWords } from '../lib/chatMarkdown'
 import { closeWindows, windows } from '../lib/windows'
 import { mascot, useMascot, watchBoardNews } from '../lib/mascot'
 import { followWords } from '../lib/finding'
-import { curve } from '../lib/motion'
+import { curve, reducedMotion } from '../lib/motion'
+import { launch } from '../lib/chatFlight'
 import { anyMenuOpen } from '../lib/cardLift'
 import { defineKnobs, knob } from '../lib/tuning'
 import CircleTags from './CircleTags.vue'
@@ -43,12 +44,22 @@ const mirror = ref<HTMLElement | null>(null)
 const pivot = ref<HTMLElement | null>(null)
 const answerMeasure = ref<HTMLElement | null>(null)
 const answerLines = ref(1)
+const leadMeasure = ref<HTMLElement | null>(null)
+const leadLines = ref(0)
 const answerWidth = ref(0)
 
 const hand = ref<{ x: number; y: number } | null>(null)
 const onTags = ref(false)
 const caret = ref<{ x: number; y: number }>({ x: 0, y: 0 })
 const selecting = ref(false)
+/* The shape follows the words' flight at its pace: 280 ms when they are sent, 300 ms when the answer goes up. */
+const flying = ref<'sent' | 'reply' | null>(null)
+let flyingTimer: ReturnType<typeof setTimeout> | null = null
+function fly(kind: 'sent' | 'reply'): void {
+  flying.value = kind
+  if (flyingTimer) clearTimeout(flyingTimer)
+  flyingTimer = setTimeout(() => { flying.value = null }, 420)
+}
 const still = ref(true)
 const lines = ref(1)
 const room = reactive({ width: typeof innerWidth === 'number' ? innerWidth : 1440 })
@@ -73,13 +84,14 @@ function textWidth(value: string): number {
 }
 
 const answerText = computed(() => (circleWords.value ? plainWords(circleWords.value.text) : ''))
+const leadText = computed(() => (circleWords.value?.kind === 'ask' && circleWords.value.lead ? plainWords(circleWords.value.lead) : ''))
 const stopping = computed(() => state.value === 'working' && circle.pointed)
 /* Holding a goal over the spans, the field is a pill with the mascot; let go over it, it widens to hold what stands above
    it (S5.P3.002, .007, .039). */
 const holding = computed(() => state.value === 'moving' && store.state.drag.id !== null)
 
 const width = computed(() => {
-  if (state.value === 'answer') return Math.max(CIRCLE, Math.min(answerWidth.value + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))
+  if (state.value === 'answer') return Math.max(CIRCLE, Math.min((leadLines.value ? ANSWER_MEASURE : answerWidth.value) + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))
   if (stopping.value) return 132
   if (state.value === 'typing') {
     return Math.min(maxWidth.value, Math.max(300, Math.ceil(PAD_LEFT + PAD_RIGHT + textWidth(text.value) + 5)))
@@ -92,7 +104,10 @@ const width = computed(() => {
 const shownLines = computed(() => Math.min(lines.value, knob('field.maxLines')))
 const height = computed(() => {
   if (state.value === 'typing') return PAD_Y * 2 + shownLines.value * LINE
-  if (state.value === 'answer') return Math.max(CIRCLE, PAD_Y * 2 + answerLines.value * 22 + (circleWords.value?.kind === 'ask' ? 44 : 0))
+  if (state.value === 'answer') {
+    const ask = circleWords.value?.kind === 'ask' ? 44 + (leadLines.value ? leadLines.value * 22 + 8 : 0) : 0
+    return Math.max(CIRCLE, PAD_Y * 2 + answerLines.value * 22 + ask)
+  }
   return CIRCLE
 })
 const wide = computed(() => state.value === 'open' || state.value === 'typing' || state.value === 'answer'
@@ -167,6 +182,12 @@ watch(answerText, async () => {
   // The blinking line after the words takes its 5 px on the last line.
   answerWidth.value = answerLines.value > 1 ? ANSWER_MEASURE : Math.min(ANSWER_MEASURE, Math.ceil(el.scrollWidth) + 6)
 }, { immediate: true, flush: 'post' })
+/* An ask in the field carries the agent's last words on top, two lines at most (S2.P1.044). */
+watch(leadText, async () => {
+  await nextTick()
+  const el = leadMeasure.value
+  leadLines.value = el && leadText.value ? Math.min(2, Math.max(1, Math.round(el.getBoundingClientRect().height / 22))) : 0
+}, { immediate: true, flush: 'post' })
 
 /* The conversation measures itself against the field (S2.P1.009), and moves up when the tags come in (S2.P2.013). */
 watch(height, (value) => document.documentElement.style.setProperty('--vt-field-height', `${value}px`), { immediate: true })
@@ -190,6 +211,14 @@ watch(() => state.value === 'working', (working, was) => {
 
 /* The answer goes up into the conversation as its last balloon, and the field takes the caret (S2.P4.003). */
 function reply(): void {
+  const words = shape.value?.querySelector('.circle-field__answer-words')?.getBoundingClientRect()
+  if (words) launch('reply', words.left, words.top)
+  // A press first, then the answer goes up as the black shrinks into the open field (S2.P4.015, .016).
+  if (!reducedMotion()) {
+    shape.value?.animate([{ transform: 'scale(1)' }, { transform: 'scale(.98)' }, { transform: 'scale(1)' }],
+      { duration: 90, easing: curve('large') })
+  }
+  fly('reply')
   agentChat.answer = null
   agentChat.open = true
   agentChat.engaged = true
@@ -218,6 +247,10 @@ function clear(): void {
 function send(): void {
   const words = commandFilter.text.trim()
   if (!words) return
+  // Your words rise from where they stand into your balloon, and the field is the circle again (S2.P3.019).
+  const box = input.value?.getBoundingClientRect()
+  if (box) launch('sent', box.left, box.top + (LINE - 22) / 2)
+  fly('sent')
   emit('submit', words)
 }
 function onKeyDown(event: KeyboardEvent): void {
@@ -328,6 +361,7 @@ onBeforeUnmount(() => {
   stopNews?.()
   stopFinding?.()
   if (stillTimer) clearTimeout(stillTimer)
+  if (flyingTimer) clearTimeout(flyingTimer)
 })
 </script>
 
@@ -339,6 +373,7 @@ onBeforeUnmount(() => {
     :data-pong="mascot.pong ? '' : undefined"
     :data-focused="circle.focused ? '' : undefined"
     :data-holding="holding ? '' : undefined"
+    :data-flying="flying ?? undefined"
     @pointerleave="onLeave"
   >
     <div class="circle-field__above">
@@ -394,6 +429,7 @@ onBeforeUnmount(() => {
         </button>
         <div v-if="circleWords" class="circle-field__answer" :class="`circle-field__answer--${circleWords.kind}`" data-role="circle-answer"
           :aria-label="circleWords.kind === 'answer' ? `${answerText}. Press any key to reply` : undefined">
+          <p v-if="leadText" class="circle-field__answer-lead">{{ leadText }}</p>
           <p class="circle-field__answer-words">{{ answerText }}<span v-if="circleWords.kind === 'answer'" class="circle-field__answer-caret" aria-hidden="true"></span></p>
           <div v-if="circleWords.kind === 'ask' && openAsk" class="circle-field__answer-choices">
             <button v-for="option in openAsk.options" :key="option.value" type="button" class="circle-field__answer-choice"
@@ -401,6 +437,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <p ref="answerMeasure" class="circle-field__answer-measure" aria-hidden="true">{{ answerText }}</p>
+        <p ref="leadMeasure" class="circle-field__answer-measure circle-field__answer-measure--lead" aria-hidden="true">{{ leadText }}</p>
         <button v-if="stopping" type="button" class="circle-field__stop" aria-label="Stop the agent" @click.stop="stop()">
           <span aria-hidden="true"></span>
         </button>
