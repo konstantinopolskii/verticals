@@ -50,7 +50,12 @@ Xcode Command Line Tools:
 ```sh
 python3 desktop/macos/bundle.py     # -> desktop/dist/Verticals.app, .dmg, .zip and -lite.zip
 python3 desktop/macos/bundle.py --version 0.4   # version in Info.plist (default 0.2)
+python3 desktop/macos/bundle.py --dev           # a dev build: the yellow icon instead of the white one
 ```
+
+The icon is the board's mascot on a macOS tile: `macos/icon/AppIcon.icns` (white) and `AppIcon-dev.icns` (yellow, for
+dev builds), drawn by `macos/icon/make_icon.py` (`.venv/bin/python desktop/macos/icon/make_icon.py` redraws both from
+the repository's Playwright Chrome and macOS's `iconutil`).
 
 The bundle mirrors the repository layout inside `Contents/Resources` (verticals/, desktop/, the
 operator skill) plus a trimmed Python 3.12 with the dependencies and PostgreSQL 16 with its
