@@ -18,6 +18,7 @@ import { defineKnobs, knob } from '../lib/tuning'
 import CircleTags from './CircleTags.vue'
 import MovingStack from './MovingStack.vue'
 import { backspace as pickBackspace, escape as movingEscape, tab as pickTab } from '../lib/moving'
+import { dots } from '../lib/spansDrag'
 import './circleField.css'
 
 defineKnobs('The field', [
@@ -87,8 +88,8 @@ const answerText = computed(() => (circleWords.value ? plainWords(circleWords.va
 const leadText = computed(() => (circleWords.value?.kind === 'ask' && circleWords.value.lead ? plainWords(circleWords.value.lead) : ''))
 const stopping = computed(() => state.value === 'working' && circle.pointed)
 /* Holding a goal over the spans, the field is a pill with the mascot; let go over it, it widens to hold what stands above
-   it (S5.P3.002, .007, .039). */
-const holding = computed(() => state.value === 'moving' && store.state.drag.id !== null)
+   it (S5.P3.002, .007, .039). Let go anywhere else, it stays the pill while the goal lands and the board comes back. */
+const holding = computed(() => state.value === 'moving' && (store.state.drag.id !== null || dots.landing))
 
 const width = computed(() => {
   if (state.value === 'answer') return Math.max(CIRCLE, Math.min((leadLines.value ? ANSWER_MEASURE : answerWidth.value) + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))

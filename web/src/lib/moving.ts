@@ -42,7 +42,7 @@ export function endMove(): void {
 export function moveContext(title: (id: string) => string | null): Record<string, unknown> {
   return {
     view: spans.vertical ? VIEW_NAMES[spans.vertical] : null,
-    spans: spanColumns.value.map((span) => `${span.how}: ${span.date}${span.end ? ` – ${span.end}` : ''} (${span.column.periodKey})`),
+    spans: spanColumns.value.map((span) => `${span.how}: ${span.date}${span.end ? ` – ${span.end}` : ''} (${span.column?.periodKey ?? ""})`),
     goal: moving.goalId ? { id: moving.goalId, title: title(moving.goalId) } : null,
   }
 }

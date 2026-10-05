@@ -169,7 +169,8 @@ function renderItems(slide: PeriodSlide): RenderItem[] {
 }
 
 function carriedGoals(slide: PeriodSlide): GoalCardData[] {
-  return slide.goals.filter(goal => goal.ghost)
+  // The goal in the hand is out of its group while you hold it (docs/design-handoff S5.P1, drawn).
+  return slide.goals.filter(goal => goal.ghost && goal.id !== store.state.drag.id)
 }
 /* "Replan" opens the Inbox task that holds the carried plans (S4.P2.038, S4.P4). */
 function onReplan(from: Element): void {

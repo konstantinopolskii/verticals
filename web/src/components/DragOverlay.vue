@@ -5,12 +5,21 @@ import { computed, nextTick, shallowRef, watch } from 'vue'
 import { store } from '../store'
 import { SETTLE_EASING } from '../lib/drag'
 import { dots } from '../lib/spansDrag'
+import { spanGoal, spans } from '../lib/spans'
+import { findGoal } from '../lib/boardIndex'
+import { goalLight } from '../lib/look'
 
 /* Clone the rendered row itself. Copying computed styles before Vue applies the source-ghost
    class preserves every current control and line at the measured footprint without creating a
    second interactive GoalCard instance. */
 const overlayHost = shallowRef<HTMLElement | null>(null)
 const dragVisualId = computed(() => store.state.drag.id ?? store.state.drag.settling?.id ?? null)
+/* Over the spans the goal in the hand is its colour's light wash, lit from under (docs/design-handoff S5.P1.F01). */
+const light = computed(() => {
+  const id = dragVisualId.value
+  if (!spans.vertical || !id) return null
+  return goalLight((findGoal(store.state.board, id) ?? spanGoal(id))?.color ?? null)
+})
 
 function cloneRenderedRow(id: string): HTMLElement | null {
   // A goal waiting above the field is the one in the hand (docs/design-handoff S5.P3.018).
@@ -201,10 +210,10 @@ const overlayStyle = computed(() => {
     v-if="dragVisualId"
     ref="overlayHost"
     class="pattern-vertical-board__drag-overlay"
-    :class="{ 'drag-overlay--melted': dots.melted }"
+    :class="{ 'drag-overlay--melted': dots.melted, 'drag-overlay--lit': light }"
     data-role="drag-overlay"
     data-dnd-overlay
-    :style="[overlayStyle, { '--grab-x': `${store.state.drag.offsetX}px`, '--grab-y': `${store.state.drag.offsetY}px` }]"
+    :style="[overlayStyle, light ?? {}, { '--grab-x': `${store.state.drag.offsetX}px`, '--grab-y': `${store.state.drag.offsetY}px` }]"
   />
 </template>
 
@@ -216,6 +225,10 @@ const overlayStyle = computed(() => {
   transition: transform 200ms var(--vt-ease-large), filter 200ms var(--vt-ease-large), opacity 200ms var(--vt-ease-large);
 }
 .drag-overlay--melted > * { transform: scale(.55); filter: blur(3px); opacity: 0; }
+.drag-overlay--lit > * {
+  background-color: rgb(var(--vt-pale)) !important;
+  box-shadow: 0 0 0 1px rgba(var(--vt-tint), .07), 0 8px 20px -4px rgba(var(--vt-tint), .15), 0 52px 128px -12px rgba(var(--vt-tint), .35);
+}
 @media (prefers-reduced-motion: reduce) {
   .pattern-vertical-board__drag-overlay > * { transition: opacity 120ms linear; }
   .drag-overlay--melted > * { transform: none; filter: none; }

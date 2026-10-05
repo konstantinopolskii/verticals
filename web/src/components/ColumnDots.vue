@@ -42,10 +42,10 @@ const colours = computed(() => {
   position: absolute;
   z-index: 3;
   top: 6px;
-  right: 12px;
+  right: 14px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 5px;
   width: 25px;
   height: 20px;

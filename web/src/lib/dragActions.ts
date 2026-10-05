@@ -116,6 +116,10 @@ export function createDragActions(deps: DragActionDeps) {
   const dragHover: DragHoverController = createDragHover({
     onExpandColumn: (vertical, held) => {
       if (vertical === deps.expandedVertical()) return
+      /* The goal's own column and a column whose dots the hand is on keep their width: widening either moves the dots
+         from under the hand on its way to them (docs/design-handoff S5.P2, drawn: the board stays as it is). */
+      if (vertical === state.drag.sourceVertical) return
+      if (document.elementFromPoint(state.drag.x, state.drag.y)?.closest('[data-role="column-dots"]')) return
       // flow 4: the goal the hand holds over stays under it while its column widens, so the hold opens what is there
       const keep = held?.isConnected ? pinRow(held) : null
       deps.expandColumn(vertical)

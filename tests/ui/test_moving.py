@@ -14,7 +14,7 @@ from tests.ui.test_agent_conversation import ui_agent  # noqa: F401  (the fixtur
 from tests.ui.views import FIELD
 
 SPANS = '[data-role="spans-board"]'
-SPAN = '[data-role="spans-row"] > .pattern-vertical-board__column'
+SPAN = '[data-role="spans-row"] > .pattern-vertical-board__column:not([data-span-edge])'
 MONTH_GOAL = "SYNSCH01"
 
 

@@ -31,7 +31,7 @@ function schedule(scale: VerticalScale, day: Date): void {
 }
 
 /* The levels: only the starts of their periods, forward from this one (S5.P5.013, .014). */
-interface Row { key: string; how: string; day: string; month: string; date: Date; own: boolean }
+interface Row { key: string; how: string; day: string; month: string; date: Date; own: boolean; newMonth: boolean }
 function starts(scale: VerticalScale, count: number): Date[] {
   const t = today.value
   const first = scale === 'week' ? new Date(t.getFullYear(), t.getMonth(), t.getDate() - ((t.getDay() + 6) % 7))
@@ -50,18 +50,20 @@ const rows = computed<Row[]>(() => {
   if (scale !== 'week' && scale !== 'month' && scale !== 'quarter' && scale !== 'year') return []
   const own = goal.value?.vertical === scale ? goal.value.period_key : null
   let lastMonth = -1
-  return starts(scale, scale === 'week' ? 12 : scale === 'year' ? 5 : 8).map((d, i) => {
+  return starts(scale, scale === 'week' ? 13 : scale === 'year' ? 5 : 8).map((d, i) => {
     const how = i === 0 ? 'This' : i === 1 ? 'Next' : String(i)
     const key = periodKeyFor(scale, d)
     if (scale === 'week') {
       // The month in full, once: on the first week that starts in it (S5.P5.015).
       const month = d.getMonth() !== lastMonth ? MONTH_NAMES[d.getMonth()]! : ''
+      // A small gap before each month after the first (S5.P5.F04).
+      const newMonth = i > 0 && !!month
       lastMonth = d.getMonth()
-      return { key, how, day: String(d.getDate()), month, date: d, own: key === own }
+      return { key, how, day: String(d.getDate()), month, date: d, own: key === own, newMonth }
     }
     const label = scale === 'month' ? `${MONTH_NAMES[d.getMonth()]}${d.getFullYear() !== today.value.getFullYear() ? ` ${d.getFullYear()}` : ''}`
       : scale === 'quarter' ? `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}` : String(d.getFullYear())
-    return { key, how, day: '', month: label, date: d, own: key === own }
+    return { key, how, day: '', month: label, date: d, own: key === own, newMonth: false }
   })
 })
 
@@ -203,9 +205,9 @@ watch(() => props.step, focusFirst)
 
     <template v-else-if="rows.length">
       <button v-for="row in rows" :key="row.key" type="button" role="menuitem" class="move-step__row"
-        :class="{ 'move-step__row--own': row.own, 'move-step__row--table': step === 'week' }" :data-period-key="row.key"
+        :class="{ 'move-step__row--own': row.own, 'move-step__row--table': step === 'week', 'move-step__row--month': row.newMonth }" :data-period-key="row.key"
         @click.stop="schedule(step as VerticalScale, row.date)">
-        <span class="move-step__how">{{ row.how }}</span>
+        <span class="move-step__how" :class="{ 'move-step__how--word': !/^\d+$/.test(row.how) }">{{ row.how }}</span>
         <span v-if="step === 'week'" class="move-step__day">{{ row.day }}</span>
         <span class="move-step__name">{{ row.month }}</span>
       </button>
@@ -252,15 +254,15 @@ watch(() => props.step, focusFirst)
 </template>
 
 <style>
-.move-step { display: flex; flex-direction: column; min-width: 280px; max-height: min(560px, 70vh); }
+.move-step { display: flex; flex-direction: column; min-width: 300px; max-height: min(600px, 75vh); }
 .move-step > hr { height: 1px; margin: 8px 0; border: 0; background: rgba(0, 0, 0, .08); }
 .move-step__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 14px 6px 10px; }
 .move-step__back { display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; color: #000; cursor: pointer; }
 .move-step__title { font: 700 17px/24px var(--font-body); }
 .move-step__month { display: inline-flex; align-items: center; gap: 4px; color: #000; font: 500 15px/20px var(--font-body); }
 .move-step__arrow { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; background: none; cursor: pointer; }
-/* Week as a table: how far away small and grey at the left edge, the day's digits right-aligned so they end 88 px in,
-   the month from 95 px (S5.P5.015, .016). */
+/* Week as a table: how far away small and grey at the left edge, "This" and "Next" from it and the numbers right-aligned
+   in 15 px; the day's digits right-aligned so they end 88 px in, the month from 95 px (S5.P5.015, .016). */
 .move-step__row {
   display: grid;
   grid-template-columns: 58px 1fr;
@@ -275,7 +277,11 @@ watch(() => props.step, focusFirst)
   font: 500 17px/24px var(--font-body);
   cursor: pointer;
 }
-.move-step__row--table { grid-template-columns: 44px 30px 1fr; column-gap: 7px; }
+.move-step__row--table { grid-template-columns: 15px 58px 1fr; column-gap: 0; padding-left: 15px; }
+.move-step__row--table .move-step__how { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.move-step__row--table .move-step__how--word { text-align: left; }
+.move-step__row--table .move-step__name { padding-left: 7px; }
+.move-step__row--month { margin-top: 8px; }
 .move-step__row:hover, .move-step__row:focus-visible, .move-step__goal:hover, .move-step__goal:focus-visible { background: rgba(0, 0, 0, .05); outline: none; }
 .move-step__row--own { background: #eef7dc; }
 .move-step__how { color: rgb(45 48 54 / 52%); font-size: 13px; }
