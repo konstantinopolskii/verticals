@@ -1,8 +1,8 @@
 // One behaviour for every list of messages (docs/design-handoff S2.P5): a balloon with half of it past the top line of
 // the column, or past its bottom line, goes out as it passes (fades, blurs, shrinks; at the bottom it also sinks toward
 // the circle) and comes back when half of it is inside again. The check is on position, so it works both ways at any
-// speed. While the column moves it blurs a little, most at the start. The lines are drawn by the caller and the column
-// scrolls past them, so no balloon is ever cut by an edge.
+// speed. While you move the column it blurs a little, most at the start; following its growing end doesn't blur it. The
+// lines are drawn by the caller and the column scrolls past them, so no balloon is ever cut by an edge.
 import { onBeforeUnmount, watch, type Ref } from 'vue'
 import { reducedMotion } from './motion'
 import { defineKnobs, knob } from './tuning'
@@ -25,7 +25,9 @@ export type Lines = () => { top: number; bottom: number }
 
 export function useMessageScroll(column: Ref<HTMLElement | null>, content: Ref<HTMLElement | null>, lines: Lines, items: () => unknown) {
   let frame = 0
-  let lastBlur = 0
+  let blurring: Animation | null = null
+  /* Where the column was put by code, so the scroll it fires isn't taken for your hand. */
+  let placedTop = -1
   /* A column read to its end stays at its end while it grows or the lines move, as a conversation does. */
   let atEnd = true
 
@@ -54,22 +56,40 @@ export function useMessageScroll(column: Ref<HTMLElement | null>, content: Ref<H
   function schedule(): void {
     if (!frame) frame = requestAnimationFrame(place)
   }
+  function toBottom(): void {
+    const el = column.value
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    placedTop = el.scrollTop
+  }
   function onResize(): void {
-    if (atEnd && column.value) column.value.scrollTop = column.value.scrollHeight
+    if (atEnd) toBottom()
     schedule()
+  }
+  /* One blur per move: it rises at the start, stays at its top while the column keeps moving, and is gone within the
+     rest of its time once it stops; a new one starts only from sharp. */
+  function blur(): void {
+    if (knob('scroll.blurs') !== 1 || reducedMotion() || !content.value) return
+    const ms = knob('scroll.moveMs')
+    const peak = ms * 0.22
+    if (blurring?.playState === 'running') {
+      if (Number(blurring.currentTime) > peak) blurring.currentTime = peak
+      return
+    }
+    blurring = content.value.animate(
+      [{ filter: 'blur(0)', easing: 'ease-out' }, { filter: `blur(${knob('scroll.moveBlur')}px)`, offset: 0.22, easing: 'ease-out' },
+        { filter: 'blur(0)' }],
+      { duration: ms },
+    )
   }
   function onScroll(): void {
     const el = column.value
-    if (el) atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2
+    if (!el) return
+    atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 2
     schedule()
-    const now = performance.now()
-    if (knob('scroll.blurs') !== 1 || reducedMotion() || !content.value || now - lastBlur < 120) return
-    lastBlur = now
-    const blur = knob('scroll.moveBlur')
-    content.value.animate(
-      [{ filter: 'blur(0)' }, { filter: `blur(${blur}px)`, offset: 0.22 }, { filter: 'blur(0)' }],
-      { duration: knob('scroll.moveMs'), easing: 'ease-out' },
-    )
+    const own = Math.abs(el.scrollTop - placedTop) < 1
+    placedTop = -1
+    if (!own) blur()
   }
 
   const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize)
@@ -85,6 +105,7 @@ export function useMessageScroll(column: Ref<HTMLElement | null>, content: Ref<H
   onBeforeUnmount(() => {
     column.value?.removeEventListener('scroll', onScroll)
     resize?.disconnect()
+    blurring?.cancel()
     if (frame) cancelAnimationFrame(frame)
   })
   watch(items, schedule, { flush: 'post' })
@@ -92,7 +113,7 @@ export function useMessageScroll(column: Ref<HTMLElement | null>, content: Ref<H
   /** The column's latest exchange at its bottom (S2.P1.012). */
   function toEnd(): void {
     atEnd = true
-    if (column.value) column.value.scrollTop = column.value.scrollHeight
+    toBottom()
     schedule()
   }
   return { toEnd, place: schedule }

@@ -3,7 +3,7 @@
 // S2.P4); moving a goal sets `moving` (S5.P3).
 import { computed, reactive } from 'vue'
 import { commandFilter } from './commandFilter'
-import { agentChat, openAsk } from './agentChat'
+import { agentChat, balloons, openAsk } from './agentChat'
 import { frontWindow } from './windows'
 
 export type CircleJob = 'board' | 'goal' | 'moving'
@@ -29,10 +29,19 @@ export const circleCaption = computed(() => {
   return agentChat.engaged ? 'Ask the agent' : CAPTIONS.board
 })
 
+/** The agent's last words, shown on top of an ask in the field (S2.P1.044). */
+function lastAgentWords(): string {
+  for (let i = balloons.value.length - 1; i >= 0; i--) {
+    const balloon = balloons.value[i]!
+    if (balloon.who === 'agent' && balloon.text.trim()) return balloon.text
+  }
+  return ''
+}
+
 /** What the circle holds while the conversation is hidden: the answer, or the ask the agent waits on (S2.P4, S2.P1.044). */
 export const circleWords = computed(() => {
   if (agentChat.open) return null
-  if (openAsk.value) return { kind: 'ask' as const, text: openAsk.value.title }
+  if (openAsk.value) return { kind: 'ask' as const, text: openAsk.value.title, lead: lastAgentWords() }
   if (agentChat.answer) return { kind: 'answer' as const, text: agentChat.answer.text }
   return null
 })

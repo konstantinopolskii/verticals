@@ -6,6 +6,9 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { agentChat, agentOf, balloons, decide } from '../lib/agentChat'
 import { chatMarkdown } from '../lib/chatMarkdown'
 import { scrollLook, useMessageScroll } from '../lib/messageScroll'
+import { flight, land } from '../lib/chatFlight'
+import { curve, reducedMotion } from '../lib/motion'
+import { windows } from '../lib/windows'
 
 const emit = defineEmits<{ link: [url: string, web: boolean, from: Element | null] }>()
 
@@ -26,7 +29,35 @@ watch(() => [agentChat.open, balloons.value.length, balloons.value[balloons.valu
   if (!agentChat.open) return
   await nextTick()
   toEnd()
+  arrive()
 }, { flush: 'post' })
+
+/* The answer going up from the circle opens the conversation with no reveal: the balloon itself is the movement. */
+const transitionName = computed(() => (flight.value?.kind === 'reply' ? 'agent-conversation-reply' : 'agent-conversation'))
+
+/* A balloon whose words flew in starts where they stood: yours from the field in 280 ms (S2.P3.019), the agent's from
+   the circle in 300 ms after the press, the ones above it making room (S2.P4.016, .017). */
+function arrive(): void {
+  const all = content.value?.querySelectorAll<HTMLElement>('[data-balloon]')
+  const last = all?.[all.length - 1]
+  if (!all || !last) return
+  const f = land(last.dataset.who === 'you' ? 'you' : 'agent')
+  if (!f || reducedMotion()) return
+  const box = last.getBoundingClientRect()
+  const style = getComputedStyle(last)
+  const dx = f.left - (box.left + parseFloat(style.paddingLeft))
+  const dy = f.top - (box.top + parseFloat(style.paddingTop))
+  const from = `translate(${dx}px, ${dy}px)`
+  if (f.kind === 'sent') {
+    last.animate([{ transform: from, backgroundColor: 'rgb(43 43 43 / 0)' }, { transform: 'none', backgroundColor: '#2b2b2b' }],
+      { duration: 280, easing: curve('large') })
+    return
+  }
+  const timing = { duration: 300, delay: 90, easing: curve('large'), fill: 'backwards' as const }
+  last.animate([{ transform: from }, { transform: 'none' }], timing)
+  const room = `translateY(${box.height + 10}px)`
+  for (const balloon of Array.from(all).slice(-12, -1)) balloon.animate([{ transform: room }, { transform: 'none' }], timing)
+}
 
 /* A click beside the balloons is a click on what lies under the conversation: it goes back into the circle (S2.P1.011). */
 function onColumnClick(event: MouseEvent): void {
@@ -41,8 +72,9 @@ function onClick(event: MouseEvent): void {
 </script>
 
 <template>
-  <Transition name="agent-conversation">
-    <div v-if="agentChat.open" class="agent-conversation" :class="{ 'agent-conversation--working': agentChat.running }"
+  <Transition :name="transitionName">
+    <div v-if="agentChat.open" class="agent-conversation"
+      :class="{ 'agent-conversation--working': agentChat.running, 'agent-conversation--over-window': windows.list.length }"
       data-role="agent-conversation" :style="look">
       <div ref="column" class="agent-conversation__column" role="log" @click="onColumnClick" aria-live="polite" :aria-label="`Conversation with ${agentName}`">
         <div ref="content" class="agent-conversation__talk" @click="onClick">
@@ -167,6 +199,8 @@ function onClick(event: MouseEvent): void {
 .agent-conversation-enter-active { transition: clip-path var(--vt-dur-rise) var(--vt-ease-large), opacity var(--vt-dur-rise) linear; }
 .agent-conversation-leave-active { transition: clip-path var(--vt-dur-fade) var(--vt-ease-large), opacity var(--vt-dur-fade) linear; }
 .agent-conversation-enter-from, .agent-conversation-leave-to { clip-path: inset(100% 0 0 0); opacity: 0; }
+/* Over a window the column rises 80 ms after the window steps back (S2.P1.016). */
+.agent-conversation--over-window.agent-conversation-enter-active { transition-delay: 80ms; }
 @media (prefers-reduced-motion: reduce) {
   :root { transition: none; }
   .agent-conversation-enter-active, .agent-conversation-leave-active { transition: opacity var(--vt-crossfade) linear; }

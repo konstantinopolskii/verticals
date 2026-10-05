@@ -167,6 +167,7 @@ body {
   --vt-dur-board: 260ms;
   --vt-dur-sent: 280ms;
   --vt-dur-shape: 300ms;
+  --vt-dur-window-focus: 400ms;
   --vt-dur-back: 320ms;
   --vt-dur-pop: 400ms;
   --vt-crossfade: 120ms;
