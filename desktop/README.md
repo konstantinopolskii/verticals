@@ -22,6 +22,19 @@ launcher has its own ports, database, state directory and UI build.
 
 The agent picker follows Enjoy's (strings, model artwork).
 
+## Menu bar
+
+Closing the window keeps Verticals running: PostgreSQL, the API and MCP stay up for agents, the Dock
+icon goes away and the mascot stays in the menu bar. Its menu opens the window, says whether the
+board and MCP are running, and has:
+
+- Connect Claude Code — adds the `verticals-desktop` MCP server to Claude Code for every project
+  (`claude mcp add-json --scope user`), so terminal sessions work on this board. Its `headersHelper`
+  reads the token from the owner-only `mcp-headers.json` in the state folder, so Claude Code's config
+  holds no token.
+- Open at Login — a login item (`SMAppService`); at login Verticals starts in the menu bar only.
+- Quit Verticals — the only way, with ⌘Q, to stop the board and MCP.
+
 ## Run from the repository
 
 Requires PostgreSQL 16 (`brew install postgresql@16`), Python 3.12 (`uv python install 3.12`) and,
@@ -107,6 +120,9 @@ Updates never interrupt work:
 - A downloaded release with a `summary` shows a grey Update button in the title bar's right corner,
   the summary on its left. The button opens the notes, Restart and Skip This Version. Nothing else
   asks: ignored, the update installs when Verticals quits, and the next launch is the new version.
+- With the window closed, a downloaded update installs once no agent is answering: Verticals quits,
+  installs and comes back in the menu bar; MCP is away for those seconds. An install that failed
+  waits for Restart instead.
 - Restart waits while an agent is answering (`/__chat/busy`), sends the edits still waiting to be
   saved, quits and opens the new version on the same page. A Restart lost to a crash installs at the
   next launch from the files already downloaded.

@@ -1,14 +1,17 @@
 // Verticals.app: a native window (WKWebView) around the desktop launcher.
 // On launch it starts Resources/desktop/launcher.py with the bundled Python (PostgreSQL, API, MCP,
 // UI gateway) unless Verticals is already running, waits until it is healthy, and shows the UI.
-// Quitting stops what it started. Resources mirrors the repository layout (see desktop/macos/bundle.py).
+// Closing the window keeps everything running behind the menu bar icon, so agents keep the board and
+// MCP; Quit stops what it started. Resources mirrors the repository layout (see desktop/macos/bundle.py).
 // Updates come from the repository's GitHub releases (Updater.swift, UpdateIndicator.swift).
 import Cocoa
+import ServiceManagement
 import WebKit
 
 let uiURL = URL(string: "http://127.0.0.1:8288/")!
 let healthURL = URL(string: "http://127.0.0.1:8288/healthz")!
 let busyURL = URL(string: "http://127.0.0.1:8288/__chat/busy")!
+let mcpURL = "http://127.0.0.1:8281/mcp"
 // `-ReleasesAPI <url>` on the command line points the updater elsewhere (tests).
 let releasesAPI = URL(string: UserDefaults.standard.string(forKey: "ReleasesAPI")
     ?? "https://api.github.com/repos/konstantinopolskii/verticals/releases/latest")!
@@ -29,7 +32,7 @@ final class WebView: WKWebView {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var webView: WebView!
     var status: NSTextField!
@@ -37,6 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     var updater: Updater!
     var indicator: UpdateIndicator!
     var relaunching = false
+    var tray: NSStatusItem!
+    var serving = false
+    // Opened at login or relaunched by an update made while the window was closed: menu bar only.
+    var startHidden = false
+    var hideAfterFullScreen = false
 
     // Code, Python and PostgreSQL live in Contents/Resources; data in ~/Library/Application Support.
     var resources: URL { Bundle.main.resourceURL! }
@@ -49,6 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     var logPath: String { stateDir.appendingPathComponent("app.log").path }
 
+    func applicationWillFinishLaunching(_ note: Notification) {
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        startHidden = UserDefaults.standard.bool(forKey: "StartHidden")
+            || event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+        NSApp.setActivationPolicy(startHidden ? .accessory : .regular)
+    }
+
     func applicationDidFinishLaunching(_ note: Notification) {
         // The last quit's install opens Verticals when it is done; a Restart lost to a crash installs now.
         if Updater.installing(stateDir) { exit(0) }
@@ -58,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             exit(0)
         }
         buildMenu()
+        buildTray()
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         webView = WebView(frame: .zero, configuration: config)
@@ -96,13 +112,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         window.backgroundColor = .white
         window.appearance = NSAppearance(named: .aqua)
         window.contentView = content
+        window.delegate = self
+        window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("VerticalsWindow")
         if !window.setFrameUsingName("VerticalsWindow") { window.center() }
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        if !startHidden {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
         syncTitlebar()
         for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
-            NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { _ in self.syncTitlebar() }
+            NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { _ in
+                self.syncTitlebar()
+                if self.hideAfterFullScreen && !self.window.styleMask.contains(.fullScreen) {
+                    self.hideAfterFullScreen = false
+                    self.hideWindow()
+                }
+            }
         }
 
         healthy { up in
@@ -114,7 +140,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             updater.update { $0.restart = false }
             updater.activity = .none
         }
-        updater.changed = { [unowned self] in indicator.refresh() }
+        updater.changed = { [unowned self] in
+            indicator.refresh()
+            installWhenIdle()
+        }
         updater.reveal = { [unowned self] in indicator.reveal() }
         updater.start()
     }
@@ -141,11 +170,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         process.executableURL = URL(fileURLWithPath: "\(res)/python/bin/python3")
         process.arguments = [script.path]
         process.currentDirectoryURL = root
-        // Apps launched from Finder get a bare PATH; the agent CLIs (claude, codex) live in these.
         var env = ProcessInfo.processInfo.environment
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        env["PATH"] = ["\(home)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
-                       "/usr/sbin", "/sbin"].joined(separator: ":")
+        env["PATH"] = agentPath
         env["VERTICALS_DESKTOP_STATE"] = stateDir.path
         env["VERTICALS_DESKTOP_PYTHONPATH"] = "\(res):\(res)/site"
         env["VERTICALS_PG_BIN"] = (try? String(contentsOf: resources.appendingPathComponent("pg/BINDIR"), encoding: .utf8))
@@ -190,6 +216,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     func showUI() {
+        serving = true
+        tray.button?.appearsDisabled = false
         status.isHidden = true
         webView.isHidden = false
         let reopen = UserDefaults.standard.string(forKey: "ReopenPage").flatMap { URL(string: $0) }
@@ -199,6 +227,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     func fail(_ message: String) {
+        serving = false
+        tray.button?.appearsDisabled = true
         webView.isHidden = true
         status.isHidden = false
         status.stringValue = message
@@ -225,7 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                     }
                 }
             }
-            updater.installOnQuit(relaunch: relaunching)
+            updater.installOnQuit(relaunch: relaunching, hidden: !window.isVisible)
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -247,11 +277,180 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // MARK: window and menu bar icon
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if window.styleMask.contains(.fullScreen) {
+            hideAfterFullScreen = true
+            window.toggleFullScreen(nil)
+        } else {
+            hideWindow()
+        }
+        return false
+    }
+
+    func hideWindow() {
+        window.orderOut(nil)
+        NSApp.setActivationPolicy(.accessory)
+        installWhenIdle()
+    }
+
+    @objc func showWindow(_ sender: Any?) {
+        NSApp.setActivationPolicy(.regular)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !window.isVisible { showWindow(nil) }
+        return false
+    }
+
+    func buildTray() {
+        tray = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        tray.button?.image = Self.mascot()
+        tray.button?.toolTip = "Verticals"
+        tray.button?.appearsDisabled = true
+        tray.menu = NSMenu()
+        tray.menu?.delegate = self
+    }
+
+    // The app icon's mascot as a menu bar template: a disc with its line cut out.
+    static func mascot() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 2, y: 2, width: 14, height: 14)).fill()
+            NSGraphicsContext.current?.compositingOperation = .destinationOut
+            NSBezierPath(roundedRect: NSRect(x: 8.2, y: 5.6, width: 1.6, height: 6.8), xRadius: 0.8, yRadius: 0.8).fill()
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        func item(_ title: String, _ action: Selector?) -> NSMenuItem {
+            let i = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            i.target = self
+            return i
+        }
+        menu.addItem(item("Open Verticals", #selector(showWindow(_:))))
+        menu.addItem(.separator())
+        let state = item(serving ? "Board and MCP are running" : backend?.isRunning == true ? "Starting…" : "Stopped, see app.log", nil)
+        state.isEnabled = false
+        menu.addItem(state)
+        let connect = item("Connect Claude Code", serving && FileManager.default.fileExists(atPath: mcpHeaders.path)
+                           ? #selector(connectClaude(_:)) : nil)
+        connect.toolTip = "Lets Claude Code in any folder use this board through the verticals-desktop MCP server"
+        menu.addItem(connect)
+        let login = item("Open at Login", #selector(toggleLogin(_:)))
+        switch SMAppService.mainApp.status {
+        case .enabled: login.state = .on
+        case .requiresApproval: login.title = "Open at Login (allow in System Settings)"
+        default: break
+        }
+        menu.addItem(login)
+        menu.addItem(.separator())
+        menu.addItem(item("Check for Updates…", #selector(checkForUpdatesNow(_:))))
+        menu.addItem(item("Quit Verticals", #selector(NSApplication.terminate(_:))))
+    }
+
+    @objc func toggleLogin(_ sender: Any?) {
+        let service = SMAppService.mainApp
+        do {
+            switch service.status {
+            case .enabled: try service.unregister()
+            case .requiresApproval: SMAppService.openSystemSettingsLoginItems()
+            default: try service.register()
+            }
+        } catch {
+            NSApp.activate(ignoringOtherApps: true)
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    // Claude Code reads the token from the owner-only file the launcher writes, never from its own config.
+    var mcpHeaders: URL { stateDir.appendingPathComponent("mcp-headers.json") }
+
+    @objc func connectClaude(_ sender: Any?) {
+        let headers = mcpHeaders.path.replacingOccurrences(of: "'", with: "'\\''")
+        let server = ["type": "http", "url": mcpURL, "headersHelper": "cat '\(headers)'"]
+        guard let data = try? JSONSerialization.data(withJSONObject: server), let json = String(data: data, encoding: .utf8) else { return }
+        Task {
+            _ = await claude("mcp", "remove", "--scope", "user", "verticals-desktop")
+            let (code, output) = await claude("mcp", "add-json", "--scope", "user", "verticals-desktop", json)
+            let alert = NSAlert()
+            if code == 0 {
+                alert.messageText = "Claude Code is connected"
+                alert.informativeText = "New Claude Code sessions in any folder can use the board through the verticals-desktop MCP server while Verticals runs."
+            } else {
+                alert.messageText = "Couldn't connect Claude Code"
+                alert.informativeText = code == 127 ? "The claude command isn't installed." : output
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+        }
+    }
+
+    func claude(_ args: String...) async -> (Int32, String) {
+        await withCheckedContinuation { done in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["claude"] + args
+            var env = ProcessInfo.processInfo.environment
+            env["PATH"] = agentPath
+            process.environment = env
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+            process.terminationHandler = { p in
+                let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                done.resume(returning: (p.terminationStatus, output.trimmingCharacters(in: .whitespacesAndNewlines)))
+            }
+            do { try process.run() } catch { done.resume(returning: (127, "")) }
+        }
+    }
+
+    // Apps launched from Finder get a bare PATH; the agent CLIs (claude, codex) live in these.
+    var agentPath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return ["\(home)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+            .joined(separator: ":")
+    }
 
     // MARK: updates
 
-    @objc func checkForUpdatesNow(_ sender: Any?) { Task { await updater.check(manual: true) } }
+    // The answer comes in the title bar, so a check from the menu bar icon opens the window.
+    @objc func checkForUpdatesNow(_ sender: Any?) {
+        if !window.isVisible { showWindow(nil) }
+        Task { await updater.check(manual: true) }
+    }
+
+    // With the window closed nobody sees the Update button: a downloaded update installs once no agent
+    // is answering, and Verticals comes back to the menu bar. A failed install waits for Restart.
+    var idleCheck = false
+
+    func installWhenIdle() {
+        guard !idleCheck, !quitting, !window.isVisible, updater.readyToInstall, updater.blocked == nil,
+              updater.state.failure == nil, !updater.state.restart else { return }
+        idleCheck = true
+        var request = URLRequest(url: busyURL)
+        request.timeoutInterval = 2
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            let busy = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["busy"] as? Bool
+            DispatchQueue.main.async {
+                self.idleCheck = false
+                guard busy == false else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 60) { self.installWhenIdle() }
+                    return
+                }
+                guard !self.window.isVisible, !self.quitting else { return }
+                self.relaunching = true
+                NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)
+            }
+        }.resume()
+    }
 
     // Restart waits while an agent is answering, then quits with the relaunch flag set.
     func restartToUpdate() {
@@ -382,7 +581,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
-        app.setActivationPolicy(.regular)
         app.run()
     }
 }

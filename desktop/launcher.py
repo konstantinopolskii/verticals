@@ -420,6 +420,11 @@ def write_mcp_config(token):
     path.unlink(missing_ok=True)
     with open(path, "x", opener=lambda p, f: os.open(p, f, 0o600)) as f:
         json.dump(config, f, indent=2)
+    # Claude Code's headersHelper reads this (Connect Claude Code in the menu bar icon).
+    path = STATE / "mcp-headers.json"
+    path.unlink(missing_ok=True)
+    with open(path, "x", opener=lambda p, f: os.open(p, f, 0o600)) as f:
+        json.dump({"Authorization": f"Bearer {token}"}, f)
 
 
 def wait_healthy():
