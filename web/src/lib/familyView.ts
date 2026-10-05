@@ -211,7 +211,7 @@ export function createFamilyView(
     // Every opening is one movement (lib/familyMotion.ts): a change inside the wide column moves that column, and a goal
     // opened in another column moves the wide column there. The move reads where everything ends up once the card's notes
     // are laid out: they fold after a few ticks, never a frame. Opened by a held drag, the goal stays under the hand; a
-    // drag that opens a goal in another column keeps it pinned there (lib/dragActions.ts). With motion reduced, nothing
+    // drag opens goals only in the wide column (lib/dragActions.ts). With motion reduced, nothing
     // moves, so a first opening or a goal in another column opens at once and its card holds it where it was clicked
     // (lib/cardFamily.ts).
     const from = state.openGoalId

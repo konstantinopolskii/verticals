@@ -250,18 +250,6 @@ function keepInPlace(column: HTMLElement, before: Map<string, Seen>, key: string
   const row = rowByKey(column, key)
   if (was && row) scrollTo(column, row, was.rect.top)
 }
-/** Pin `row` where it stands now; call the result once a change of layout is drawn (a column widening under a held drag). */
-export function pinRow(row: HTMLElement): () => void {
-  const column = row.closest<HTMLElement>('[data-vertical]')
-  const key = keyOf(row)
-  const top = mover(row).getBoundingClientRect().top
-  return () => {
-    const home = column?.isConnected ? column : null
-    const now = home ? rowByKey(home, key) : undefined
-    if (home && now) scrollTo(home, now, top)
-  }
-}
-
 /** The element that scrolls `vertical`'s column: its current period's slide. */
 function columnScroller(vertical: string): HTMLElement | null {
   return typeof document === 'undefined' ? null

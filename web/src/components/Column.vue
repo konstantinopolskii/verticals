@@ -112,7 +112,7 @@ const indicatorStyle = computed(() => {
   const drag = store.state.drag
   if (isSourceSlot.value) return { height: `${drag.slotHeight}px` }
   return {
-    height: `${drag.previewHeight}px`,
+    height: `${drag.previewHeight + drag.tailHeight}px`,
     marginLeft: `${drag.slotInsetLeft}px`,
     marginRight: `${drag.slotInsetRight}px`,
   }
@@ -253,6 +253,8 @@ watch(insertionSlot, async () => {
   const selector = ':scope > [data-role="period-track"] > [data-state]:not([data-state="outgoing"]) [data-goal-id]'
   const before = new Map(
     [...(columnRoot.value?.querySelectorAll<HTMLElement>(selector) ?? [])]
+      // A hidden card (a goal's subtasks flying with it) has no place to slide from.
+      .filter((element) => element.getClientRects().length > 0)
       .map((element) => [element.dataset.goalId, element.getBoundingClientRect().top]),
   )
   await nextTick()
@@ -341,6 +343,7 @@ onBeforeUnmount(() => swapAnimation?.cancel())
                 :data-dnd-placeholder="item.settling ? undefined : ''"
                 :data-dnd-destination="item.settling ? '' : undefined"
                 :data-box="isSourceSlot ? 'card' : 'row'"
+                :data-tail="store.state.drag.tailHeight || undefined"
                 aria-hidden="true"
                 :style="indicatorStyle"
               >

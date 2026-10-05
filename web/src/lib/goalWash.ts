@@ -109,7 +109,8 @@ export function useGroupWash(options: {
       const row = bound ? null : el.querySelector<HTMLElement>(':scope > .goal-card__row')
       const rowTop = at.top + (row?.offsetTop ?? 0)
       const rowLeft = at.left + (row?.offsetLeft ?? 0)
-      const own = el.classList.contains('goal-card--detail-open') ? el.nextElementSibling : null
+      // Any goal with its subgoals drawn under it has a piece: the open goal shows it, and so does a lifted one.
+      const own = el.nextElementSibling
       const piece = own instanceof HTMLElement && own.classList.contains('goal-card__children') ? own : null
       const pieceAt = piece ? offsetIn(piece, ref) : null
       const home = el.parentElement?.closest<HTMLElement>('.goal-card__children') ?? null

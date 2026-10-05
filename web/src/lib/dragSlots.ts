@@ -146,12 +146,19 @@ export function slotBesideCard(
   cardId: string,
   after: boolean,
   followingIds: readonly string[],
+  childIds: readonly string[] = [],
 ): ReorderSlot | null {
   const columnIds = new Set(idsInColumn(board, vertical, periodKey))
   if (!columnIds.has(cardId) || subtreeIds(board, sourceId).has(cardId)) return null
   const group = renderedGroup(board, columnIds, cardId)
   if (!group) return null
   if (!after) return { insertBeforeId: cardId, parentId: group.parentId }
+  // Just past a row with subtasks under it is before its first subtask, not after the whole family: the slot moves
+  // one row down the screen, never over the family and back.
+  const card = findGoal(board, cardId)
+  const kids = card ? new Set(columnChildIds(board, columnIds, card)) : new Set<string>()
+  const first = childIds.find((id) => id !== sourceId && kids.has(id))
+  if (first) return { insertBeforeId: first, parentId: cardId }
   const next = followingIds.find((id) => id !== sourceId && group.members.has(id)) ?? null
   return { insertBeforeId: next, parentId: group.parentId }
 }

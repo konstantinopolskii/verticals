@@ -28,7 +28,7 @@ import {
   type DragState,
 } from './drag'
 import { createDragHover, type DragHoverController } from './dragHover'
-import { familyMovingNow, pinRow } from './familyMotion'
+import { familyMovingNow } from './familyMotion'
 import { reorderPlacement, reparentPlacement } from './boardPlacement'
 import { messageForError } from './scheduleFeedback'
 import { playSound } from './sound'
@@ -56,11 +56,8 @@ export interface DragActionDeps {
    *  ONLY when an optimistic landing's write fails after the local placement already committed;
    *  the success path never reloads. */
   quietReload: () => Promise<void>
-  /** D246 session view-state read/write — a thin pass to `store.ts`'s own `expandColumn`
-   *  (`lib/boardViewState.ts`). Read fresh on every check, never cached here: the board reflows
-   *  under an armed drag. */
+  /** The wide column (`lib/boardViewState.ts`), read fresh on every check. */
   expandedVertical: () => string | null
-  expandColumn: (vertical: string) => void
   /** Flow 4: open the chain a held-over goal is drawn under plus itself, in its column (`lib/familyView.ts`). */
   openFamily: (path: string[], vertical: string) => Promise<void>
   /** Moving a goal (docs/design-handoff S5): every armed move, and the end of the gesture with its flight's length. */
@@ -70,7 +67,7 @@ export interface DragActionDeps {
   beforeRelease?: (cancelled: boolean) => boolean
 }
 
-/** D246: wait for the DOM to catch up with a hover-driven layout change before trusting row
+/** Wait for the DOM to catch up with a hover-driven layout change before trusting row
  *  rects again — `nextTick` (Vue's own patch), one `requestAnimationFrame` (paint settles), then
  *  either a real `transitionend` off the column strip or a timeout sized to the columns' own
  *  measured `transition-duration` (0 today — the flat/product board declares no width transition,
@@ -114,18 +111,8 @@ export function createDragActions(deps: DragActionDeps) {
   const { state } = deps
 
   const dragHover: DragHoverController = createDragHover({
-    onExpandColumn: (vertical, held) => {
-      if (vertical === deps.expandedVertical()) return
-      /* The goal's own column and a column whose dots the hand is on keep their width: widening either moves the dots
-         from under the hand on its way to them (docs/design-handoff S5.P2, drawn: the board stays as it is). */
-      if (vertical === state.drag.sourceVertical) return
-      if (document.elementFromPoint(state.drag.x, state.drag.y)?.closest('[data-role="column-dots"]')) return
-      // flow 4: the goal the hand holds over stays under it while its column widens, so the hold opens what is there
-      const keep = held?.isConnected ? pinRow(held) : null
-      deps.expandColumn(vertical)
-      if (keep) void nextTick(keep)
-      scheduleRecapture()
-    },
+    // The open goal lives in the wide column: holding opens only there, so no column changes width under the hand.
+    canHold: (row) => row.closest<HTMLElement>('[data-vertical]')?.dataset.vertical === deps.expandedVertical(),
     onHoldGoal: (row) => {
       const vertical = row.closest<HTMLElement>('[data-vertical]')?.dataset.vertical
       const path = (row.dataset.rowKey ?? '').replace(/~$/, '').split('/').filter(Boolean)
@@ -150,11 +137,10 @@ export function createDragActions(deps: DragActionDeps) {
   }
   function pointerMoveDrag(clientX: number, clientY: number, altKey = state.drag.combineMode): void {
     const hit = trackPointerMove(state.drag, state.board, clientX, clientY, altKey)
-    // D246: only while actually armed (`hit` is null before the threshold arms the drag) — the
-    // dwell timer is meaningless during the pre-arm hold.
+    // Only while armed: `hit` is null before the threshold arms the drag.
     if (!hit) return
     const target = state.drag.target
-    dragHover.onMove(hit.columnVertical, clientX, clientY, target?.kind === 'combine' ? target.targetId : null)
+    dragHover.onMove(clientX, clientY, target?.kind === 'combine' ? target.targetId : null)
     deps.onMove?.(clientX, clientY)
   }
   // A press during a family's move reads the rows mid-flight (`lib/familyMotion.ts`): once the move lands, a gesture still
@@ -175,19 +161,14 @@ export function createDragActions(deps: DragActionDeps) {
   function autoScrollDrag(): void {
     if (autoScrollAtPointer(state.drag)) {
       const hit = trackPointerMove(state.drag, state.board, state.drag.x, state.drag.y)
-      if (hit) dragHover.onMove(hit.columnVertical)
+      const target = state.drag.target
+      if (hit) dragHover.onMove(state.drag.x, state.drag.y, target?.kind === 'combine' ? target.targetId : null)
     }
   }
 
-  /** Commits ordered slot. Same group reorders; another dated column schedules.
-   *
-   *  D253 retires D247's spring-open precondition for "landing inside another card expands its
-   *  column, so the spot the drop just landed in stays visible" — with nothing ever folded there
-   *  is no sprung card to key the expansion off any more. Re-derived directly off the drop
-   *  TARGET below, at each call site that actually lands the dragged goal inside another card
-   *  (`combineInto`/`adoptIntoSlot`): `deps.expandColumn` fires with that target's own column
-   *  vertical right before the write, matching D244's "card click expands + opens" rule without
-   *  any drag-scoped state of its own. */
+  /** Commits ordered slot. Same group reorders; another dated column schedules. A drop inside another card no longer
+   *  widens its column (D253's expand is dropped): subtasks show in every column, and a widening during the
+   *  landing flight moved the spot the card was flying to. */
   function pointerUpDrag(cancelled = false): void {
     const parked = deps.beforeRelease?.(cancelled) ?? false
     const released = releasePointerDrag(state.drag, cancelled || parked)
@@ -204,10 +185,6 @@ export function createDragActions(deps: DragActionDeps) {
       // D241 (KK, 2026-08-16): a nested same-vertical subtask combines like anything else —
       // D179's glue made D236's gesture a one-way door (easy in, no out) and is superseded.
       playSound('goal_dragging')
-      // D253: landing inside another card expands that card's own column, so the spot the drop
-      // just landed in stays visible (D244's "card click expands + opens" rule, re-derived here
-      // without D247's retired spring precondition).
-      deps.expandColumn(deps.findGoalById(target.targetId)?.vertical ?? 'maybe')
       void deps.combineInto(id, target.targetId)
       return
     }
@@ -258,10 +235,6 @@ export function createDragActions(deps: DragActionDeps) {
     if (sameVerticalParent) {
       if (slotParent !== null && slotParent !== sameVerticalParent) {
         playSound('goal_dragging')
-        // D253: same "landing inside expands its column" re-derivation as the combine branch
-        // above — `target.vertical` is already this drop's own column identity (`DropTarget`'s
-        // reorder variant carries it directly), so no extra lookup is needed here.
-        deps.expandColumn(target.vertical)
         void adoptIntoSlot(id, slotParent, target)
         return
       }
@@ -272,7 +245,6 @@ export function createDragActions(deps: DragActionDeps) {
       }
     } else if (slotParent !== null) {
       playSound('goal_dragging')
-      deps.expandColumn(target.vertical)
       void adoptIntoSlot(id, slotParent, target)
       return
     }
