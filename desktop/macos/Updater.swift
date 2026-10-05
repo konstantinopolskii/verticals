@@ -1,6 +1,6 @@
 // Updates from the repository's GitHub releases (desktop/README.md, "Releases and updates"). A newer
-// release downloads in the background into <state>/updates and installs when Verticals quits, or at
-// once from Restart in the title bar. Only a check asked for from the menu answers out loud.
+// release downloads in the background into <state>/updates and installs when Verticals quits, when its
+// window is closed and no agent is answering, or at once from Restart in the title bar. Only a check asked for from the menu answers out loud.
 import Cocoa
 import CryptoKit
 
@@ -381,12 +381,12 @@ struct UpdateError: LocalizedError {
     }
 
     /// Hands the staged app to an installer that swaps it in once this process and its database stop.
-    func installOnQuit(relaunch: Bool) {
+    func installOnQuit(relaunch: Bool, hidden: Bool = false) {
         guard readyToInstall, let executable = Bundle.main.executableURL else { return }
         let installer = Process()
         installer.executableURL = executable
         installer.arguments = ["--install-update", String(getpid()), Bundle.main.bundleURL.path, stateDir.path,
-                               relaunch ? "relaunch" : "stay"]
+                               relaunch ? (hidden ? "tray" : "relaunch") : "stay"]
         try? installer.run()
     }
 }
@@ -459,7 +459,7 @@ func run(_ tool: String, _ args: String...) async -> Int32 {
     }
 }
 
-// `Verticals --install-update <pid> <app> <state> relaunch|stay`, started by a quitting Verticals.
+// `Verticals --install-update <pid> <app> <state> relaunch|tray|stay`, started by a quitting Verticals.
 // Waits for that process and its PostgreSQL to stop, copies the database to backups/ (the last three
 // stay), swaps the staged app in with one atomic rename and opens it when asked. A failure keeps the
 // old app, is written to update.log and is shown in the title bar at the next launch.
@@ -467,7 +467,7 @@ enum Installer {
     static func run(_ args: [String]) -> Never {
         guard args.count == 4, let pid = Int32(args[0]) else { exit(2) }
         let app = URL(fileURLWithPath: args[1]), stateDir = URL(fileURLWithPath: args[2])
-        let relaunch = args[3] == "relaunch"
+        let relaunch = args[3] != "stay", hidden = args[3] == "tray"
         let files = FileManager.default
         let folder = stateDir.appendingPathComponent("updates")
         let lock = folder.appendingPathComponent("installing"), openAfter = folder.appendingPathComponent("open-after")
@@ -504,10 +504,12 @@ enum Installer {
             state.save(stateDir)
             try? files.removeItem(at: lock)
             if relaunch || files.fileExists(atPath: openAfter.path) {
+                // Someone opened Verticals during the install: they get the window, not the menu bar.
+                let quiet = hidden && !files.fileExists(atPath: openAfter.path)
                 try? files.removeItem(at: openAfter)
                 let open = Process()
                 open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                open.arguments = [app.path]
+                open.arguments = quiet ? [app.path, "--args", "-StartHidden", "YES"] : [app.path]
                 try? open.run()
                 open.waitUntilExit()
             }
