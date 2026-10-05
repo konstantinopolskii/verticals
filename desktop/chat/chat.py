@@ -45,7 +45,8 @@ HANDOFF_CHARS = 12000
 ENV_KEEP = {"CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_USE_BEDROCK",
             "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
 READ_TOOLS = ["board", "goal", "outline", "search", "evidence_due", "tags", "size_report",
-              "doc_get", "doc_tree", "doc_history", "doc_revision", "comments"]
+              "doc_get", "doc_tree", "doc_history", "doc_revision", "comments",
+              "privacy"]
 
 # Agent descriptors: labels and details are Enjoy's own (see its provider registry).
 AGENTS = {

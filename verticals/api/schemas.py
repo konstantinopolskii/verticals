@@ -218,6 +218,7 @@ class UpdatePatch(_ForbidExtra):
     tags: list[str] | None = None
     done: bool | None = None
     foil: bool | None = None
+    private: bool | None = None
     carryover_ignored_until: date | None = None
     repeat: RepeatRuleRequest | None = None
     size_expected: str | list[str] | None = None
@@ -305,6 +306,7 @@ def goal_to_card(goal: Goal) -> dict:
         "repeat": goal.repeat_rule,
         "parked_from_vertical": goal.parked_from_vertical,
         "foil": goal.foil,
+        "private": goal.private,
         "carryover_ignored_until": goal.carryover_ignored_until,
         "size_expected": list(goal.size_expected) if goal.size_expected is not None else None,
         "size_actual": list(goal.size_actual) if goal.size_actual is not None else None,

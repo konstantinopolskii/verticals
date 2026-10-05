@@ -320,5 +320,15 @@
       "thread_id": "<thread_id>",
       "resolved": true
     }
+  },
+  {
+    "cap": "privacy_mode",
+    "ui_selector": null,
+    "http_method": "PUT",
+    "http_path": "/api/privacy",
+    "mcp_tool": "privacy",
+    "mcp_args": {
+      "on": true
+    }
   }
 ]

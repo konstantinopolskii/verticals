@@ -54,6 +54,7 @@ from verticals.mcp import docs as mcp_docs
 from verticals.mcp import due_ack as mcp_due_ack
 from verticals.mcp import evidence as mcp_evidence
 from verticals.mcp import park as mcp_park
+from verticals.mcp import privacy as mcp_privacy
 from verticals.mcp import sizes as mcp_sizes
 from verticals.mcp import tags as mcp_tags
 from verticals.mcp.shapes import (
@@ -96,11 +97,11 @@ TOOLS: tuple[types.Tool, ...] = (
     types.Tool(name="outline", description="Render a subtree as one readable markdown outline, every node's id inline.", input_schema=OUTLINE_SCHEMA),
     types.Tool(name="search", description="Full-text and tag search over the owner's goals.", input_schema=SEARCH_SCHEMA),
     types.Tool(name="create", description="Create a goal, optionally with a nested plan of children, in one call.", input_schema=CREATE_SCHEMA),
-    types.Tool(name="update", description="Edit content (title/body/color/tags/done/foil/repeat) on one or many goals, or reorder one goal among its siblings. A repeating goal's next occurrence is materialized when the current one is completed — never by the clock — under the completed row's parent, so a series follows wherever its last instance was moved.", input_schema=UPDATE_SCHEMA),
+    types.Tool(name="update", description="Edit content (title/body/color/tags/done/foil/private/repeat) on one or many goals, or reorder one goal among its siblings. `private` hides a goal and its whole subtree from screenshots while privacy mode is on; it never shows in the app. A repeating goal's next occurrence is materialized when the current one is completed — never by the clock — under the completed row's parent, so a series follows wherever its last instance was moved.", input_schema=UPDATE_SCHEMA),
     types.Tool(name="schedule", description="Set or clear a goal's vertical and anchor date.", input_schema=SCHEDULE_SCHEMA),
     types.Tool(name="reparent", description="Move a goal under a new parent, or detach it to the root.", input_schema=REPARENT_SCHEMA),
     types.Tool(name="delete", description="Remove a goal. Refuses a non-empty subtree unless cascade is true.", input_schema=DELETE_SCHEMA),
-) + mcp_evidence.TOOLS + mcp_park.TOOLS + mcp_tags.TOOLS + mcp_sizes.TOOLS + mcp_due_ack.TOOLS + mcp_docs.TOOLS + mcp_comments.TOOLS
+) + mcp_evidence.TOOLS + mcp_park.TOOLS + mcp_tags.TOOLS + mcp_sizes.TOOLS + mcp_due_ack.TOOLS + mcp_docs.TOOLS + mcp_comments.TOOLS + mcp_privacy.TOOLS
 
 _SCHEMAS: dict[str, dict[str, Any]] = {t.name: t.input_schema for t in TOOLS}
 
@@ -245,7 +246,7 @@ def _derive_before_id(
 # --- per-tool handlers -----------------------------------------------------------------------------
 
 _CONTENT_FIELDS = (
-    "title", "body", "color", "tags", "done", "foil", "carryover_ignored_until",
+    "title", "body", "color", "tags", "done", "foil", "private", "carryover_ignored_until",
     "repeat", "size_expected", "short_label",
 )
 # WP-33 (docs/EVIDENCE.md §6.1): every reader carries a compact per-goal evidence summary —
@@ -570,9 +571,9 @@ def _handle_update(conn: psycopg.Connection, owner: str, args: dict[str, Any]) -
             kwargs["repeat"] = repeat
     if not kwargs:
         raise ValidationError(
-            "update needs at least one of title, body, color, tags, done, foil, "
+            "update needs at least one of title, body, color, tags, done, foil, private, "
             "carryover_ignored_until, short_label, after_id, position",
-            field="title,body,color,tags,done,foil,carryover_ignored_until,short_label,after_id,position",
+            field="title,body,color,tags,done,foil,private,carryover_ignored_until,short_label,after_id,position",
         )
 
     bulk = ids is not None
@@ -648,6 +649,7 @@ _HANDLERS: dict[str, Any] = {
     "comments": mcp_comments.handle_comments,
     "comment_add": mcp_comments.handle_comment_add,
     "comment_resolve": mcp_comments.handle_comment_resolve,
+    "privacy": mcp_privacy.handle_privacy,
 }
 
 

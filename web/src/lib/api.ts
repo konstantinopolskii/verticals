@@ -58,6 +58,7 @@ export interface GoalCard {
   repeat: RepeatRule | null
   parked_from_vertical: string | null
   foil: boolean
+  private?: boolean
   carryover_ignored_until: string | null
   size_expected: string[] | null
   size_actual: string[] | null
@@ -184,6 +185,7 @@ export interface UpdatePatch {
   tags?: string[]
   done?: boolean
   foil?: boolean
+  private?: boolean
   carryover_ignored_until?: string | null
   repeat?: RepeatRule | null
   /** Compact notation (`2x45-120 1x10-15`), canonical token array, or null to clear. */
@@ -302,6 +304,19 @@ export function fetchBoard(date: string, value: string | null = null): Promise<B
 
 export function fetchTags(): Promise<TagsResponse> {
   return request<TagsResponse>('/api/tags')
+}
+
+export interface PrivacyView {
+  mode: boolean
+  hidden: string[]
+}
+
+export function fetchPrivacy(): Promise<PrivacyView> {
+  return request<PrivacyView>('/api/privacy')
+}
+
+export function putPrivacy(mode: boolean): Promise<PrivacyView> {
+  return request<PrivacyView>('/api/privacy', { method: 'PUT', body: JSON.stringify({ mode }) })
 }
 
 /** `GET /api/search` — S-125's route. `core.search.search`'s own `ValidationError` fires

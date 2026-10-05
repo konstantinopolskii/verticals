@@ -15,6 +15,7 @@ import DevGoalLayoutPanel from './components/DevGoalLayoutPanel.vue'
 import DevTuningPanel from './components/DevTuningPanel.vue'
 import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
+import { isPrivacyHotkey, togglePrivacy } from './lib/privacy'
 import { store, todayIso } from './store'
 import { commandFilter } from './lib/commandFilter'
 import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
@@ -76,6 +77,11 @@ function onWindowKeyDown(event: KeyboardEvent) {
   ) {
     devPanelsVisible.value = !devPanelsVisible.value
     event.preventDefault()
+    return
+  }
+  if (isPrivacyHotkey(event) && !event.repeat) {
+    event.preventDefault()
+    void togglePrivacy()
     return
   }
   if (event.key === 'Alt' && (store.state.drag.pending || store.state.drag.id)) {

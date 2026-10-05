@@ -40,6 +40,7 @@ from verticals.api.routes_comments import router as comments_router
 from verticals.api.routes_docs import router as docs_router
 from verticals.api.routes_events import router as events_router
 from verticals.api.routes_goals import router as goals_router
+from verticals.api.routes_privacy import router as privacy_router
 from verticals.api.routes_tags import router as tags_router
 from verticals.db.pool import open_pool
 from verticals.db.runner import read_version
@@ -170,6 +171,7 @@ def create_app(cfg: config.Config) -> FastAPI:
     app.include_router(docs_router)
     app.include_router(events_router)
     app.include_router(goals_router)
+    app.include_router(privacy_router)
     app.include_router(tags_router)
 
     @app.get("/healthz")

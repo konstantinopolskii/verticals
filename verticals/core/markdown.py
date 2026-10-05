@@ -74,7 +74,7 @@ COLUMNS = (
     "id, owner, parent_id, path, depth, vertical, anchor_date, period_key, "
     "title, body, color, tags, done_at, position, origin, created_at, updated_at, "
     "repeat_rule, repeat_series_id, repeat_index, repeat_start_date, "
-    "parked_from_vertical, foil, carryover_ignored_until, size_expected, size_actual"
+    "parked_from_vertical, foil, carryover_ignored_until, size_expected, size_actual, private"
 )
 _TAGS_INDEX = 11  # tags' position within COLUMNS above — psycopg hands back a list; Goal is frozen
 

@@ -16,6 +16,7 @@
 import { startLiveUpdates } from './liveUpdates'
 import { createDeferredRun, current as currentBoardEpoch } from './boardEpoch'
 import { fetchBoard, fetchTags, type BoardResponse, type TagMeta } from './api'
+import { refreshPrivacy } from './privacy'
 import type { DragState } from './drag'
 
 export interface LiveBoardState {
@@ -30,7 +31,7 @@ export function createLiveBoard(state: LiveBoardState, todayIso: () => string) {
     const epoch = currentBoardEpoch()
     try {
       const date = state.board?.anchor_date ?? todayIso()
-      const [board, tags] = await Promise.all([fetchBoard(date, state.valueFilter), fetchTags()])
+      const [board, tags] = await Promise.all([fetchBoard(date, state.valueFilter), fetchTags(), refreshPrivacy()])
       if (currentBoardEpoch() !== epoch) return
       state.board = board
       state.tagMeta = tags.tags

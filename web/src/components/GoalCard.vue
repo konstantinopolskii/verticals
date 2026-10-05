@@ -24,6 +24,7 @@ import { levelTints } from '../lib/familyView'
 import { useCardFamily } from '../lib/cardFamily'
 import { familyMovingNow } from '../lib/familyMotion'
 import { devGoalLayout } from '../lib/devGoalLayout'
+import { isPrivate } from '../lib/privacy'
 import '../kit-ext/carryover-ghost/carryover-ghost.css'
 
 const props = withDefaults(
@@ -77,6 +78,7 @@ const props = withDefaults(
 )
 
 const checked = computed(() => props.done)
+const blurred = computed(() => props.searchPeriod === undefined && !props.searchOpen && isPrivate(props.id))
 const titleParts = computed(() => highlightTitle(props.title))
 const filterContext = computed(() => isContextGoal(props.id))
 const cardStyle = computed(() => {
@@ -513,6 +515,7 @@ function onRowKeydown(event: KeyboardEvent) {
       'goal-card--lifted': lifted,
       'goal-card--settling': liftSettling,
       'carryover-ghost': ghost,
+      'goal-card--private': blurred,
     }"
     :data-goal-id="id"
     :data-row-key="[...chain, id].join('/') + (ghost ? '~' : '')"
@@ -630,6 +633,7 @@ function onRowKeydown(event: KeyboardEvent) {
       'goal-card__children--open': isInlineDetailHost,
       'goal-card__children--path': isPathLine && depth > 0,
       'goal-card__children--family': isPathLine || (isInlineDetailHost && familyDepth >= 0),
+      'goal-card__children--private': blurred,
     }"
     :data-open-region="isInlineDetailHost ? '' : undefined"
     :style="[cardStyle, { '--subgoal-depth': String(depth) }, liftListStyle]"

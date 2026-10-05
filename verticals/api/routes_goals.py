@@ -186,7 +186,7 @@ def get_goal(request: Request, response: Response, id: str) -> dict:
 # `after_id` (reorder) must never be combined with in one call. Named identically to
 # `verticals/mcp/tools.py`'s `_CONTENT_FIELDS`, deliberately: same rule, same shape, two transports.
 _CONTENT_FIELDS = (
-    "title", "body", "color", "tags", "done", "foil", "carryover_ignored_until",
+    "title", "body", "color", "tags", "done", "foil", "private", "carryover_ignored_until",
     "repeat", "size_expected",
 )
 
