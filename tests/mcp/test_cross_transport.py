@@ -369,6 +369,7 @@ _E2E_SECTION_4_ROUTES: set[tuple[str, str]] = {
     ("POST", "/api/comments"),
     ("POST", "/api/comments/{thread_id}/messages"),
     ("POST", "/api/comments/{thread_id}/resolve"),
+    ("PUT", "/api/privacy"),
 }
 
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -455,7 +456,8 @@ def test_s59_capability_parity_holds_in_both_directions(f2_dsn: str, tmp_path: P
     # `verticals/api/routes_comments.py`) — 26 -> 29 rows; `ui_selector: null` on all three, same
     # as every doc row above, because WP-B's own UI has not landed yet (out of this WP's scope).
     manifest = json.loads(_F5_PATH.read_text())
-    assert len(manifest) == 29, f"F5 should carry 29 rows, found {len(manifest)}"
+    # Privacy mode adds privacy_mode, 29 -> 30.
+    assert len(manifest) == 30, f"F5 should carry 30 rows, found {len(manifest)}"
     park_rows = [row for row in manifest if row["cap"] == "park"]
     # "Remove from vertical" left the goal's menu with its systematic order (docs/design-handoff S5.P5.007): park is
     # HTTP/MCP only now, the same shape as every other null-selector row.

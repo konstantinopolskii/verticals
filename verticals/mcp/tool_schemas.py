@@ -181,6 +181,7 @@ UPDATE_SCHEMA: dict[str, Any] = {
         "tags": {"type": "array", "items": {"type": "string", "maxLength": core_goals.MAX_TAG_CHARS}, "maxItems": core_goals.MAX_TAGS},
         "done": {"type": "boolean"},
         "foil": {"type": "boolean"},
+        "private": {"type": "boolean"},
         "short_label": {
             "type": ["string", "null"],
             "maxLength": core_goals.MAX_SHORT_LABEL_CHARS,

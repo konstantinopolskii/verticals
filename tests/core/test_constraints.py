@@ -228,7 +228,7 @@ def test_path_well_formed_fires_on_bad_shapes_and_stays_silent_on_good_ones(fres
 
 def test_catalogue_five_tables_and_enum_labels(fresh_db: str) -> None:
     """WP-03's own done-when, updated by WP-33, D250/WP-1, WP-A (`015_comments.sql`) and the
-    roll (`016_replan.sql`): "the catalogue reports twelve tables and enums of 7 and 4 labels."
+    roll (`016_replan.sql`): "the catalogue reports thirteen tables and enums of 7 and 4 labels."
     Mirrors test_migrations.py's S-01 assertion so this file's own claim to be done does not
     depend on another suite file staying green.
     """
@@ -237,10 +237,10 @@ def test_catalogue_five_tables_and_enum_labels(fresh_db: str) -> None:
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"
         )
         (table_count,) = cur.fetchone()
-        assert table_count == 12, (
+        assert table_count == 13, (
             "expected goals, schema_version, idempotency, goal_evidence, tag_meta, "
             "due_acknowledgements, docs, doc_revisions, goal_doc_links, comment_threads, "
-            "comment_messages, carryover_runs"
+            "comment_messages, carryover_runs, privacy_settings"
         )
 
         cur.execute(

@@ -46,6 +46,7 @@ class Goal:
     carryover_ignored_until: date | None
     size_expected: tuple[str, ...] | None
     size_actual: tuple[str, ...] | None
+    private: bool
 
 
 @dataclass(frozen=True)

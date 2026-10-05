@@ -237,9 +237,9 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
     # change (`board_rows`/`expected` both already filter on `row["ui_selector"] is not None`, the
     # same shape `bulk_update`/`set_color` already exercised, so three more null rows pass through
     # unchanged) — this is the one number that named the old total.
-    assert len(rows) == 29, (
-        f"F5 must hold 29 rows (20 + D250's four doc capabilities + D254's link/unlink + WP-A's "
-        f"three comment capabilities), found {len(rows)}"
+    assert len(rows) == 30, (
+        f"F5 must hold 30 rows (20 + D250's four doc capabilities + D254's link/unlink + WP-A's "
+        f"three comment capabilities + privacy_mode), found {len(rows)}"
     )
     # "Remove from vertical" left the goal's menu with its systematic order (docs/design-handoff S5.P5.007): park is
     # HTTP/MCP only now.

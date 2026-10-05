@@ -57,6 +57,7 @@ def goal_dict(g: Goal) -> dict[str, Any]:
         "repeat": g.repeat_rule,
         "parked_from_vertical": g.parked_from_vertical,
         "foil": g.foil,
+        "private": g.private,
         "carryover_ignored_until": g.carryover_ignored_until.isoformat()
         if g.carryover_ignored_until else None,
         "size_expected": list(g.size_expected) if g.size_expected is not None else None,

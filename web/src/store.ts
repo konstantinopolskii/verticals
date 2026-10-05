@@ -51,6 +51,7 @@ import { createLiveBoard } from './lib/liveBoard'
 import { bump as bumpBoardEpoch, current as currentBoardEpoch } from './lib/boardEpoch'
 import { verticalRank, type VerticalScale } from './lib/periods'
 import type { BoardColumnData } from './types'
+import { refreshPrivacy } from './lib/privacy'
 import { carryOver } from './lib/replan'
 import { captureRows, slideIntoGroups } from './lib/rollSlide'
 import { spanAnchor, spanGoal, withSpans } from './lib/spans'
@@ -158,7 +159,7 @@ async function loadBoard(date: string): Promise<boolean> {
   state.loading = true
   state.error = null
   try {
-    const [board, tags] = await Promise.all([fetchBoard(date, state.valueFilter), fetchTags()])
+    const [board, tags] = await Promise.all([fetchBoard(date, state.valueFilter), fetchTags(), refreshPrivacy()])
     if (currentBoardEpoch() !== epoch) return true
     state.board = board
     state.tagMeta = tags.tags

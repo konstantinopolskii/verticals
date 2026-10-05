@@ -59,6 +59,9 @@ EXPECTED_OPERATIONS = {
     ("POST", "/api/replan"),
     # Moving a goal (docs/design-handoff S5.P1.030): one vertical's periods in a row.
     ("GET", "/api/spans"),
+    # Privacy mode: the covered ids and the mode switch.
+    ("GET", "/api/privacy"),
+    ("PUT", "/api/privacy"),
 }
 
 # J7's negative space: none of these ever appear in a path string, in either direction of the

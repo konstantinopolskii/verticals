@@ -70,7 +70,7 @@ COLUMNS = (
     "id, owner, parent_id, path, depth, vertical, anchor_date, period_key, "
     "title, body, color, tags, done_at, position, origin, created_at, updated_at, "
     "repeat_rule, repeat_series_id, repeat_index, repeat_start_date, "
-    "parked_from_vertical, foil, carryover_ignored_until, size_expected, size_actual"
+    "parked_from_vertical, foil, carryover_ignored_until, size_expected, size_actual, private"
 )
 
 _UNSET = object()  # S-04: period_key is discoverable on create(), never actually settable
@@ -258,7 +258,7 @@ def _goal_from_response(d: Mapping) -> Goal:
         # is the same non-repeating goal, so absent new nullable fields read as None.
         if name.startswith("repeat_") or name.startswith("size_") or name in {"parked_from_vertical", "carryover_ignored_until"}:
             value = d.get(name)
-        elif name == "foil":
+        elif name in {"foil", "private"}:
             value = d.get(name, False)
         else:
             value = d[name]
@@ -485,6 +485,7 @@ def update(
     tags: object = _UNSET,
     done: object = _UNSET,
     foil: object = _UNSET,
+    private: object = _UNSET,
     carryover_ignored_until: object = _UNSET,
     repeat: object = _UNSET,
     size_expected: object = _UNSET,
@@ -533,6 +534,11 @@ def update(
             raise ValidationError("foil must be a boolean", field="foil")
         params["foil"] = foil
         set_clauses.append("foil = %(foil)s")
+    if private is not _UNSET:
+        if not isinstance(private, bool):
+            raise ValidationError("private must be a boolean", field="private")
+        params["private"] = private
+        set_clauses.append("private = %(private)s")
     if carryover_ignored_until is not _UNSET:
         if (
             carryover_ignored_until is not None
@@ -558,9 +564,9 @@ def update(
         set_clauses.extend(size_clauses)
     if len(set_clauses) == 1:
         raise ValidationError(
-            "update needs at least one of title, body, color, tags, done, foil, "
+            "update needs at least one of title, body, color, tags, done, foil, private, "
             "carryover_ignored_until, repeat, size_expected, short_label",
-            field="title,body,color,tags,done,foil,carryover_ignored_until,repeat,size_expected,short_label",
+            field="title,body,color,tags,done,foil,private,carryover_ignored_until,repeat,size_expected,short_label",
         )
 
     with conn.transaction():

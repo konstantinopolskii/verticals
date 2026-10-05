@@ -944,3 +944,27 @@ body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
   filter: none;
   transition: opacity 500ms linear;
 }
+
+.goal-card__title-text,
+.goal-card__text > :not(.goal-card__title),
+.goal-card__children > .goal-detail-root {
+  transition: color 200ms ease-out, background-color 200ms ease-out;
+}
+.goal-card__text > :not(.goal-card__title) > *,
+.goal-card__children > .goal-detail-root > * { transition: opacity 200ms ease-out; }
+.goal-card--private .goal-card__title-text {
+  color: transparent;
+  background-color: #e4e4e4;
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.goal-card--private .goal-card__title-text * { visibility: hidden; }
+.goal-card--private .goal-card__text > :not(.goal-card__title),
+.goal-card__children--private > .goal-detail-root {
+  color: transparent;
+  background-color: #e4e4e4;
+  border-radius: 3px;
+}
+.goal-card--private .goal-card__text > :not(.goal-card__title) > *,
+.goal-card__children--private > .goal-detail-root > * { opacity: 0; }

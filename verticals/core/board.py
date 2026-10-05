@@ -71,7 +71,7 @@ COLUMNS = (
     "id, owner, parent_id, path, depth, vertical, anchor_date, period_key, "
     "title, body, color, tags, done_at, position, origin, created_at, updated_at, "
     "repeat_rule, repeat_series_id, repeat_index, repeat_start_date, "
-    "parked_from_vertical, foil, carryover_ignored_until, size_expected, size_actual"
+    "parked_from_vertical, foil, carryover_ignored_until, size_expected, size_actual, private"
 )
 _TAGS_INDEX = 11  # tags' position within COLUMNS above — `_to_goal` below relies on this
 _QUALIFIED_COLUMNS = ", ".join(f"cards.{name.strip()}" for name in COLUMNS.split(","))
@@ -431,6 +431,7 @@ def _goal_from_jsonb(d: dict) -> Goal:
         if d["carryover_ignored_until"] else None,
         size_expected=tuple(d["size_expected"]) if d["size_expected"] is not None else None,
         size_actual=tuple(d["size_actual"]) if d["size_actual"] is not None else None,
+        private=d["private"],
     )
 
 
@@ -502,38 +503,38 @@ def board(
         col_key = row[0]
         # D231: the stored colour never reaches a card — every level the board draws (cards here,
         # children below) carries the derived value colour this row's `root` lateral resolved.
-        value_color = row[37]
-        goal = _replace(_to_goal(row[2:28]), color=value_color)
-        for c in row[31]:
+        value_color = row[38]
+        goal = _replace(_to_goal(row[2:29]), color=value_color)
+        for c in row[32]:
             c["color"] = value_color
         by_column[col_key].append(goal)
-        progress[goal.id] = Progress(done=row[28], total=row[29])
+        progress[goal.id] = Progress(done=row[29], total=row[30])
         ancestors[goal.id] = tuple(
-            Ancestor(id=a["id"], title=a["title"], vertical=a["vertical"]) for a in row[30]
+            Ancestor(id=a["id"], title=a["title"], vertical=a["vertical"]) for a in row[31]
         )
-        children[goal.id] = tuple(_goal_from_jsonb(c) for c in row[31])
+        children[goal.id] = tuple(_goal_from_jsonb(c) for c in row[32])
         # Two levels, both off the same rows: the card's own count is the length of the list the
         # statement already returned, and each *child*'s count is the `child_count` the `kids`
         # lateral computed for it (rows 93/116(a)). A nested card is exactly one level below a
         # card, because `children` is keyed by cards and nothing deeper is ever rendered — so
         # these two levels are every node the board can draw, not a sample of them.
-        child_counts[goal.id] = len(row[31])
+        child_counts[goal.id] = len(row[32])
         # The same two levels carry the evidence summary (WP-33): the card's three fields off
         # this row's own columns, each child's off the jsonb the `kids` lateral packed. The
         # child's timestamps are already ISO text (jsonb has no timestamp type); the card's are
         # real datetimes — normalised here so the map holds one shape.
         evidence[goal.id] = {
-            "status": row[32],
-            "verified_at": row[33].isoformat() if row[33] else None,
-            "review_after": row[34].isoformat() if row[34] else None,
+            "status": row[33],
+            "verified_at": row[34].isoformat() if row[34] else None,
+            "review_after": row[35].isoformat() if row[35] else None,
         }
-        if row[35]:
-            ghosts[goal.id] = row[36]
+        if row[36]:
+            ghosts[goal.id] = row[37]
         # D239: keyed like its sibling maps, kept sparse — NULL (the overwhelming case: only
         # value roots ever carry one) never lands a key.
-        if row[38] is not None:
-            short_labels[goal.id] = row[38]
-        for c in row[31]:
+        if row[39] is not None:
+            short_labels[goal.id] = row[39]
+        for c in row[32]:
             child_counts[c["id"]] = c["child_count"]
             evidence[c["id"]] = c["evidence"]
 
