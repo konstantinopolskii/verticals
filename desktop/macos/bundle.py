@@ -5,6 +5,7 @@
     python3 desktop/macos/bundle.py --out DIR    # build elsewhere (e.g. while an older build runs)
     python3 desktop/macos/bundle.py --dmg-only   # repackage the existing app
     python3 desktop/macos/bundle.py --version 0.4   # app version (CI passes the release's)
+    python3 desktop/macos/bundle.py --dev        # a dev build: the yellow icon, so it never passes for the app people use
 
 Contents/Resources mirrors the repository: verticals/, desktop/ (launcher, chat, UI build) and the
 operator skill, plus a trimmed Python 3.12 with the dependencies and PostgreSQL 16 taken from
@@ -26,6 +27,7 @@ REPO = ROOT.parent
 DIST = Path(sys.argv[sys.argv.index("--out") + 1]).resolve() if "--out" in sys.argv else ROOT / "dist"
 APP = DIST / "Verticals.app"
 VERSION = sys.argv[sys.argv.index("--version") + 1] if "--version" in sys.argv else "0.2"
+ICON = ROOT / "macos/icon" / ("AppIcon-dev.icns" if "--dev" in sys.argv else "AppIcon.icns")   # macos/icon/make_icon.py
 RES = APP / "Contents" / "Resources"
 BREW = Path("/opt/homebrew")
 PG_OPT = BREW / "opt/postgresql@16"
@@ -221,6 +223,7 @@ def build_launcher():
     (APP / "Contents/MacOS").mkdir(parents=True, exist_ok=True)
     sh("swiftc", "-O", "-parse-as-library", "-target", "arm64-apple-macos13.0", "-o", APP / "Contents/MacOS/Verticals",
        *(ROOT / "macos" / name for name in ("Verticals.swift", "Updater.swift", "UpdateIndicator.swift")))
+    shutil.copy2(ICON, RES / "AppIcon.icns")
     (APP / "Contents/Info.plist").write_text(f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -229,6 +232,7 @@ def build_launcher():
   <key>CFBundleDisplayName</key><string>Verticals</string>
   <key>CFBundleIdentifier</key><string>app.verticals.desktop</string>
   <key>CFBundleExecutable</key><string>Verticals</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>{VERSION}</string>
   <key>CFBundleVersion</key><string>{VERSION}</string>
