@@ -84,14 +84,34 @@ def test_replan_writes_once_a_day_and_refuses_a_day_that_has_not_come(client: ht
     assert created.status_code == 201, created.text
     first = client.post("/api/replan", params={"date": today.isoformat()})
     assert first.status_code == 200, first.text
-    task_id = first.json()["task_id"]
+    task_id, doc_id = first.json()["task_id"], first.json()["doc_id"]
     task = client.get(f"/api/goals/{task_id}").json()
-    assert task["title"] == "Replan carried-over plans" and task["origin"] == "app"
-    assert f"(goal:{created.json()['id']})" in task["body"]
+    assert task["title"] == "Replan carried-over plans" and task["origin"] == "app" and task["vertical"] == "week"
+    doc = client.get(f"/api/docs/{doc_id}").json()
+    assert f"(doc:{doc['path']})" in task["body"]
+    assert f"(goal:{created.json()['id']})" in doc["body"]
     again = client.post("/api/replan", params={"date": today.isoformat()})
-    assert again.json()["task_id"] == task_id
+    assert again.json() == {"task_id": task_id, "doc_id": doc_id}
     assert client.get(f"/api/goals/{task_id}").json()["updated_at"] == task["updated_at"]
+    assert client.get(f"/api/docs/{doc_id}").json()["revision"] == doc["revision"]
     far = client.post("/api/replan", params={"date": (today + timedelta(days=5)).isoformat()})
-    assert far.status_code == 200 and far.json() == {"task_id": None}, far.text
+    assert far.status_code == 200 and far.json() == {"task_id": None, "doc_id": None}, far.text
     after = client.post("/api/replan", params={"date": (today + timedelta(days=1)).isoformat()})
     assert after.json()["task_id"] == task_id
+
+
+def test_the_morning_report_is_made_once_a_day_as_a_task_linking_its_document(client: httpx.Client) -> None:
+    """Inbox and Documents redesign, round 5: the first ask of a day makes the report's document and its task in that
+    day, a second ask returns the same two, and a day more than one away from the server's is not made."""
+    today = date.today()
+    first = client.post("/api/morning", params={"date": today.isoformat()})
+    assert first.status_code == 200, first.text
+    made = first.json()
+    task = client.get(f"/api/goals/{made['task_id']}").json()
+    doc = client.get(f"/api/docs/{made['doc_id']}").json()
+    assert (task["title"], task["vertical"], task["anchor_date"], task["origin"]) == (
+        "Morning report", "day", today.isoformat(), "app")
+    assert doc["path"] == f"reports/morning/{today.isoformat()}.md" and f"(doc:{doc['path']})" in task["body"]
+    assert client.post("/api/morning", params={"date": today.isoformat()}).json() == made
+    far = client.post("/api/morning", params={"date": (today - timedelta(days=5)).isoformat()})
+    assert far.status_code == 200 and far.json() == {"task_id": None, "doc_id": None}, far.text

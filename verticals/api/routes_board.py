@@ -69,7 +69,7 @@ def post_replan(request: Request, date: _date) -> dict:
     the server's own is not run, so a wrong clock can neither mark days that have not come nor
     gather plans against a day long gone."""
     if abs((date - _date.today()).days) > 1:
-        return {"task_id": None}
+        return {"task_id": None, "doc_id": None}
     owner = request.app.state.config.owner
     with get_conn(request) as conn:
         task_id = core_replan.run(conn, owner=owner, today=date)

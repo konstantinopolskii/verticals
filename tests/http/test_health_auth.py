@@ -62,6 +62,10 @@ EXPECTED_OPERATIONS = {
     # Privacy mode: the covered ids and the mode switch.
     ("GET", "/api/privacy"),
     ("PUT", "/api/privacy"),
+    # The Inbox and Documents redesign: every goal with no date, the Documents desk, and the day's morning report.
+    ("GET", "/api/undated"),
+    ("GET", "/api/docs/desk"),
+    ("POST", "/api/morning"),
 }
 
 # J7's negative space: none of these ever appear in a path string, in either direction of the

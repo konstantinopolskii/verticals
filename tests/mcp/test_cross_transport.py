@@ -389,8 +389,10 @@ _READ_TOOLS = {"board", "goal", "outline", "search", "evidence_due", "tags", "do
 _AGENT_ONLY_TOOLS = {"evidence_update", "tag_mark", "size_report"}
 # The mirror image on HTTP (docs/design-handoff S4.P1.017): the app's own daily carry-over into
 # the Replan task. The app calls it on start and when its day turns; nobody asks for it, so it is
-# housekeeping, not a capability, and the task it writes is a usual goal both surfaces read.
-_APP_ONLY_ROUTES = {("POST", "/api/replan")}
+# housekeeping, not a capability, and the task it writes is a usual goal both surfaces read. The morning report is the
+# same kind (Inbox and Documents redesign, round 5): the app asks for the day's report once its morning hour has come,
+# and the task and document it makes are a usual goal and document.
+_APP_ONLY_ROUTES = {("POST", "/api/replan"), ("POST", "/api/morning")}
 
 # capabilities.json's `mcp_args` values are placeholders (`"<title>"`, `"<id>"`, ...), not literal
 # values a real caller would send — most placeholders are plain strings and validate as-is against
