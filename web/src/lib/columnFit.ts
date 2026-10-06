@@ -1,7 +1,7 @@
 /* The opened goal is seen whole (Kirill's rule, PR #1): if it fits where it was clicked, the column stays; otherwise it
-   scrolls just enough, 16 px from the window's edge or the board's bottom fade, and a goal taller than the window shows
-   its top. Read by the move that opens it (`lib/familyMotion.ts`), which lands the column there in the same movement,
-   and by `GoalDetail.vue` for an opening the move doesn't draw. */
+   scrolls just enough, 16 px from the window's edge, and a goal taller than the window shows its top. Read by the move
+   that opens it (`lib/familyMotion.ts`), which lands the column there in the same movement, and by `GoalDetail.vue` for
+   an opening the move doesn't draw. */
 
 export const GAP = 16
 
@@ -28,10 +28,9 @@ export function familyBlock(detail: HTMLElement): { card: HTMLElement; list: HTM
   return list && card ? { card, list } : null
 }
 
-/** How much of `scroller` shows above the board's bottom fade. */
+/** How much of `scroller` shows in the window. */
 export function seenHeight(scroller: HTMLElement): number {
-  const fade = document.querySelector<HTMLElement>('[data-role="board-bottom-fade"]')
-  return Math.min(scroller.clientHeight, (fade?.getBoundingClientRect().top ?? window.innerHeight) - scroller.getBoundingClientRect().top)
+  return Math.min(scroller.clientHeight, window.innerHeight - scroller.getBoundingClientRect().top)
 }
 
 /** The scroll at which the block from `top` to `bottom` (in `scroller`'s content) is seen whole, moving as little as
