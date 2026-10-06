@@ -327,7 +327,7 @@ const nestedIndicatorStyle = computed(() => {
   const drag = store.state.drag
   if (isNestedSourceSlot.value) return { height: `${drag.slotHeight}px` }
   return {
-    height: `${drag.previewHeight}px`,
+    height: `${drag.previewHeight + drag.tailHeight}px`,
     marginLeft: `${drag.slotInsetLeft}px`,
     marginRight: `${drag.slotInsetRight}px`,
   }
@@ -422,6 +422,8 @@ watch(nestedInsertionSlot, async () => {
   const selector = ':scope > [data-goal-id]'
   const before = new Map(
     [...(childrenListEl.value?.querySelectorAll<HTMLElement>(selector) ?? [])]
+      // A hidden card (a goal's subtasks flying with it) has no place to slide from.
+      .filter((element) => element.getClientRects().length > 0)
       .map((element) => [element.dataset.goalId, element.getBoundingClientRect().top]),
   )
   await nextTick()
@@ -630,6 +632,8 @@ function onRowKeydown(event: KeyboardEvent) {
     :class="{
       'goal-card__children--lifted': lifted,
       'goal-card__children--settling': liftSettling,
+      'goal-card__children--drag-source': isDragSource,
+      'goal-card__children--gap-closed': closesSourceGap,
       'goal-card__children--open': isInlineDetailHost,
       'goal-card__children--path': isPathLine && depth > 0,
       'goal-card__children--family': isPathLine || (isInlineDetailHost && familyDepth >= 0),
@@ -678,6 +682,7 @@ function onRowKeydown(event: KeyboardEvent) {
           :data-dnd-placeholder="item.settling ? undefined : ''"
           :data-dnd-destination="item.settling ? '' : undefined"
           :data-box="isNestedSourceSlot ? 'card' : 'row'"
+          :data-tail="store.state.drag.tailHeight || undefined"
           aria-hidden="true"
           :style="nestedIndicatorStyle"
         >

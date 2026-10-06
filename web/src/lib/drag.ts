@@ -46,11 +46,15 @@ export interface DragState {
   id: string | null
   x: number
   y: number
+  /** Sign of the last vertical move that wasn't zero: the flying card's leading edge picks the slot. */
+  dirY: number
   offsetX: number
   offsetY: number
   /** The dragged ROW's box — the flying visual's geometry. */
   width: number
   height: number
+  /** From the row's bottom to the bottom of its subtasks drawn under it: the family travels whole. */
+  tailHeight: number
   /** Live ROW box under the current drop target. Board.vue measures the rendered row at the
    *  destination width. D245 (KK ruling 2026-08-18): the flying overlay itself no longer follows
    *  these — re-sizing it against the hover target mid-flight read as the card corrupting
@@ -132,15 +136,27 @@ function applyTarget(drag: DragState, target: DropTarget): void {
   if (target?.kind !== 'combine') drag.slot = target
 }
 
+/** The flying card's edge that leads the move, or its middle before it has moved: the slot switches when that edge
+ *  passes a row's middle, so a tall card reorders as soon as it covers half a neighbour. */
+function leadingEdgeY(drag: DragState): number {
+  const top = drag.y - drag.offsetY
+  const height = drag.height + drag.tailHeight
+  return drag.dirY > 0 ? top + height : drag.dirY < 0 ? top : top + height / 2
+}
+
+function hitAt(drag: DragState): PointerHit {
+  return hitTest(drag.x, drag.y, drag.id, leadingEdgeY(drag))
+}
+
 function retarget(drag: DragState, board: BoardResponse | null, hit: PointerHit): void {
   if (!drag.id) return
-  applyTarget(drag, computeDropTarget(board, drag.id, drag.y, hit, drag.combineMode, drag.slot))
+  applyTarget(drag, computeDropTarget(board, drag.id, drag.y, hit, drag.combineMode, drag.slot, leadingEdgeY(drag)))
 }
 
 function activateDrag(drag: DragState, board: BoardResponse | null): void {
   if (!drag.pending || drag.id) return
   drag.id = drag.pending.id
-  lastPointerHit = hitTest(drag.x, drag.y, drag.id)
+  lastPointerHit = hitAt(drag)
   retarget(drag, board, lastPointerHit)
   ;(document.activeElement as HTMLElement | null)?.blur()
   window.getSelection()?.removeAllRanges()
@@ -174,6 +190,7 @@ export function armPointerDown(
   drag.pending = { id, x: clientX, y: clientY, pointerType: input }
   drag.x = clientX
   drag.y = clientY
+  drag.dirY = 0
   drag.offsetX = clientX - rect.left
   drag.offsetY = clientY - rect.top
   drag.width = rect.width
@@ -192,6 +209,16 @@ export function armPointerDown(
   drag.slotInsetRight = parseFloat(cardStyle?.paddingRight ?? '') || 0
   drag.slotInsetBottom = parseFloat(cardStyle?.paddingBottom ?? '') || 0
   drag.slotInsetLeft = parseFloat(cardStyle?.paddingLeft ?? '') || 0
+  // A goal with subtasks drawn under it moves with them: its slot reserves the whole family, and the row sits at the
+  // top of that slot.
+  drag.tailHeight = 0
+  const kids = card?.nextElementSibling
+  if (card && cardBox && kids instanceof HTMLElement && kids.classList.contains('goal-card__children')) {
+    const bottom = kids.getBoundingClientRect().bottom + (parseFloat(getComputedStyle(kids).marginBottom) || 0)
+    drag.tailHeight = Math.max(0, bottom - rect.bottom)
+    drag.slotHeight = bottom - cardBox.top
+    drag.slotInsetBottom += bottom - cardBox.bottom
+  }
   const source = findGoal(board, id)
   drag.sourceVertical = source?.vertical ?? 'maybe'
   drag.sourcePeriodKey = source?.vertical ? source.period_key : null
@@ -219,6 +246,7 @@ export function trackPointerMove(
   clientY: number,
   altKey = drag.combineMode,
 ): PointerHit | null {
+  if (clientY !== drag.y) drag.dirY = Math.sign(clientY - drag.y)
   drag.x = clientX
   drag.y = clientY
   drag.combineMode = altKey
@@ -239,7 +267,7 @@ export function trackPointerMove(
     activateDrag(drag, board)
   }
   if (!drag.id) return null
-  lastPointerHit = hitTest(clientX, clientY, drag.id)
+  lastPointerHit = hitAt(drag)
   retarget(drag, board, lastPointerHit)
   return lastPointerHit
 }
@@ -255,7 +283,7 @@ export function setCombineMode(
 ): void {
   drag.combineMode = enabled
   if (drag.id) {
-    lastPointerHit ??= hitTest(drag.x, drag.y, drag.id)
+    lastPointerHit ??= hitAt(drag)
     retarget(drag, board, lastPointerHit)
   }
 }
@@ -382,16 +410,27 @@ export function releasePointerDrag(
 const LIVE_SLIDE = '[data-role="period-slide"]:not([data-state="outgoing"])'
 
 export interface PointerHit {
-  /** Rendered row nearest the pointer in the hovered column; never the drag source. */
+  /** Rendered row nearest the flying card's leading edge in the hovered column; never the drag source. */
   cardId: string | null
   cardRect: DOMRect | null
+  /** Rendered row right under the pointer, never the drag source: the one a drop would go into. */
+  underId: string | null
+  underRect: DOMRect | null
   /** Card ids rendered after `cardId` in its container, in DOM order. */
   followingIds: string[]
+  /** `cardId`'s own subtasks drawn right under it, in DOM order: the slot just past its row is before the first. */
+  childIds: string[]
   columnVertical: string | null
   columnPeriodKey: string | null
   overIndicator: boolean
   /** The pointer is nearest the source's own box: a nested hole, or the card before it collapses. */
   overSource: boolean
+}
+
+function childCardIds(card: HTMLElement): string[] {
+  const list = card.nextElementSibling
+  if (!list?.classList.contains('goal-card__children')) return []
+  return [...list.children].flatMap((el) => (el as HTMLElement).dataset?.goalId ?? [])
 }
 
 function followingCardIds(card: HTMLElement): string[] {
@@ -403,13 +442,16 @@ function followingCardIds(card: HTMLElement): string[] {
   return ids
 }
 
-export function hitTest(x: number, y: number, sourceId: string | null = null): PointerHit {
+export function hitTest(x: number, y: number, sourceId: string | null = null, edgeY = y): PointerHit {
   const el = document.elementFromPoint(x, y) as HTMLElement | null
   const colEl = el?.closest<HTMLElement>('[data-vertical]') ?? null
   const hit: PointerHit = {
     cardId: null,
     cardRect: null,
+    underId: null,
+    underRect: null,
     followingIds: [],
+    childIds: [],
     columnVertical: colEl?.dataset.vertical ?? null,
     columnPeriodKey: colEl?.dataset.periodKey ? colEl.dataset.periodKey : null,
     overIndicator: false,
@@ -426,7 +468,7 @@ export function hitTest(x: number, y: number, sourceId: string | null = null): P
   }
 
   // Nearest of the indicator and every row, so no gap between them is left unowned.
-  const distance = (rect: DOMRect) => (y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0)
+  const distance = (rect: DOMRect) => (edgeY < rect.top ? rect.top - edgeY : edgeY > rect.bottom ? edgeY - rect.bottom : 0)
   let best: { card: HTMLElement | null; rect: DOMRect; distance: number } | null = null
   const indicator = colEl.querySelector<HTMLElement>(`${LIVE_SLIDE} [data-role="drop-indicator"]`)
   if (indicator) {
@@ -435,10 +477,14 @@ export function hitTest(x: number, y: number, sourceId: string | null = null): P
   }
   const rows = colEl.querySelectorAll<HTMLElement>(`${LIVE_SLIDE} [data-goal-id] > .goal-card__row`)
   for (const row of rows) {
-    if (row.closest('[data-section="carried"]')) continue
+    if (row.closest('[data-section="carried"], .goal-card__children--drag-source')) continue
     const card = row.parentElement as HTMLElement
     const rect = (card.dataset.goalId === sourceId ? card : row).getBoundingClientRect()
     if (rect.height <= 0) continue
+    if (card.dataset.goalId !== sourceId && y >= rect.top && y <= rect.bottom) {
+      hit.underId = card.dataset.goalId ?? null
+      hit.underRect = rect
+    }
     const d = distance(rect)
     if (!best || d < best.distance) best = { card, rect, distance: d }
   }
@@ -454,6 +500,7 @@ export function hitTest(x: number, y: number, sourceId: string | null = null): P
   }
   hit.cardId = best.card.dataset.goalId ?? null
   hit.cardRect = best.rect
+  hit.childIds = childCardIds(best.card)
   return hit
 }
 
@@ -498,18 +545,13 @@ export function computeDropTarget(
   hit: PointerHit,
   combineMode = false,
   currentSlot: ReorderTarget | null = null,
+  edgeY = pointerY,
 ): DropTarget {
   if (!findGoal(board, sourceId)) return null
 
-  // The indicator under the pointer keeps its slot.
-  if (hit.overIndicator && currentSlot) return currentSlot
-  if (hit.overSource && hit.columnVertical) {
-    const slot = sourceSlot(board, sourceId, hit.columnVertical, hit.columnPeriodKey, hit.followingIds)
-    if (slot) {
-      return { kind: 'reorder', ...slot, vertical: hit.columnVertical, periodKey: hit.columnPeriodKey }
-    }
-  }
-
+  // Into a goal is read off the row under the pointer, before the slot: the leading edge can already sit over the
+  // indicator while the pointer is in a card's middle.
+  //
   // D236 (KK, 2026-08-15): combine no longer hides behind the Alt key. The pointer's position on
   // the hit card disambiguates the two meanings a modifier used to: the middle band reads "into
   // this parent", the outer bands keep their reorder-slot meaning. `combineMode` (Alt) still
@@ -521,9 +563,9 @@ export function computeDropTarget(
   // rows used to read as "nest under this sibling" far too easily now that reordering among them
   // is a real, expected gesture. Every other hit keeps D236's original 50/25/25 split unchanged.
   if (dragCombineTarget(board, sourceId, hit)) {
-    const rect = hit.cardRect as DOMRect
+    const rect = hit.underRect as DOMRect
     const source = findGoal(board, sourceId)
-    const hitGoal = findGoal(board, hit.cardId as string)
+    const hitGoal = findGoal(board, hit.underId as string)
     const isRenderedSibling = !!source && !!hitGoal
       && source.parent_id !== null
       && source.parent_id === hitGoal.parent_id
@@ -531,15 +573,24 @@ export function computeDropTarget(
     const inCentreBand = pointerY >= rect.top + rect.height * bandFraction
       && pointerY <= rect.bottom - rect.height * bandFraction
     if (combineMode || inCentreBand) {
-      return { kind: 'combine', targetId: hit.cardId as string }
+      return { kind: 'combine', targetId: hit.underId as string }
     }
   }
 
-  // Upper half of a row: slot above it. Lower half: slot below it.
+  // The indicator under the leading edge keeps its slot.
+  if (hit.overIndicator && currentSlot) return currentSlot
+  if (hit.overSource && hit.columnVertical) {
+    const slot = sourceSlot(board, sourceId, hit.columnVertical, hit.columnPeriodKey, hit.followingIds)
+    if (slot) {
+      return { kind: 'reorder', ...slot, vertical: hit.columnVertical, periodKey: hit.columnPeriodKey }
+    }
+  }
+
+  // Leading edge past a row's middle: slot below it, before it: slot above it.
   if (hit.cardId && hit.cardRect && hit.columnVertical) {
-    const after = pointerY >= hit.cardRect.top + hit.cardRect.height / 2
+    const after = edgeY >= hit.cardRect.top + hit.cardRect.height / 2
     const slot = slotBesideCard(
-      board, sourceId, hit.columnVertical, hit.columnPeriodKey, hit.cardId, after, hit.followingIds,
+      board, sourceId, hit.columnVertical, hit.columnPeriodKey, hit.cardId, after, hit.followingIds, hit.childIds,
     )
     if (slot) {
       return { kind: 'reorder', ...slot, vertical: hit.columnVertical, periodKey: hit.columnPeriodKey }
@@ -549,7 +600,7 @@ export function computeDropTarget(
   // Empty column, or a row that is no valid anchor: fall back to press-time geometry.
   if (hit.columnVertical) {
     const slot = resolveReorderSlot(
-      board, sourceId, hit.columnVertical, hit.columnPeriodKey, pointerY, rowRects,
+      board, sourceId, hit.columnVertical, hit.columnPeriodKey, edgeY, rowRects,
     )
     return {
       kind: 'reorder',
@@ -571,11 +622,11 @@ function dragCombineTarget(
   const source = findGoal(board, sourceId)
   return !!(
     source
-    && hit.cardId
-    && hit.cardRect
-    && hit.cardId !== sourceId
-    && hit.cardId !== source.parent_id
-    && findGoal(board, hit.cardId)
+    && hit.underId
+    && hit.underRect
+    && hit.underId !== sourceId
+    && hit.underId !== source.parent_id
+    && findGoal(board, hit.underId)
   )
 }
 

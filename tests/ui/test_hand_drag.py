@@ -12,8 +12,8 @@ fetches epoch-guarded (`lib/boardEpoch.ts`) against stale in-flight responses. L
 reloads (D237) DEFER while a gesture or its settle is in flight and flush once after
 (`lib/liveBoard.ts`'s `createDeferredRun`).
 
-D246 adds dwell-expand: hovering a compact column for COLUMN_DWELL_MS (200ms, `lib/dragHover.ts`)
-expands it, one column at a time (D244's law), "maybe" never expands.
+D246's dwell-expand is retired: every column keeps its width for the whole
+gesture, landing included. HD-5 pins that.
 
 D247 originally added spring-loaded card open: holding the dragged card nearly still over a
 card with FOLDED children unfolded them under the hand so dropping between them was one gesture.
@@ -26,7 +26,7 @@ already-rendered children. HD-6 below is re-choreographed to that surviving shap
 fold-back half) is retired outright — there is nothing left to fold back.
 
 Six scenarios (HD-1..HD-6): nested pickup leaves a hole, never-two-copies through settle, instant
-landing, live reloads deferring under a held gesture, column dwell-expand, and drop-between-
+landing, live reloads deferring under a held gesture, steady column widths, and drop-between-
 subtasks in a compact column. All drive a real Chromium against the real built bundle and real
 Postgres/FastAPI, per this repo's E2E-only law (no mocks).
 """
@@ -58,7 +58,7 @@ DRAG_THRESHOLD_PX = 5  # arms a desktop drag on the very next pointermove past t
 # independent of DESKTOP_HOLD_MS's alternate hold-still arming path (task brief's own note).
 SETTLE_MAX_MS = 550  # lib/drag.ts SETTLE_MAX_MS
 SETTLE_GRACE_MS = 50  # lib/drag.ts SETTLE_GRACE_MS -- settle's outer bound is MAX+GRACE = 600ms.
-COLUMN_DWELL_MS = 200  # lib/dragHover.ts COLUMN_DWELL_MS (D246)
+COLUMN_DWELL_MS = 200  # the retired D246 dwell: HD-5 waits past it to show nothing widens
 
 
 def _row(goal_id: str) -> str:
@@ -535,37 +535,27 @@ def test_hd4_live_reloads_defer_during_a_gesture(ui_f2: UiSession) -> None:
 # --- HD-5 --------------------------------------------------------------------------------------
 
 
-def test_hd5_dwell_expand(ui_f2: UiSession) -> None:
-    """D246: hovering a compact column for COLUMN_DWELL_MS (200ms, dragHover.ts) expands it;
-    D244's one-expanded-at-a-time law holds under an active drag too — entering a third column
-    must fold the previously dwell-expanded one."""
+def test_hd5_columns_keep_their_width(ui_f2: UiSession) -> None:
+    """Resting a drag over other columns, past the retired D246 dwell, widens none of them."""
     session = ui_f2
     page = session.page
     source_id = _create_goal(session, "SYN HD5 source", "day")
     page.reload()
     expect(page.locator(_row(source_id))).to_be_visible()
 
-    month = page.locator('.pattern-vertical-board__column[data-vertical="month"]')
-    quarter = page.locator('.pattern-vertical-board__column[data-vertical="quarter"]')
-    assert not _has_class(month, EXPANDED_COLUMN_CLASS)
-    assert not _has_class(quarter, EXPANDED_COLUMN_CLASS)
+    columns = page.locator(".pattern-vertical-board__column")
+    widths = [columns.nth(i).bounding_box()["width"] for i in range(columns.count())]
 
     _press_and_arm(page, page.locator(_row(source_id)))
     try:
-        month_body = page.locator('[data-vertical="month"] .pattern-vertical-board__body')
-        _move_to(page, month_body, position={"x": 20, "y": 20}, steps=6)
-        assert _wait_for_class(page, month, EXPANDED_COLUMN_CLASS, timeout_ms=1000), (
-            "D246: month never expanded within COLUMN_DWELL_MS (200ms) + headroom"
-        )
-
-        quarter_body = page.locator('[data-vertical="quarter"] .pattern-vertical-board__body')
-        _move_to(page, quarter_body, position={"x": 20, "y": 20}, steps=6)
-        assert _wait_for_class(page, quarter, EXPANDED_COLUMN_CLASS, timeout_ms=1000), (
-            "D246: quarter never expanded on dwell"
-        )
-        assert not _has_class(month, EXPANDED_COLUMN_CLASS), (
-            "D244: only one column may be expanded at a time — month stayed active"
-        )
+        for vertical in ("month", "quarter"):
+            body = page.locator(f'[data-vertical="{vertical}"] .pattern-vertical-board__body')
+            _move_to(page, body, position={"x": 20, "y": 20}, steps=6)
+            page.wait_for_timeout(COLUMN_DWELL_MS * 3)
+            column = page.locator(f'.pattern-vertical-board__column[data-vertical="{vertical}"]')
+            assert not _has_class(column, EXPANDED_COLUMN_CLASS), f"{vertical} widened under a drag"
+        now = [columns.nth(i).bounding_box()["width"] for i in range(columns.count())]
+        assert now == widths, f"column widths changed under a drag: {widths} -> {now}"
     finally:
         page.keyboard.press("Escape")
         page.mouse.up()
@@ -602,10 +592,8 @@ def test_hd6_drop_between_subtasks(ui_f2: UiSession) -> None:
     `reparentPlacement` synchronously first, computes `reorderWrite` off the already-updated board
     (the sibling group is now the new parent's children), applies `reorderPlacement`, then fires
     `apiReparentGoal` and `patchGoal` in order behind the landed picture — so X lands adopted AND
-    ordered between S1 and S2 in one gesture. D253 additionally re-derives the "landing inside a
-    card expands its own column" side effect directly off this same drop target — no drag-scoped
-    spring state involved any more (`dragActions.ts::pointerUpDrag`, the `adoptIntoSlot`
-    branches) — which the column-expand assertion below now exercises.
+    ordered between S1 and S2 in one gesture. The landing no longer widens the column (D253's
+    expand, dropped with D246): the assertion below pins that.
 
     Measured (this rewrite's own first pass): a single pre-computed midpoint, moved to in one
     big jump straight from X's own row, is NOT enough on its own — the same live reorder-preview
@@ -639,9 +627,8 @@ def test_hd6_drop_between_subtasks(ui_f2: UiSession) -> None:
         page.mouse.up()
         raise
 
-    assert _wait_for_class(page, quarter, EXPANDED_COLUMN_CLASS, timeout_ms=2000), (
-        "D253: dropping inside another card must expand its own column"
-    )
+    page.wait_for_timeout(SETTLE_MAX_MS + SETTLE_GRACE_MS)
+    assert not _has_class(quarter, EXPANDED_COLUMN_CLASS), "a drop inside a card widened its column"
 
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
         row = _goal_row(conn, x_id)

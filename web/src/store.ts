@@ -132,8 +132,8 @@ const state = reactive<State>({
   hoverChainId: null,
   restChainId: null,
   drag: {
-    pending: null, id: null, x: 0, y: 0, offsetX: 0, offsetY: 0,
-    width: 0, height: 0, previewWidth: 0, previewHeight: 0,
+    pending: null, id: null, x: 0, y: 0, dirY: 0, offsetX: 0, offsetY: 0,
+    width: 0, height: 0, tailHeight: 0, previewWidth: 0, previewHeight: 0,
     slotWidth: 0, slotHeight: 0,
     slotInsetTop: 0, slotInsetRight: 0, slotInsetBottom: 0, slotInsetLeft: 0,
     sourceVertical: null, sourcePeriodKey: null,
@@ -586,7 +586,6 @@ const {
   beforeRelease,
   quietReload,
   expandedVertical: () => state.expandedVertical,
-  expandColumn,
   openFamily: (path, vertical) => family.openFamily(path, vertical), // bound late: the family view is made below
 })
 

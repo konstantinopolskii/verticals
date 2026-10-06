@@ -21,10 +21,13 @@ export function destinationRect(id: string, target: DropTarget): DOMRect | null 
     // is already the ROW. Both paths return a rendered row box directly: no padding correction.
     const indicator = document.querySelector<HTMLElement>('[data-role="drop-indicator"]')
     if (!indicator) return sourceRect(id)
-    const row = indicator.dataset.box === 'card'
-      ? indicator.querySelector<HTMLElement>('[data-role="drop-row-target"]')
-      : indicator
-    return row?.getBoundingClientRect() ?? sourceRect(id)
+    if (indicator.dataset.box === 'card') {
+      return indicator.querySelector<HTMLElement>('[data-role="drop-row-target"]')?.getBoundingClientRect() ?? sourceRect(id)
+    }
+    // A row slot also holds the subtasks travelling under the row: the row lands at its top.
+    const rect = indicator.getBoundingClientRect()
+    const tail = parseFloat(indicator.dataset.tail ?? '') || 0
+    return new DOMRect(rect.left, rect.top, rect.width, Math.max(0, rect.height - tail))
   }
   if (target?.kind === 'combine') return combineDestinationRect(target.targetId) ?? sourceRect(id)
   return sourceRect(id)

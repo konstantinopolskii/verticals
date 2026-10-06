@@ -34,6 +34,27 @@ const MAX_SCALE = 1.06
 const SIDE_GROWTH_PX = 7 // most a side may grow: the column gives 8 px of room past the card's column
 const END_GROWTH_PX = 4 // most an end may grow: with the 2 px rise it stays inside the 2 px gap and the neighbour's padding
 
+/** Reads the board as it lies at rest, while a lifted card stays lifted on screen: every lift on the board is taken
+ *  off and put back inside this one call, so nothing is painted in between. The whole board, not only this card: a
+ *  step pressed inside a lifted piece is lifted by its top-level goal, and a drag measures every row it may land on
+ *  (a lifted piece is up to 6% larger: the gap a picked-up card left pushed the cards below 1.5 px). */
+export function atRest<T>(read: () => T): T {
+  const els = [...document.querySelectorAll<HTMLElement>(`.${LIFTED_CLASS}, .${LIFTED_LIST_CLASS}`)]
+  if (!els.length) return read()
+  const classes = els.map((el) => (el.classList.contains(LIFTED_CLASS) ? LIFTED_CLASS : LIFTED_LIST_CLASS))
+  els.forEach((el, i) => {
+    el.style.setProperty('transition', 'none', 'important')
+    el.classList.remove(classes[i])
+  })
+  const value = read()
+  els.forEach((el, i) => {
+    el.classList.add(classes[i])
+    void el.offsetWidth // settle the lifted style before the transition comes back
+    el.style.removeProperty('transition')
+  })
+  return value
+}
+
 /** How much a lifted piece grows: up to 6%, but no more than the room around it allows (7 px a side, 4 px an end). The carried
  *  box lifts by the same rule, so a tall one never grows into the margin under it. */
 export function liftScale(width: number, height: number): number {
@@ -175,27 +196,6 @@ export function useCardLift(options: {
     observer.disconnect()
     for (const el of [card, list]) if (el) observer.observe(el)
   }, { flush: 'post' })
-
-  /** Reads the board as it lies at rest, while a lifted card stays lifted on screen: every lift on the board is taken
-   *  off and put back inside this one call, so nothing is painted in between. The whole board, not only this card: a
-   *  step pressed inside a lifted piece is lifted by its top-level goal, and a drag measures every row it may land on
-   *  (a lifted piece is up to 6% larger: the gap a picked-up card left pushed the cards below 1.5 px). */
-  function atRest<T>(read: () => T): T {
-    const els = [...document.querySelectorAll<HTMLElement>(`.${LIFTED_CLASS}, .${LIFTED_LIST_CLASS}`)]
-    if (!els.length) return read()
-    const classes = els.map((el) => (el.classList.contains(LIFTED_CLASS) ? LIFTED_CLASS : LIFTED_LIST_CLASS))
-    els.forEach((el, i) => {
-      el.style.setProperty('transition', 'none', 'important')
-      el.classList.remove(classes[i])
-    })
-    const value = read()
-    els.forEach((el, i) => {
-      el.classList.add(classes[i])
-      void el.offsetWidth // settle the lifted style before the transition comes back
-      el.style.removeProperty('transition')
-    })
-    return value
-  }
 
   let held: { x: number; y: number } | null = null // where a click landed, while the lift holds for it
 

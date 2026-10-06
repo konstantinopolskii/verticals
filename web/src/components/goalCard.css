@@ -141,6 +141,40 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   background: var(--goal-hover-background);
   pointer-events: none;
 }
+/* A lifted goal and its subgoals are one piece of one colour: the row's shape meets the list's, the subgoals draw no
+   shapes of their own on it, and both shapes are solid (the tint mixed over the board) so the 1 px where they meet
+   shows no seam. A goal lit by an open family keeps its own light. */
+.goal-card.goal-card--with-subgoals:is(.goal-card--lifted, .goal-card--settling):not([data-light]) > .goal-card__row::before,
+.goal-card:is(.goal-card--lifted, .goal-card--settling):not([data-light])
+  + .goal-card__children:not(.goal-card__children--open)::before {
+  --piece-wash: color-mix(in srgb, var(--goal-hover-background) calc(var(--kkov-light-tint, .7) * 100%), transparent);
+  background: linear-gradient(var(--piece-wash), var(--piece-wash)), var(--color-bg);
+}
+.goal-card.goal-card--with-subgoals:is(.goal-card--lifted, .goal-card--settling):not([data-light]) > .goal-card__row::before {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.goal-card.goal-card--with-subgoals.goal-card--lifted:not([data-light]) > .goal-card__row::before { opacity: 1; }
+.goal-card__children:not(.goal-card__children--open)::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: calc(-1 * var(--piece-t, 0px) - 1px);
+  bottom: calc(-1 * var(--piece-b, 0px));
+  left: calc(-1 * var(--piece-l, 0px));
+  right: calc(-1 * var(--piece-r, 0px));
+  border-radius: 0 0 8px 8px;
+  pointer-events: none;
+  opacity: 0;
+}
+.goal-card.goal-card--lifted:not([data-light]) + .goal-card__children:not(.goal-card__children--open)::before { opacity: 1; }
+.goal-card.goal-card--settling:not([data-light]) + .goal-card__children:not(.goal-card__children--open)::before {
+  transition: opacity var(--motion-lift-out) var(--vt-ease-large);
+}
+.goal-card:is(.goal-card--lifted, .goal-card--settling):not([data-light])
+  + .goal-card__children:not(.goal-card__children--open) > .goal-card.goal-card > .goal-card__row::before {
+  opacity: 0;
+}
 /* Subgoal boxes overlap their neighbours by 2 px; a plain one painted white would bite the corner off a coloured shape
    next to it. On the board's own background, clear is the same as white. */
 .goal-card__children > .goal-card.goal-card { background-color: transparent; }
@@ -279,6 +313,17 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
    `--drag-source` rule above already empties it visually). */
 .goal-card.goal-card--nested-drag-hole {
   pointer-events: none;
+}
+.goal-card.goal-card.goal-card--with-subgoals.goal-card--source-gap-closed {
+  padding-bottom: 0;
+}
+/* The subtasks fly with their goal: they leave with it, and close up with it at top level. */
+.goal-card__children.goal-card__children--drag-source {
+  visibility: hidden;
+  pointer-events: none;
+}
+.goal-card__children.goal-card__children--gap-closed {
+  display: none;
 }
 .goal-card__children {
   width: 100%;

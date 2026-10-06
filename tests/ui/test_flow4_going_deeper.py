@@ -329,7 +329,7 @@ def test_holding_a_dragged_goal_over_a_step_opens_it(ui_f2: UiSession) -> None:
     writes_before = sum(1 for r in session.request_log if r["method"] not in ("GET", "HEAD", "OPTIONS"))
 
     # Pick up the open goal's sibling, drawn under it in the same wide column, and hold it over the open card's first
-    # step. The hand stays in that column: a drag resting 0.2 s over another column widens it (D246), which folds this one.
+    # step. Holding opens goals only in the wide column, so the hand stays in it.
     source = page.locator(_card("quarter", fam.sibling)).first
     box = _settled_box(page, source.locator(":scope > .goal-card__row"))
     page.mouse.move(box["x"] + GRIP["x"], box["y"] + GRIP["y"])

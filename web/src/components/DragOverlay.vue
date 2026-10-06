@@ -8,6 +8,7 @@ import { dots } from '../lib/spansDrag'
 import { spanGoal, spans } from '../lib/spans'
 import { findGoal } from '../lib/boardIndex'
 import { goalLight } from '../lib/look'
+import { atRest } from '../lib/cardLift'
 
 /* Clone the rendered row itself. Copying computed styles before Vue applies the source-ghost
    class preserves every current control and line at the measured footprint without creating a
@@ -80,12 +81,73 @@ function cloneRenderedRow(id: string): HTMLElement | null {
   const fromLayer = cardStyle.backgroundColor === 'rgba(0, 0, 0, 0)' && layer.opacity === '1'
   box.style.backgroundColor = fromLayer ? layer.backgroundColor : cardStyle.backgroundColor
   if (fromLayer) box.style.backgroundImage = layer.backgroundImage // a lifted card's wash is laid over its base
+  // The goal in the hand is lit as a lifted one is on the board: its wash at the hover strength, over the board.
+  else if (cardStyle.backgroundColor === 'rgba(0, 0, 0, 0)') box.style.backgroundColor = liftedWash(card)
   box.style.borderRadius = cardStyle.borderRadius
   box.style.overflow = 'hidden'
   box.style.pointerEvents = 'none'
   box.setAttribute('aria-hidden', 'true')
   box.appendChild(clone)
   return box
+}
+
+/* A goal with subtasks drawn under it flies as the whole piece the board shows: its card and its list, copied as they
+   look and where they sit around the row. */
+function liftedWash(card: HTMLElement): string {
+  const style = getComputedStyle(card)
+  const wash = style.getPropertyValue('--goal-hover-background').trim() || 'rgb(215, 215, 215)'
+  const tint = parseFloat(style.getPropertyValue('--goal-light-tint')) || 0.7
+  const ground = style.getPropertyValue('--color-bg').trim() || '#fff'
+  return `color-mix(in srgb, ${wash} ${Math.round(tint * 100)}%, ${ground})`
+}
+
+function frozenCopy(source: HTMLElement): HTMLElement {
+  const clone = source.cloneNode(true) as HTMLElement
+  const sources = [source, ...source.querySelectorAll<HTMLElement>('*')]
+  const clones = [clone, ...clone.querySelectorAll<HTMLElement>('*')]
+  sources.forEach((node, index) => {
+    const style = getComputedStyle(node)
+    for (const property of style) clones[index].style.setProperty(property, style.getPropertyValue(property))
+    clones[index].style.pointerEvents = 'none'
+    clones[index].style.visibility = 'visible'
+    // A copy must never answer a lookup for the real goal.
+    for (const name of ['id', 'data-goal-id', 'data-row-key', 'data-role']) clones[index].removeAttribute(name)
+  })
+  return clone
+}
+
+function cloneFamily(id: string): HTMLElement | null {
+  return atRest(() => copyFamily(id))
+}
+
+function copyFamily(id: string): HTMLElement | null {
+  const row = document.querySelector<HTMLElement>(`[data-parked][data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)
+    ?? document.querySelector<HTMLElement>(`[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)
+  const card = row?.parentElement
+  const list = card?.nextElementSibling
+  if (!row || !card || !(list instanceof HTMLElement) || !list.classList.contains('goal-card__children')) return null
+  const origin = row.getBoundingClientRect()
+  const family = document.createElement('div')
+  family.style.position = 'absolute'
+  family.style.left = '0'
+  family.style.top = '0'
+  family.style.pointerEvents = 'none'
+  family.setAttribute('aria-hidden', 'true')
+  for (const part of [card, list]) {
+    const box = part.getBoundingClientRect()
+    const copy = frozenCopy(part)
+    copy.style.position = 'absolute'
+    copy.style.margin = '0'
+    copy.style.transform = 'none'
+    copy.style.left = `${box.left - origin.left}px`
+    copy.style.top = `${box.top - origin.top}px`
+    copy.style.width = `${box.width}px`
+    copy.style.height = `${box.height}px`
+    // Lit as a lifted piece is on the board (lib/cardLift.ts), without its growth: the copy holds its size.
+    copy.classList.add(part === card ? 'goal-card--lifted' : 'goal-card__children--lifted')
+    family.appendChild(copy)
+  }
+  return family
 }
 
 function renderedRowHeightAtWidth(id: string, width: number): number | null {
@@ -110,7 +172,7 @@ watch(
   dragVisualId,
   (id) => {
     if (!id) return
-    const clone = cloneRenderedRow(id)
+    const clone = cloneFamily(id) ?? cloneRenderedRow(id)
     if (!clone) return
     void nextTick(() => overlayHost.value?.replaceChildren(clone))
   },
