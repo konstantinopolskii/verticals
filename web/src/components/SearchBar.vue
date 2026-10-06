@@ -6,6 +6,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { store } from '../store'
 import { commandFilter } from '../lib/commandFilter'
 import { circle, circleCaption, circleState, circleWords, inboxWriting } from '../lib/circle'
+import { sayGo } from '../lib/go'
 import { agentChat, decide, openAsk, stop } from '../lib/agentChat'
 import { plainWords } from '../lib/chatMarkdown'
 import { closeWindows, windows } from '../lib/windows'
@@ -94,6 +95,8 @@ const holding = computed(() => state.value === 'moving' && (store.state.drag.id 
 const width = computed(() => {
   if (state.value === 'answer') return Math.max(CIRCLE, Math.min((leadLines.value ? ANSWER_MEASURE : answerWidth.value) + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))
   if (stopping.value) return 132
+  // Go: the pointed field's pill, the word in its middle (round 5, frame m4).
+  if (state.value === 'go') return 136
   if (state.value === 'typing') {
     return Math.min(maxWidth.value, Math.max(300, Math.ceil(PAD_LEFT + PAD_RIGHT + textWidth(text.value) + 5)))
   }
@@ -117,7 +120,7 @@ const tagsShown = computed(() => (circle.pointed && wide.value) || circle.focuse
 
 /* Where the line stands: the mascot's at rest, your hand over the field, your caret once the field has it. */
 const lineMode = computed(() => {
-  if (state.value === 'answer') return 'hidden'
+  if (state.value === 'answer' || state.value === 'go') return 'hidden'
   if (!wide.value) return 'mascot'
   // Resting open in the Inbox, the field is an invitation to write, not the agent: no line until you write (lib/inbox.ts).
   if (inboxWriting.value && state.value === 'open' && !circle.focused && !hand.value) return 'hidden'
@@ -344,7 +347,8 @@ function onWindowKeyDown(event: KeyboardEvent): void {
   focusField()
 }
 function onShapeClick(): void {
-  if (circleWords.value?.kind === 'answer') reply()
+  if (state.value === 'go') void sayGo()
+  else if (circleWords.value?.kind === 'answer') reply()
   else if (!circleWords.value) focusField()
 }
 function onResize(): void { room.width = innerWidth }
@@ -436,6 +440,7 @@ onBeforeUnmount(() => {
             <path d="M12 21.5V3M12 3 5 10M12 3l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
+        <span v-if="state === 'go'" class="circle-field__go" data-role="circle-go" role="button" aria-label="Go: hand your edits to the agent">Go</span>
         <div v-if="circleWords" class="circle-field__answer" :class="`circle-field__answer--${circleWords.kind}`" data-role="circle-answer"
           :aria-label="circleWords.kind === 'answer' ? `${answerText}. Press any key to reply` : undefined">
           <p v-if="leadText" class="circle-field__answer-lead">{{ leadText }}</p>

@@ -7,7 +7,9 @@ import DocPage from './DocPage.vue'
 import { agentChat } from '../lib/agentChat'
 import { circle, circleState } from '../lib/circle'
 import { openWindow, windows } from '../lib/windows'
-import { waitingPages } from '../lib/waiting'
+import { startWaiting, waitingPages } from '../lib/waiting'
+
+startWaiting()
 
 const shown = computed(() => waitingPages.value.length > 0 && !windows.list.length && !agentChat.open && !circle.moving
   && (circleState.value === 'rest' || circleState.value === 'open'))

@@ -246,3 +246,10 @@
   .circle-field__answer { animation-duration: var(--vt-crossfade); animation-delay: 0ms; }
   .circle-field__line.is-blinking, .circle-field__pivot.is-turning, .circle-field__answer-caret { animation: none; }
 }
+
+/* Go (lib/go.ts; round 5, frame m4): after an edit in an open document, the pointed field's black pill with the word in
+   its middle, grey like the field's caption until the hand is on it, then white. A plain arrow cursor: no line follows. */
+.circle-field__go { position: absolute; inset: 0; display: grid; place-items: center; color: rgb(255 255 255 / 40%);
+  font: 400 28px/36px var(--font-body); pointer-events: none; transition: color 120ms ease; }
+.circle-field[data-state='go'] .circle-field__shape { cursor: pointer; }
+.circle-field[data-state='go'] .circle-field__shape:hover .circle-field__go { color: #fff; }

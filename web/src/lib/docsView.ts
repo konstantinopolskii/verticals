@@ -236,6 +236,8 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
         : { ...updated, linked_goals: state.docs.currentId === id ? (state.docs.current?.linked_goals ?? []) : [] }
       if (state.docs.currentId === id) state.docs.current = fresh
       patchListEntry(fresh)
+      // The field offers Go after an edit (lib/go.ts).
+      window.dispatchEvent(new CustomEvent('verticals:doc-edited', { detail: { id, title: fresh.title, path: fresh.path } }))
       return fresh
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {

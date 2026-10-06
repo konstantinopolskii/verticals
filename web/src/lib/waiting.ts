@@ -62,7 +62,14 @@ async function resolve(task: GoalCard): Promise<void> {
   }
 }
 
-watch(waitingTasks, (tasks) => { for (const task of tasks) if (!pages.has(task.id)) void resolve(task) }, { immediate: true })
+/** Started by the pages' component once the app has loaded: read at import, the store isn't there yet (the store, the
+ *  circle and Go import one another). */
+let started = false
+export function startWaiting(): void {
+  if (started) return
+  started = true
+  watch(waitingTasks, (tasks) => { for (const task of tasks) if (!pages.has(task.id)) void resolve(task) }, { immediate: true })
+}
 
 /** The pages standing on the circle now, in the tasks' order. */
 export const waitingPages = computed(() => waitingTasks.value.map((t) => pages.get(t.id)).filter((p): p is WaitingPage => !!p))
