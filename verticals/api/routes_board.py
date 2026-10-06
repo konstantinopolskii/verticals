@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from verticals.api.deps import get_conn, verify_bearer_token
 from verticals.api.schemas import board_to_json
 from verticals.core import board as core_board
+from verticals.core import inbox as core_inbox
 from verticals.core import replan as core_replan
 from verticals.core import spans as core_spans
 
@@ -72,3 +73,29 @@ def post_replan(request: Request, date: _date) -> dict:
     with get_conn(request) as conn:
         task_id = core_replan.run(conn, owner=owner, today=date)
     return {"task_id": task_id}
+
+
+@router.get("/api/inbox")
+def get_inbox(request: Request, response: Response) -> dict:
+    """The Inbox: every open goal with no date, the ones under a goal included (`core/inbox.py`), newest first, with
+    the goal each sits under and its value's colour, so the Inbox draws Today's cards and the shelves from one call."""
+    owner = request.app.state.config.owner
+    with get_conn(request) as conn:
+        rows = core_inbox.items(conn, owner=owner)
+        response.headers["X-Query-Count"] = str(conn.query_count)
+    return {
+        "goals": [
+            {
+                "id": row.id,
+                "title": row.title,
+                "parent": {"id": row.parent_id, "title": row.parent_title} if row.parent_id else None,
+                "value_color": row.value_color,
+                "parked_from_vertical": row.parked_from_vertical,
+                "created_at": row.created_at,
+                "body_chars": row.body_chars,
+                "origin": row.origin,
+                "private": row.private,
+            }
+            for row in rows
+        ]
+    }

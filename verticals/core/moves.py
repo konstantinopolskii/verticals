@@ -290,6 +290,18 @@ def reparent(conn: psycopg.Connection, *, owner: str, id: str, parent_id: str | 
         tree.detach(conn, owner=owner, id=id)
     else:
         tree.move(conn, owner=owner, id=id, new_parent_id=parent_id)
+        # An undated goal takes the column of the goal it now sits under, as a new one does (`tree.attach`): the Inbox
+        # shelves it there (`core/inbox.py`). A dated goal keeps no such column (008_park_foil.sql's CHECK).
+        conn.execute(
+            """
+            UPDATE goals g
+               SET parked_from_vertical = COALESCE(p.vertical, p.parked_from_vertical, g.parked_from_vertical)
+              FROM goals p
+             WHERE g.owner = %(owner)s AND g.id = %(id)s AND g.vertical IS NULL
+               AND p.owner = g.owner AND p.id = %(parent_id)s
+            """,
+            {"owner": owner, "id": id, "parent_id": parent_id},
+        )
 
     row = conn.execute(
         f"SELECT {COLUMNS} FROM goals WHERE owner = %(owner)s AND id = %(id)s", {"owner": owner, "id": id}

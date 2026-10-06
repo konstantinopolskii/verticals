@@ -526,6 +526,42 @@ export interface DocRevisionDetail {
   saved_at: string
 }
 
+/** `GET /api/inbox` (`core/inbox.py`): every open goal with no date, the ones under a goal included, newest first. */
+export interface InboxGoal {
+  id: string
+  title: string
+  parent: { id: string; title: string } | null
+  value_color: string | null
+  parked_from_vertical: string | null
+  created_at: string
+  body_chars: number
+  origin: string
+  private: boolean
+}
+
+export function fetchInbox(): Promise<{ goals: InboxGoal[] }> {
+  return request('/api/inbox')
+}
+
+/** `GET /api/docs/desk` (`core/docs_desk.py`): stacks by goal under each value, the documents no goal holds first. */
+export interface DeskDoc {
+  id: string
+  path: string
+  title: string | null
+  /** The top of the body, enough for the document's page on the desk. */
+  excerpt: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+export interface DeskStack { goal_id: string; goal_title: string; docs: string[] }
+export interface DeskValue { id: string | null; title: string | null; color: string | null; stacks: DeskStack[] }
+export interface DocsDesk { docs: Record<string, DeskDoc>; no_goal: string[]; values: DeskValue[] }
+
+export function fetchDocsDesk(): Promise<DocsDesk> {
+  return request('/api/docs/desk')
+}
+
 export function fetchDocs(): Promise<{ docs: DocSummary[] }> {
   return request('/api/docs')
 }

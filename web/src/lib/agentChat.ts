@@ -433,6 +433,35 @@ export async function send(text: string, extra: Record<string, unknown> = {}): P
   }
 }
 
+/** A turn nobody watches (the Inbox's warm-up): its own session, never a thread of yours, no balloon and nothing in the
+ *  circle. Resolves with the agent's last words, or '' when it fails, stops or takes longer than `limit` ms. */
+export async function quietTurn(text: string, extra: Record<string, unknown> = {}, limit = 180_000): Promise<string> {
+  if (!agentChat.available || typeof EventSource === 'undefined') return ''
+  const session = crypto.randomUUID()
+  const settings = agentChat.selection ?? defaultSelection(load(KEY.lastAgent, 'claude'))
+  return new Promise<string>((resolve) => {
+    let words = ''
+    let fresh = false
+    const events = new EventSource(`/__chat/events?session=${encodeURIComponent(session)}&since=0&boot=`)
+    const finish = (value: string) => { events.close(); clearTimeout(timer); resolve(value) }
+    // Asked for a permission nobody will see, or too slow: stopped, so it never waits in the background.
+    const abandon = () => { void api('stop', { session }).catch(() => undefined); finish('') }
+    const timer = setTimeout(abandon, limit)
+    events.onmessage = (message) => {
+      const { event } = JSON.parse(message.data) as { event: ChatEvent }
+      if (event.t === 'turn_start') words = ''
+      else if (event.t === 'text_start') fresh = !!words
+      else if (event.t === 'text') { words += (fresh ? '\n' : '') + String(event.text ?? ''); fresh = false }
+      else if (event.t === 'done') finish(event.error ? '' : words)
+      else if (event.t === 'exit') finish('')
+      else if (event.t === 'permission') abandon()
+    }
+    events.onerror = () => { if (events.readyState === EventSource.CLOSED) finish('') }
+    api('send', { session, text, context: { ...pageContext(undefined), ...extra }, settings, mode: 'send' })
+      .catch(() => finish(''))
+  })
+}
+
 export async function stop(): Promise<void> {
   if (!agentChat.current) return
   await api('stop', { session: agentChat.current }).catch(() => undefined)

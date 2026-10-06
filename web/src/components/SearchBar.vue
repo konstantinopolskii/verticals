@@ -5,7 +5,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { store } from '../store'
 import { commandFilter } from '../lib/commandFilter'
-import { circle, circleCaption, circleState, circleWords } from '../lib/circle'
+import { circle, circleCaption, circleState, circleWords, inboxWriting } from '../lib/circle'
 import { agentChat, decide, openAsk, stop } from '../lib/agentChat'
 import { plainWords } from '../lib/chatMarkdown'
 import { closeWindows, windows } from '../lib/windows'
@@ -119,6 +119,8 @@ const tagsShown = computed(() => (circle.pointed && wide.value) || circle.focuse
 const lineMode = computed(() => {
   if (state.value === 'answer') return 'hidden'
   if (!wide.value) return 'mascot'
+  // Resting open in the Inbox, the field is an invitation to write, not the agent: no line until you write (lib/inbox.ts).
+  if (inboxWriting.value && state.value === 'open' && !circle.focused && !hand.value) return 'hidden'
   if (circle.focused) return selecting.value ? 'hidden' : 'caret'
   if (hand.value && !onTags.value) return 'hand'
   return state.value === 'typing' ? 'caret' : 'home'
@@ -235,7 +237,8 @@ function focusField(): void {
   if (!el) return
   // Typing, or a click on the field, brings the conversation back; over a window, always (S2.P1.011, .018).
   if (windows.list.length && agentChat.available) agentChat.engaged = true
-  if (agentChat.engaged && !agentChat.open) agentChat.open = true
+  // In the Inbox the field writes: an earlier conversation stays where it is until you ask (lib/inbox.ts).
+  if (agentChat.engaged && !agentChat.open && (store.state.activeView !== 'inbox' || windows.list.length)) agentChat.open = true
   el.focus({ preventScroll: true })
   const end = el.value.length
   el.setSelectionRange(end, end)
@@ -248,6 +251,11 @@ function clear(): void {
 function send(): void {
   const words = commandFilter.text.trim()
   if (!words) return
+  // In the Inbox they become the first card in Today, so no balloon takes them up (lib/inbox.ts).
+  if (inboxWriting.value) {
+    emit('submit', words)
+    return
+  }
   // Your words rise from where they stand into your balloon, and the field is the circle again (S2.P3.019).
   const box = input.value?.getBoundingClientRect()
   if (box) launch('sent', box.left, box.top + (LINE - 22) / 2)
@@ -420,7 +428,7 @@ onBeforeUnmount(() => {
           type="button"
           class="circle-field__send"
           :class="{ 'is-shown': !!commandFilter.text }"
-          aria-label="Send to the agent"
+          :aria-label="inboxWriting ? 'Write it down' : 'Send to the agent'"
           :tabindex="commandFilter.text ? 0 : -1"
           @click.stop="send"
         >

@@ -1,96 +1,94 @@
 <script setup lang="ts">
-/* J3 (docs/JOURNEYS.md): "park an idea without deciding" — the Maybe bucket
-   (verticals/core/board.py MAYBE_KEY), reached from the nav's "Inbox" link instead of sitting
-   inside the eight-column board strip. Same data `store.columns` already carries
-   (`vertical === 'maybe'`), same Column/GoalCard/InlineAdd machinery every other bucket uses — no
-   new fetch, no new capture semantics (`store.createGoalOn('maybe', title)`, wired through
-   Column's own inline-add, is already exactly the right call for this vertical).
+/* The Inbox (Inbox and Documents redesign, round 7, KK 7 Oct 2026; .local-design/inbox-and-docs/round7): everything with
+   no date (`core/inbox.py`), tasks only, on the desk's grey. What you wrote today stands on top as cards, newest first,
+   and keeps the window's first 80 %; below it the rest lies on shelves, one for each column a task left, in the board's
+   own rows. You write in the field, which rests open here saying "Write anything" (`lib/circle.ts`); ↵ puts your words
+   first in Today (`lib/inbox.ts`). While you write, the desk goes quiet behind the field, as the board does (S1.P3).
 
-   Titled "Inbox", not the store's own "Maybe" (`lib/schedule.ts::columnTitle`) — the nav link
-   that opens this view is spelled "Inbox" (docs/UI_MEASURED.md §7 Kept list;
-   tools/uiref/render.mjs's navItems structural-drift assertion), and landing on a different word
-   than the one just clicked would be a new inconsistency, not a neutral default. The board
-   strip's own eighth column is untouched and still says "Maybe" (S-63's own scenario reads that
-   title there).
-
-   Reference-fixture note (tests/uidiff/reference/inbox.html — no numeric gate covers this
-   surface; S-100/S-102 are board-only): the reference planner's own Inbox is a single centered white card
-   with three header icon-buttons (email-in, add-goal, an options menu). None of the three has any
-   basis in this repo's docs (ARCHITECTURE.md, JOURNEYS.md, ACCEPTANCE.md) — no "email into inbox"
-   feature and no per-view options menu is specified anywhere — so none is built here. Rendering
-   an unspecified affordance would be inventing UI ("copywriting/UI decisions not already recorded
-   are KK's call," per this work package's own instructions). Flagged in the final report, not
-   decided in code.
-
-   WP-C (KK, 2026-08-25): "ABOVE the task list THERE SHOULD BE LIKE A DOCUMENT OPENED BY DEFAULT,
-   EXACTLY THE ONE THAT WE SAVE TO THE DOC SECTION AUTOMATICALLY" — `InboxDayDoc.vue` (own header
-   comment carries the full brief and the design calls) now sits above the Maybe column inside a
-   new `.inbox-view__stack` wrapper; the column itself is unchanged (same Column/GoalCard/InlineAdd
-   machinery, still full drag/add/open). */
-import { computed } from 'vue'
-import Column from './Column.vue'
-import InboxDayDoc from './InboxDayDoc.vue'
+   Documents never lie here (KK, 7 Oct: "Mixind documents together with tasks honestly looks bad"): the ones no goal
+   holds are first in Documents, under "No goal" (`DocsDesk.vue`). This replaces the day note above the Maybe column
+   (WP-C, 2026-08-25): the field is the place to write now. */
+import { onMounted, watch } from 'vue'
+import GoalAffordance from '../kit-ext/goal-affordance/GoalAffordance.vue'
+import InboxCard from './InboxCard.vue'
 import { store } from '../store'
+import { commandFilter } from '../lib/commandFilter'
+import { inboxWriting } from '../lib/circle'
+import { completeInboxGoal, inbox, loadInbox, shelves, today } from '../lib/inbox'
+import { isPrivate } from '../lib/privacy'
+import { openWindow } from '../lib/windows'
 
-const maybeColumn = computed(() => store.columns.value.find((c) => c.vertical === 'maybe'))
+onMounted(() => void loadInbox())
+// Every board load follows a write somewhere (yours, the agent's, a live event): the Inbox reads again with it.
+watch(() => store.state.board, () => void loadInbox())
+
+function open(id: string, title: string, event: Event): void {
+  openWindow({ kind: 'goal', target: id, title }, event.currentTarget as Element)
+}
 </script>
 
 <template>
-  <div class="inbox-view" data-cap="inbox">
-    <div class="inbox-view__stack">
-      <InboxDayDoc />
-      <Column
-        v-if="maybeColumn"
-        class="inbox-view__column"
-        vertical="maybe"
-        title="Inbox"
-        :add-placeholder="maybeColumn.addPlaceholder"
-        :goals="maybeColumn.goals"
-      />
-    </div>
+  <div class="inbox-desk" :class="{ 'inbox-desk--writing': inboxWriting && !!commandFilter.text }" data-cap="inbox">
+    <h1 class="inbox-desk__title">Inbox</h1>
+    <section v-if="today.length" class="inbox-desk__today" data-role="inbox-today">
+      <h2 class="inbox-desk__head">Today<span>{{ today.length }}</span></h2>
+      <div class="inbox-desk__cards">
+        <InboxCard v-for="item in today" :key="item.id" :item="item" :finding="inbox.finding.includes(item.id)" />
+      </div>
+    </section>
+    <section v-for="shelf in shelves" :key="shelf.vertical" class="inbox-desk__shelf" :data-shelf="shelf.vertical">
+      <h2 class="inbox-desk__head">{{ shelf.name }}<span>{{ shelf.goals.length }}</span></h2>
+      <div class="inbox-desk__rows">
+        <div
+          v-for="goal in shelf.goals"
+          :key="goal.id"
+          class="inbox-row"
+          :class="{ 'inbox-row--private': isPrivate(goal.id) }"
+          :data-goal-id="goal.id"
+          role="button"
+          tabindex="0"
+          @click="open(goal.id, goal.title, $event)"
+          @keydown.enter.prevent="open(goal.id, goal.title, $event)"
+        >
+          <span class="inbox-row__square" @click.stop>
+            <GoalAffordance kind="square" :color="goal.value_color" @toggle="(done: boolean) => done && completeInboxGoal(goal.id)" />
+          </span>
+          <span class="inbox-row__title">{{ goal.title }}</span>
+        </div>
+      </div>
+    </section>
+    <p v-if="inbox.loaded && !inbox.goals.length" class="inbox-desk__empty">Nothing waits here. What you write in the field lands in Today.</p>
   </div>
 </template>
 
 <style>
-/* Global, matching every other product-side component's own convention (GoalCard.vue,
-   SchedulePopover.vue, Board.vue) — new classes only. `.inbox-view__column` is a doubled-class
-   override of the same kind Board.vue's own header comment names for `.goal-card.goal-card` /
-   `.schedule-popover__stepper-label.schedule-popover__stepper-label`: the A7 kit rule
-   (`.pattern-vertical-board__column { flex: 1 0 14.6%; ... max-width: 400px }`,
-   design-system/style.css) only means anything as a flex item inside `.pattern-vertical-board`;
-   standalone here it would still cap at that rule's own `max-width: 400px` (a bare `<div>` with
-   `width: auto` fills its container, and `max-width` still applies outside a flex context) —
-   narrower than wanted for a single full-width view. One class heavier wins regardless of
-   stylesheet emission order, the same reasoning as both precedents above.
-
-   Scroll model (KK bug report 2026-08-25, same day as WP-C shipped): the PAGE is the scrollport,
-   nothing scrolls internally. WP-C's first cut kept the kit column's own `overflow-y: auto`
-   scrollport and clipped the view (`overflow: hidden`) — fine for the short probe note the tests
-   used, but a real day note (the first one is 3,900 characters) filled the viewport and nothing
-   scrolled anywhere. This is a document page, not a board column: `.inbox-view` scrolls, the
-   day doc and the Maybe list below it take their natural height, and the doubled-class override
-   neutralizes the kit column's scrollport (`overflow-y: visible`) and its 400px width cap
-   (`max-width: none` — the list shares the stack's 640px, matching the doc box above it). */
-.inbox-view {
-  height: 100%;
-  min-width: 0;
-  overflow-y: auto;
-  padding: var(--space-6) var(--space-4);
-  box-sizing: border-box;
+/* The desk: the window's grey ground, the board's column head for its title (15/24 over 31/40), content 46 px in. */
+.inbox-desk {
+  box-sizing: border-box; height: 100%; min-width: 0; overflow-y: auto; padding: 0 46px 168px;
+  background: #f5f5f7; color: #000;
 }
-.inbox-view__stack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-  max-width: 640px;
-  width: 100%;
-  margin: 0 auto;
-}
-.inbox-view__column.inbox-view__column {
-  min-width: 0;
-  max-width: none;
-  overflow-y: visible;
-  max-height: none;
-}
+.inbox-desk > * { transition: opacity 120ms ease; }
+.inbox-desk--writing > * { opacity: .28; }
+.inbox-desk__title { margin: 18px 0 0 -24px; font: 800 31px/40px var(--font-body, Commissioner, system-ui, sans-serif);
+  letter-spacing: -.01em; }
+.inbox-desk__head { display: flex; align-items: baseline; gap: 8px; margin: 0; font: 500 15px/20px var(--font-body, Commissioner, system-ui, sans-serif); }
+.inbox-desk__head span { color: rgb(45 48 54 / 52%); font-weight: 400; }
+/* Today keeps the window's first 80 %: the shelves start below it however few cards there are. */
+.inbox-desk__today { box-sizing: border-box; min-height: calc(80vh - 58px); padding: 38px 0 64px; }
+.inbox-desk__cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; margin-top: 12px; }
+@media (max-width: 1100px) { .inbox-desk__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .inbox-desk__cards { grid-template-columns: minmax(0, 1fr); } }
+.inbox-desk__shelf { padding-top: 30px; }
+.inbox-desk__today + .inbox-desk__shelf { padding-top: 0; }
+.inbox-desk__title + .inbox-desk__shelf { padding-top: 38px; }
+/* The shelf's tasks in the board's own rows, six to a line. */
+.inbox-desk__rows { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: start; margin-top: 6px; }
+@media (max-width: 1100px) { .inbox-desk__rows { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .inbox-desk__rows { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.inbox-row { display: flex; align-items: flex-start; gap: 7.5px; padding: 6px 16px 6px 0; border-radius: 6px; cursor: default; outline: none; }
+.inbox-row:hover .inbox-row__title, .inbox-row:focus-visible .inbox-row__title { color: rgb(0 0 0 / 70%); }
+.inbox-row__square { flex: none; display: grid; place-items: center; width: 14px; height: 19px; }
+.inbox-row__title { min-width: 0; font: 500 12px/19px var(--font-body, Commissioner, system-ui, sans-serif); overflow-wrap: break-word; }
+.inbox-row--private .inbox-row__title { color: transparent; background: #e4e4e4; border-radius: 2px; }
+.inbox-desk__empty { margin: 38px 0 0; font: 400 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 52%); }
 </style>

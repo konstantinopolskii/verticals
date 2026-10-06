@@ -19,7 +19,8 @@ import { isPrivacyHotkey, togglePrivacy } from './lib/privacy'
 import { store, todayIso } from './store'
 import { commandFilter } from './lib/commandFilter'
 import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
-import { circle } from './lib/circle'
+import { circle, inboxWriting } from './lib/circle'
+import { writeDown } from './lib/inbox'
 import { endMove, moveContext } from './lib/moving'
 import { findGoal } from './lib/boardIndex'
 import { spanGoal } from './lib/spans'
@@ -126,6 +127,12 @@ onUnmounted(() => {
 /* The goal conversation Discuss is opening; a message sent meanwhile waits for it. */
 let goalOpening: Promise<void> | null = null
 async function onSubmit(text: string): Promise<void> {
+  // In the Inbox the field writes things down: your words land first in Today, with or without an agent (lib/inbox.ts).
+  if (inboxWriting.value) {
+    commandFilter.text = ''
+    void writeDown(text)
+    return
+  }
   if (!agentChat.available) return
   // Sent while moving a goal: a new task with the move's context, and the move ends (docs/design-handoff S5.P3.041, .042).
   if (circle.moving) {
