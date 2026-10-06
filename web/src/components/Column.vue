@@ -476,6 +476,9 @@ onBeforeUnmount(() => swapAnimation?.cancel())
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+@media (pointer: fine) {
+  .period-slide { overscroll-behavior: none; }
+}
 .period-slide::-webkit-scrollbar {
   display: none;
 }
