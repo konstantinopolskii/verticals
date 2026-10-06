@@ -29,7 +29,7 @@ function open(id: string, title: string, event: Event): void {
 
 <template>
   <div class="inbox-desk" :class="{ 'inbox-desk--writing': inboxWriting && !!commandFilter.text }" data-cap="inbox">
-    <h1 class="inbox-desk__title">Inbox</h1>
+    <h1 class="t-title inbox-desk__title">Inbox</h1>
     <section v-if="today.length" class="inbox-desk__today" data-role="inbox-today">
       <h2 class="inbox-desk__head">Today<span>{{ today.length }}</span></h2>
       <div class="inbox-desk__cards">
@@ -62,15 +62,16 @@ function open(id: string, title: string, event: Event): void {
 </template>
 
 <style>
-/* The desk: the window's grey ground, the board's column head for its title (15/24 over 31/40), content 46 px in. */
+/* The desk: the window's grey ground, the board's column headline for its title, content 46 px in. */
 .inbox-desk {
   box-sizing: border-box; height: 100%; min-width: 0; overflow-y: auto; padding: 0 46px 168px;
   background: #f5f5f7; color: #000;
 }
 .inbox-desk > * { transition: opacity 120ms ease; }
 .inbox-desk--writing > * { opacity: .28; }
-.inbox-desk__title { margin: 18px 0 0 -24px; font: 800 31px/40px var(--font-body, Commissioner, system-ui, sans-serif);
-  letter-spacing: -.01em; }
+/* The title is the board's own column headline (`.t-title` at 31/40, as the kit sets it in a board header), not a
+   heavier one (KK, 7 Oct 2026: "Why heavy headline for docs and inbox?"). */
+.inbox-desk__title.t-title { margin: 18px 0 0 -24px; font-size: 31px; line-height: 40px; }
 .inbox-desk__head { display: flex; align-items: baseline; gap: 8px; margin: 0; font: 500 15px/20px var(--font-body, Commissioner, system-ui, sans-serif); }
 .inbox-desk__head span { color: rgb(45 48 54 / 52%); font-weight: 400; }
 /* Today keeps the window's first 80 %: the shelves start below it however few cards there are. */

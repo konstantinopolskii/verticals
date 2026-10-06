@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="docs-desk" data-role="docs-desk">
     <div class="docs-desk__head">
-      <h1 class="docs-desk__title">Documents</h1>
+      <h1 class="t-title docs-desk__title">Documents</h1>
       <button type="button" class="docs-desk__new" data-role="docs-new-trigger" aria-label="New document" @click="creating ? (creating = false) : startCreate()">
         <AppIcon name="plus" :size="16" />
       </button>
@@ -135,7 +135,7 @@ onBeforeUnmount(() => {
 /* The desk: the window's grey, the board's column head for its title, content 46 px in (as the Inbox). */
 .docs-desk { position: relative; box-sizing: border-box; height: 100%; min-width: 0; overflow-y: auto; padding: 0 46px 168px; background: #f5f5f7; color: #000; }
 .docs-desk__head { display: flex; align-items: center; gap: 10px; margin: 18px 0 0 -24px; }
-.docs-desk__title { margin: 0; font: 800 31px/40px var(--font-body, Commissioner, system-ui, sans-serif); letter-spacing: -.01em; }
+.docs-desk__title.t-title { margin: 0; font-size: 31px; line-height: 40px; }  /* the board's own column headline, as in the Inbox */
 .docs-desk__new { display: grid; place-items: center; width: 28px; height: 28px; margin-top: 4px; border: 0; border-radius: 8px; background: transparent;
   color: rgb(45 48 54 / 45%); cursor: pointer; }
 .docs-desk__new:hover { background: rgb(45 48 54 / 7%); color: #000; }
