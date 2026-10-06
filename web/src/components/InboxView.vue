@@ -86,10 +86,19 @@ function open(id: string, title: string, event: Event): void {
 .inbox-desk__rows { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: start; margin-top: 6px; }
 @media (max-width: 1100px) { .inbox-desk__rows { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .inbox-desk__rows { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.inbox-row { display: flex; align-items: flex-start; gap: 7.5px; padding: 6px 16px 6px 0; border-radius: 6px; cursor: default; outline: none; }
+/* The board's own compact rows (goalCard.css's collapsed goals): the same type, square, rounding and gap. */
+.inbox-row { display: flex; align-items: flex-start; gap: var(--kkov-collapsed-goal-checkbox-text-gap, 8px); padding: 6px 16px 6px 0;
+  border-radius: 6px; cursor: default; outline: none; }
 .inbox-row:hover .inbox-row__title, .inbox-row:focus-visible .inbox-row__title { color: rgb(0 0 0 / 70%); }
-.inbox-row__square { flex: none; display: grid; place-items: center; width: 14px; height: 19px; }
-.inbox-row__title { min-width: 0; font: 500 12px/19px var(--font-body, Commissioner, system-ui, sans-serif); overflow-wrap: break-word; }
+.inbox-row__square { flex: none; display: block; width: var(--kkov-collapsed-goal-checkbox-size, 14px);
+  height: var(--kkov-collapsed-goal-line-height, 19px); }
+.inbox-row__square .goal-affordance, .inbox-row__square .goal-affordance .checkbox__box {
+  width: var(--kkov-collapsed-goal-checkbox-size, 14px); height: var(--kkov-collapsed-goal-checkbox-size, 14px);
+  min-width: var(--kkov-collapsed-goal-checkbox-size, 14px); min-height: var(--kkov-collapsed-goal-checkbox-size, 14px);
+  border-radius: var(--kkov-collapsed-goal-checkbox-radius, 3px); }
+.inbox-row__square .goal-affordance { position: relative; top: var(--kkov-collapsed-goal-checkbox-top, -1px); }
+.inbox-row__title { min-width: 0; font: var(--kkov-collapsed-goal-font-weight, 500) var(--kkov-collapsed-goal-font-size, 12px)/var(--kkov-collapsed-goal-line-height, 19px)
+  var(--kkov-collapsed-goal-font-family, Commissioner, system-ui, sans-serif); overflow-wrap: break-word; }
 .inbox-row--private .inbox-row__title { color: transparent; background: #e4e4e4; border-radius: 2px; }
 .inbox-desk__empty { margin: 38px 0 0; font: 400 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 52%); }
 </style>

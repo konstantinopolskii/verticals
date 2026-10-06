@@ -68,8 +68,11 @@ function open(event: MouseEvent): void {
   transform: translateY(-1px);
 }
 .inbox-card__row { display: flex; align-items: flex-start; gap: 12px; }
-.inbox-card__square { flex: none; display: grid; place-items: center; width: 18px; height: 26px; }
-.inbox-card__square .goal-affordance { transform: scale(1.2857); transform-origin: 50% 50%; }
+.inbox-card__square { flex: none; display: block; width: 18px; height: 26px; }
+/* Round 7's square at the card's reading size: 18 px, 5 px corners, centred on the first line. */
+.inbox-card__square .goal-affordance, .inbox-card__square .goal-affordance .checkbox__box {
+  width: 18px; height: 18px; min-width: 18px; min-height: 18px; border-radius: 5px; }
+.inbox-card__square .goal-affordance { position: relative; top: 4px; }
 .inbox-card__words { margin: 0; min-width: 0; font: 500 17px/26px var(--font-body, Commissioner, system-ui, sans-serif);
   overflow-wrap: break-word; }
 .inbox-card__line { display: flex; align-items: flex-start; gap: 7px; margin: 12px 0 0 30px;
