@@ -20,6 +20,7 @@ from verticals.api.deps import get_conn, verify_bearer_token
 from verticals.api.schemas import board_to_json
 from verticals.core import board as core_board
 from verticals.core import inbox as core_inbox
+from verticals.core import morning as core_morning
 from verticals.core import replan as core_replan
 from verticals.core import spans as core_spans
 
@@ -72,7 +73,21 @@ def post_replan(request: Request, date: _date) -> dict:
     owner = request.app.state.config.owner
     with get_conn(request) as conn:
         task_id = core_replan.run(conn, owner=owner, today=date)
-    return {"task_id": task_id}
+        task = core_replan.open_task(conn, owner=owner) if task_id else None
+    return {"task_id": task_id, "doc_id": task.doc_id if task else None}
+
+
+@router.post("/api/morning")
+def post_morning(request: Request, date: _date) -> dict:
+    """The day's morning report (`core/morning.py`): the app asks once the owner's morning hour has come, on start and
+    when its day turns; the first ask of a day makes the document and its task in that day, later ones return them. A
+    day more than one away from the server's own is not made, as for the carry-over above."""
+    if abs((date - _date.today()).days) > 1:
+        return {"task_id": None, "doc_id": None}
+    owner = request.app.state.config.owner
+    with get_conn(request) as conn:
+        made = core_morning.run(conn, owner=owner, today=date)
+    return {"task_id": made.task_id, "doc_id": made.doc_id}
 
 
 @router.get("/api/inbox")

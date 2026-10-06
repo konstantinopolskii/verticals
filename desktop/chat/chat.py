@@ -983,11 +983,12 @@ def format_context(ctx):
 # The app's sorting task (docs/design-handoff S4.P4.010, .011): how its table is worked. Its words are the agent's own.
 REPLAN_TITLE = "Replan carried-over plans"
 REPLAN_RULES = (
-    "This is the app's task for plans that carried over. Its notes hold a markdown table: Goal | Summary | Next step | "
-    "Your comment, one row per plan, linked. Fill Summary from each plan's own notes, and under its planned time in "
+    "This is the app's task for plans that carried over. Its notes link its document, and the document holds a markdown "
+    "table: Goal | Summary | Next step | Your comment, one row per plan, linked. Read the document with doc_get and write "
+    "it with doc_save. Fill Summary from each plan's own notes, and under its planned time in "
     "Next step put where it should go (Move to this week, Move to next week, Move to the Inbox, Move to next month). "
     "When the owner writes in Your comment, save those words verbatim as a comment on that plan, confirm with them, "
     "apply it with schedule, reparent or update, clear the cell and leave the receipt in Next step, such as "
     "\"Moved to next week, as you wrote.\" Move nothing until the owner says go. Skip a plan whose link no longer "
-    "opens a goal. Edit only the cells you change."
+    "opens a goal. Edit only the cells you change. When every row is done, mark this task done."
 )

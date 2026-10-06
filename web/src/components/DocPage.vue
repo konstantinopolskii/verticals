@@ -8,7 +8,10 @@ import type { DeskDoc } from '../lib/api'
 import { renderBodyElement } from '../lib/bodyMarkdown'
 import { shortDay } from '../lib/docsDesk'
 
-const props = withDefaults(defineProps<{ doc: DeskDoc; width?: number }>(), { width: 120 })
+/** measure: the width the page is set at before it is drawn at `width`; the window's 720 on the desk, a narrow 300 for a
+ *  page waiting on the circle, so its title reads (round 4's `.wpage`). */
+const props = withDefaults(defineProps<{ doc: Pick<DeskDoc, 'title' | 'path' | 'excerpt' | 'updated_at'>; width?: number; measure?: number; facts?: string }>(),
+  { width: 120, measure: 720, facts: '' })
 const body = ref<HTMLElement | null>(null)
 
 function render(): void {
@@ -24,8 +27,8 @@ watch(() => props.doc.excerpt, render)
 
 <template>
   <div class="doc-page" :style="{ width: `${width}px`, height: `${Math.round(width * 4 / 3)}px` }" aria-hidden="true">
-    <div class="doc-page__in" :style="{ transform: `scale(${width / 720})` }">
-      <div class="doc-page__bar"><AppIcon name="file" :size="16" />edited {{ shortDay(doc.updated_at) }}</div>
+    <div class="doc-page__in" :class="{ 'doc-page__in--narrow': measure < 720 }" :style="{ width: `${measure}px`, height: `${Math.round(measure * 4 / 3)}px`, transform: `scale(${width / measure})` }">
+      <div class="doc-page__bar"><AppIcon name="file" :size="16" />{{ facts || `edited ${shortDay(doc.updated_at)}` }}</div>
       <div class="doc-page__text">
         <h1>{{ doc.title || doc.path }}</h1>
         <div ref="body"></div>
@@ -49,4 +52,8 @@ watch(() => props.doc.excerpt, render)
 .doc-page__text table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 13px; line-height: 18px; }
 .doc-page__text th, .doc-page__text td { padding: 6px 8px; border-bottom: 1px solid rgba(45, 48, 54, .12); text-align: left; vertical-align: top; }
 .doc-page__text img { display: none; }
+/* Set narrow, the page keeps a readable title: the window's head drops, the text's margins shrink. */
+.doc-page__in--narrow .doc-page__bar { height: 34px; padding: 0 22px; }
+.doc-page__in--narrow .doc-page__text { padding: 0 22px; }
+.doc-page__in--narrow .doc-page__text h1 { margin: 0 0 10px; }
 </style>

@@ -30,6 +30,8 @@ import WindowStack from './components/WindowStack.vue'
 import AgentConversation from './components/AgentConversation.vue'
 import AgentStep from './components/AgentStep.vue'
 import AgentTag from './components/AgentTag.vue'
+import WaitingPages from './components/WaitingPages.vue'
+import { ensureMorning } from './lib/morning'
 
 /* The shell, not `Board.vue`, owns the day-rollover watcher: it is mounted for the whole life of
    the tab, while `Board` unmounts every time Inbox is active — a planner left on Inbox overnight
@@ -232,8 +234,17 @@ onMounted(() => {
   window.addEventListener('verticals:replan', onReplan)
   window.addEventListener('keydown', onWindowsKey)
   void carryOver(todayIso())
+  void morningCheck()
+  morningTimer = setInterval(() => void morningCheck(), 5 * 60_000)
 })
+/* The morning report's rule (lib/morning.ts): on start and every five minutes; a report made reloads the board, where
+   its task and its waiting page come from. */
+let morningTimer: ReturnType<typeof setInterval> | null = null
+async function morningCheck(): Promise<void> {
+  if (await ensureMorning(todayIso())) await store.reloadBoard()
+}
 onUnmounted(() => {
+  if (morningTimer) clearInterval(morningTimer)
   window.removeEventListener('verticals:discuss-goal', onDiscussGoal)
   window.removeEventListener('verticals:replan', onReplan)
   window.removeEventListener('keydown', onWindowsKey)
@@ -249,6 +260,7 @@ onUnmounted(() => {
     <AgentConversation @link="onConversationLink" />
     <AgentStep />
     <SearchBar id="verticals-command-bar" ref="searchBar" :agent-available="agentChat.available" @submit="onSubmit">
+      <template #above><WaitingPages /></template>
       <template #agent-tag><AgentTag /></template>
     </SearchBar>
     <div class="app-content" :class="{ 'app-content--out-of-focus': outOfFocus, 'app-content--window': windows.list.length }">

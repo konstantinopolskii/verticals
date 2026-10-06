@@ -1,15 +1,18 @@
-// The sorting task (docs/design-handoff S4.P1, S4.P4): the Inbox task that holds the carried plans, made and filled by
-// the server once a day; "Replan" opens it as a goal's window with our first message sent.
+// The sorting task (docs/design-handoff S4.P1, S4.P4): the task in this week that holds the carried plans in its
+// document, made and filled by the server once a day (`core/replan.py`); "Replan" opens it as a goal's window with our
+// first message sent, and its page waits on the circle (`lib/waiting.ts`).
 import { runReplan, type BoardResponse } from './api'
 
 export const REPLAN_TITLE = 'Replan carried-over plans'
-export const FIRST_MESSAGE = 'Read this task and help me sort these plans out: where each goes, based on when I planned it and what it belongs to.'
+export const FIRST_MESSAGE = 'Read this task and its document and help me sort these plans out: where each goes, based on when I planned it and what it belongs to.'
 
-/** The open task in the Inbox, if there is one. */
+/** The open task, if there is one: in this week since the redesign, in the Inbox before it. */
 export function replanTask(board: BoardResponse | null): { id: string; title: string } | null {
-  const inbox = board?.columns.find((column) => column.vertical === null)?.goals ?? []
-  const task = inbox.find((goal) => goal.title === REPLAN_TITLE && goal.done_at === null && goal.origin === 'app')
-  return task ? { id: task.id, title: task.title } : null
+  for (const column of board?.columns ?? []) {
+    const task = column.goals.find((goal) => goal.title === REPLAN_TITLE && goal.done_at === null && goal.origin === 'app' && !goal.ghost)
+    if (task) return { id: task.id, title: task.title }
+  }
+  return null
 }
 
 let ranOn: string | null = null
