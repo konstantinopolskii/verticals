@@ -509,3 +509,74 @@ def test_editing_a_doc_body_keeps_its_in_app_links(ui_f2: UiSession) -> None:
     fresh = _api_get_doc(session, doc_id)
     assert fresh["body"] == f"Plan: [the goal](goal:{goal_id}) first. Then rest."
     assert goal_id in {g["goal_id"] for g in fresh["linked_goals"]}
+
+
+# --- images inside a rendered body: `![alt](src)` -----------------------------------------------
+#
+# A screenshot from a chat has no URL of its own, so it travels inside the body as a raster
+# `data:` URI. An image loads on render with no click to consent to it, which is why its allowlist
+# (`bodyMarkdown.ts::isAllowedImageSrc`) is narrower than a link's. No `https:` image here on
+# purpose: this machine may not reach the host, and the suite fails on any failed request.
+
+PIXEL_PNG = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+REFUSED_IMAGES = [
+    "![svg](data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=)",
+    "![js](javascript:window.__pwned=5)",
+    "![plain](http://example.com/x.png)",
+    "![inapp](doc:syn-images/other.md)",
+]
+
+
+def test_doc_body_renders_data_image_and_refuses_other_sources(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    body_text = f"Before.\n\n![week arrows]({PIXEL_PNG})\n\n" + " ".join(REFUSED_IMAGES)
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        doc_id = _create_doc(conn, "syn-images/shots.md", title="SYN Images", body=body_text)
+
+    page.reload()
+    _open_docs(session)
+    page.click(f'[data-doc-id="{doc_id}"]')
+    expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Images", timeout=10000)
+    body = page.locator('[data-role="doc-body"]')
+
+    images = body.locator("img")
+    expect(images).to_have_count(1)
+    image = images.first
+    assert image.get_attribute("src") == PIXEL_PNG
+    assert image.get_attribute("alt") == "week arrows"
+    assert image.get_attribute("referrerpolicy") == "no-referrer"
+    assert image.evaluate("img => img.complete && img.naturalWidth === 1"), "the data image did not decode"
+    assert PIXEL_PNG not in body.inner_text(), "the allowed image stayed literal text"
+    for literal in REFUSED_IMAGES:
+        assert literal in body.inner_text(), f"a refused image must render as literal text: {literal!r}"
+    assert page.evaluate("window.__pwned === undefined"), "a refused image source executed"
+
+
+def test_editing_a_doc_body_keeps_its_images(ui_f2: UiSession) -> None:
+    """The `<img>` goes back to `![alt](src)` on save, the way an anchor goes back to a link."""
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        doc_id = _create_doc(
+            conn, "syn-images/roundtrip.md", title="SYN Image Round Trip",
+            body=f"Shot: ![arrows]({PIXEL_PNG}) here.",
+        )
+
+    page.reload()
+    _open_docs(session)
+    page.click(f'[data-doc-id="{doc_id}"]')
+    expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Image Round Trip", timeout=10000)
+
+    body = page.locator('[data-role="doc-body"]')
+    body.click(position={"x": 8, "y": 180})
+    expect(body).to_have_attribute("contenteditable", "true")
+    page.keyboard.press("End")
+    page.keyboard.type(" Then rest.")
+    page.wait_for_timeout(BODY_SAVE_SETTLE_MS)
+
+    fresh = _api_get_doc(session, doc_id)
+    assert fresh["body"] == f"Shot: ![arrows]({PIXEL_PNG}) here. Then rest."

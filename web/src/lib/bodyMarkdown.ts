@@ -1,9 +1,11 @@
 /** IR-09's deliberately bounded Markdown model. Unsupported syntax stays ordinary text.
  *  A link is external (`http(s):`/`mailto:`, the S-72 allowlist; the browser follows it) or
- *  in-app (`goal:<id>`/`doc:<path>`; `lib/docsView.ts::followBodyLink` follows it). */
+ *  in-app (`goal:<id>`/`doc:<path>`; `lib/docsView.ts::followBodyLink` follows it).
+ *  An image `![alt](src)` takes its own, narrower allowlist: see `isAllowedImageSrc`. */
 export type Run =
   | { kind: 'text' | 'strong' | 'em' | 'code'; text: string }
   | { kind: 'link'; text: string; href: string }
+  | { kind: 'image'; alt: string; src: string }
   | { kind: 'break' }
 
 export type ListItem = { runs: Run[]; indent: number }
@@ -15,6 +17,11 @@ export type Block =
 
 const CONTROL_OR_SPACE_RE = /[\s\x00-\x1f\x7f-\x9f]/g
 const ALLOWED_SCHEME_RE = /^(https?:|mailto:)/
+/** An image loads on render, with no click to consent to it, so its allowlist is narrower than a
+ *  link's: `https:` and an inline raster `data:` URI. A screenshot pasted from a chat has no URL
+ *  to point at, and the data URI is how it travels inside the body itself. No `http:` (mixed
+ *  content), no `data:image/svg+xml` (a document format, not a picture), nothing in-app. */
+const ALLOWED_IMAGE_SRC_RE = /^(https:|data:image\/(png|jpeg|gif|webp);base64,)/
 /** Mirrors `core/docs.py::_LINK_DEST_RE` (`(goal|doc):([^)\s]+)`, lower-case only): what the
  *  server would index as a link is what renders as one, nothing more and nothing less. */
 const INTERNAL_LINK_RE = /^(goal|doc):([^\s)]+)$/
@@ -35,7 +42,7 @@ export function internalLinkTarget(href: string): InternalLink | null {
  *  (`__`) is not an opener either. Asterisk emphasis keeps the simple form — `*` does not appear
  *  inside identifiers. */
 const INLINE_RE =
-  /\*\*([^*]+)\*\*|\*([^*]+)\*|(?<![\w_])_([^_\s][^_]*?)_(?![\w_])|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)/
+  /!\[([^\]]*)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*|(?<![\w_])_([^_\s][^_]*?)_(?![\w_])|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)/
 const LIST_ITEM_RE = /^(\s*)(?:[-*+]|\d+\.)\s+(.*)$/
 const ORDERED_ITEM_RE = /^\s*\d+\./
 const HEADING_RE = /^(#{1,6})\s+(.*)$/
@@ -81,6 +88,10 @@ export function isAllowedHref(cleaned: string): boolean {
     || cleaned.startsWith('#')
 }
 
+export function isAllowedImageSrc(cleaned: string): boolean {
+  return ALLOWED_IMAGE_SRC_RE.test(cleaned.toLowerCase())
+}
+
 /** Null for no anchor or an external one — the browser follows those itself (S-72). */
 export function internalLinkOf(anchor: HTMLAnchorElement | null): InternalLink | null {
   return anchor ? internalLinkTarget(cleanHref(anchor.getAttribute('href') ?? '')) : null
@@ -96,14 +107,20 @@ export function tokenizeInline(text: string): Run[] {
       break
     }
     if (match.index > 0) runs.push({ kind: 'text', text: rest.slice(0, match.index) })
-    if (match[1] !== undefined) runs.push({ kind: 'strong', text: match[1] })
-    else if (match[2] !== undefined) runs.push({ kind: 'em', text: match[2] })
-    else if (match[3] !== undefined) runs.push({ kind: 'em', text: match[3] })
-    else if (match[4] !== undefined) runs.push({ kind: 'code', text: match[4] })
-    else if (match[5] !== undefined && match[6] !== undefined) {
-      const href = cleanHref(match[6])
+    if (match[1] !== undefined && match[2] !== undefined) {
+      const src = cleanHref(match[2])
+      // The same rule as AC-116's links: a refused image stays complete literal `![alt](src)` text.
+      if (isAllowedImageSrc(src)) runs.push({ kind: 'image', alt: match[1], src })
+      else runs.push({ kind: 'text', text: match[0] })
+    }
+    else if (match[3] !== undefined) runs.push({ kind: 'strong', text: match[3] })
+    else if (match[4] !== undefined) runs.push({ kind: 'em', text: match[4] })
+    else if (match[5] !== undefined) runs.push({ kind: 'em', text: match[5] })
+    else if (match[6] !== undefined) runs.push({ kind: 'code', text: match[6] })
+    else if (match[7] !== undefined && match[8] !== undefined) {
+      const href = cleanHref(match[8])
       // AC-116: rejected links remain complete literal `[label](href)` text.
-      if (isAllowedHref(href)) runs.push({ kind: 'link', text: match[5], href })
+      if (isAllowedHref(href)) runs.push({ kind: 'link', text: match[7], href })
       else runs.push({ kind: 'text', text: match[0] })
     }
     rest = rest.slice(match.index + match[0].length)
@@ -172,6 +189,7 @@ function serializeRuns(runs: Run[]): string {
     if (run.kind === 'em') return `*${run.text}*`
     if (run.kind === 'code') return `\`${run.text}\``
     if (run.kind === 'link') return `[${run.text}](${run.href})`
+    if (run.kind === 'image') return `![${run.alt}](${run.src})`
     return run.text
   }).join('')
 }
@@ -221,6 +239,18 @@ function appendRun(parent: HTMLElement, run: Run): void {
   }
   if (run.kind === 'text') {
     parent.append(document.createTextNode(run.text))
+    return
+  }
+  if (run.kind === 'image') {
+    const image = document.createElement('img')
+    image.className = 'goal-detail__body-image'
+    // `serializeInlineNode` reads both attributes back on edit, the way it reads a link's `href`.
+    image.setAttribute('src', run.src)
+    image.setAttribute('alt', run.alt)
+    image.setAttribute('loading', 'lazy')
+    image.setAttribute('referrerpolicy', 'no-referrer')
+    image.draggable = false
+    parent.append(image)
     return
   }
   const tag = run.kind === 'link' ? 'a' : run.kind
@@ -318,6 +348,11 @@ function serializeInlineNode(node: Node): string {
   if (!(node instanceof HTMLElement)) return ''
   const tag = node.tagName.toLowerCase()
   if (tag === 'br') return node.hasAttribute('data-body-caret') ? '' : '\n'
+  if (tag === 'img') {
+    const src = cleanHref(node.getAttribute('src') ?? '')
+    // An image pasted into the editor from elsewhere is dropped, not smuggled into the body.
+    return isAllowedImageSrc(src) ? `![${(node.getAttribute('alt') ?? '').replace(/[\[\]]/g, '')}](${src})` : ''
+  }
   const content = [...node.childNodes].map(serializeInlineNode).join('')
   if (tag === 'strong' || tag === 'b') return `**${content}**`
   if (tag === 'em' || tag === 'i') return `*${content}*`
