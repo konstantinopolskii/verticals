@@ -7,11 +7,12 @@ import DocPage from './DocPage.vue'
 import { agentChat } from '../lib/agentChat'
 import { circle, circleState } from '../lib/circle'
 import { openWindow, windows } from '../lib/windows'
+import { carry } from '../lib/inboxCarry'
 import { startWaiting, waitingPages } from '../lib/waiting'
 
 startWaiting()
 
-const shown = computed(() => waitingPages.value.length > 0 && !windows.list.length && !agentChat.open && !circle.moving
+const shown = computed(() => waitingPages.value.length > 0 && !windows.list.length && !agentChat.open && !circle.moving && !carry.item
   && (circleState.value === 'rest' || circleState.value === 'open'))
 
 function open(docId: string, title: string, event: Event): void {

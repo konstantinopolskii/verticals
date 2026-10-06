@@ -7,6 +7,7 @@ import { store } from '../store'
 import { commandFilter } from '../lib/commandFilter'
 import { circle, circleCaption, circleState, circleWords, inboxWriting } from '../lib/circle'
 import { sayGo } from '../lib/go'
+import { carry } from '../lib/inboxCarry'
 import { agentChat, decide, openAsk, stop } from '../lib/agentChat'
 import { plainWords } from '../lib/chatMarkdown'
 import { closeWindows, windows } from '../lib/windows'
@@ -90,9 +91,10 @@ const leadText = computed(() => (circleWords.value?.kind === 'ask' && circleWord
 const stopping = computed(() => state.value === 'working' && circle.pointed)
 /* Holding a goal over the spans, the field is a pill with the mascot; let go over it, it widens to hold what stands above
    it (S5.P3.002, .007, .039). Let go anywhere else, it stays the pill while the goal lands and the board comes back. */
-const holding = computed(() => state.value === 'moving' && (store.state.drag.id !== null || dots.landing))
+const holding = computed(() => carry.over || (state.value === 'moving' && (store.state.drag.id !== null || dots.landing)))
 
 const width = computed(() => {
+  if (carry.over) return 120
   if (state.value === 'answer') return Math.max(CIRCLE, Math.min((leadLines.value ? ANSWER_MEASURE : answerWidth.value) + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))
   if (stopping.value) return 132
   // Go: the pointed field's pill, the word in its middle (round 5, frame m4).
@@ -120,6 +122,7 @@ const tagsShown = computed(() => (circle.pointed && wide.value) || circle.focuse
 
 /* Where the line stands: the mascot's at rest, your hand over the field, your caret once the field has it. */
 const lineMode = computed(() => {
+  if (carry.over) return 'mascot'
   if (state.value === 'answer' || state.value === 'go') return 'hidden'
   if (!wide.value) return 'mascot'
   // Resting open in the Inbox, the field is an invitation to write, not the agent: no line until you write (lib/inbox.ts).

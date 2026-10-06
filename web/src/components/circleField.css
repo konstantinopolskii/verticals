@@ -253,3 +253,5 @@
   font: 400 28px/36px var(--font-body); pointer-events: none; transition: color 120ms ease; }
 .circle-field[data-state='go'] .circle-field__shape { cursor: pointer; }
 .circle-field[data-state='go'] .circle-field__shape:hover .circle-field__go { color: #fff; }
+/* Holding a card carried in the Inbox (lib/inboxCarry.ts): the pill takes it, with the mascot and no words. */
+.circle-field[data-holding] .circle-field__words { opacity: 0; }

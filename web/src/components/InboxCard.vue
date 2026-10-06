@@ -11,6 +11,7 @@ import { goalWashInk } from '../lib/goalColor'
 import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
 import { isPrivate } from '../lib/privacy'
 import { openWindow } from '../lib/windows'
+import { pressCard, wasCarried } from '../lib/inboxCarry'
 
 const props = defineProps<{ item: InboxGoal; finding?: boolean }>()
 
@@ -24,6 +25,7 @@ const mark = computed(() => {
 const hidden = computed(() => isPrivate(props.item.id))
 
 function open(event: MouseEvent): void {
+  if (wasCarried()) return
   openWindow({ kind: 'goal', target: props.item.id, title: props.item.title }, event.currentTarget as Element)
 }
 </script>
@@ -36,6 +38,7 @@ function open(event: MouseEvent): void {
     data-role="inbox-card"
     role="button"
     tabindex="0"
+    @pointerdown="pressCard($event, item)"
     @click="open"
     @keydown.enter.prevent="open($event as unknown as MouseEvent)"
   >

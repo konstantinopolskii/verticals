@@ -20,7 +20,7 @@ import { store, todayIso } from './store'
 import { commandFilter } from './lib/commandFilter'
 import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
 import { circle, inboxWriting } from './lib/circle'
-import { writeDown } from './lib/inbox'
+import { inbox, writeDown } from './lib/inbox'
 import { endMove, moveContext } from './lib/moving'
 import { findGoal } from './lib/boardIndex'
 import { spanGoal } from './lib/spans'
@@ -138,7 +138,8 @@ async function onSubmit(text: string): Promise<void> {
   if (!agentChat.available) return
   // Sent while moving a goal: a new task with the move's context, and the move ends (docs/design-handoff S5.P3.041, .042).
   if (circle.moving) {
-    const move = moveContext((id) => (findGoal(store.state.board, id) ?? spanGoal(id))?.title ?? null)
+    const move = moveContext((id) => (findGoal(store.state.board, id) ?? spanGoal(id))?.title
+      ?? inbox.goals.find((g) => g.id === id)?.title ?? null)
     endMove()
     newThread()
     agentChat.open = true

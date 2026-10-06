@@ -8,6 +8,7 @@ import { createGoal, deleteGoal, fetchInbox, patchGoal, reparentGoal, type Inbox
 import { agentChat, newThread, quietTurn, send } from './agentChat'
 import { isoDate } from './schedule'
 import { todayIso } from '../store'
+import { moving } from './moving'
 
 export const SHELVES: ReadonlyArray<readonly [string, string]> = [
   ['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year'], ['decade', '3 years'],
@@ -41,14 +42,14 @@ const dayOf = (iso: string) => isoDate(new Date(iso))
 /** Written today, newest first (the server's order). */
 export const today = computed(() => {
   const now = todayIso()
-  return inbox.goals.filter((g) => dayOf(g.created_at) === now)
+  return inbox.goals.filter((g) => dayOf(g.created_at) === now && g.id !== moving.goalId)
 })
 
 /** The rest, on the shelf of the column each left (`parked_from_vertical`, which the schema keeps whenever a goal has no
  *  date); one with none, Life's. Newest first; an empty shelf isn't shown. */
 export const shelves = computed(() => {
   const now = todayIso()
-  const older = inbox.goals.filter((g) => dayOf(g.created_at) !== now)
+  const older = inbox.goals.filter((g) => dayOf(g.created_at) !== now && g.id !== moving.goalId)
   return SHELVES
     .map(([vertical, name]) => ({ vertical, name, goals: older.filter((g) => (g.parked_from_vertical ?? 'life') === vertical) }))
     .filter((shelf) => shelf.goals.length)

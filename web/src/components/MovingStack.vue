@@ -10,7 +10,9 @@ import { spanGoal, spans, VIEW_NAMES } from '../lib/spans'
 import { moving, tap } from '../lib/moving'
 
 const view = computed(() => (spans.vertical ? VIEW_NAMES[spans.vertical] : null))
-const goal = computed(() => (moving.goalId ? findGoal(store.state.board, moving.goalId) ?? spanGoal(moving.goalId) ?? null : null))
+/* In the Inbox the card waits beside the field at its own size instead (InboxView.vue, lib/inboxCarry.ts). */
+const goal = computed(() => (moving.goalId && store.state.activeView !== 'inbox'
+  ? findGoal(store.state.board, moving.goalId) ?? spanGoal(moving.goalId) ?? null : null))
 const lit = computed(() => goalLight(goal.value?.color) ?? {})
 const inHand = computed(() => !!goal.value && store.state.drag.id === goal.value.id)
 /* The goal's own card stays out of its group while it waits here (S5.P3.017). */

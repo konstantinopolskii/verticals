@@ -17,12 +17,17 @@ import { inboxWriting } from '../lib/circle'
 import { completeInboxGoal, inbox, loadInbox, shelves, today } from '../lib/inbox'
 import { isPrivate } from '../lib/privacy'
 import { openWindow } from '../lib/windows'
+import { carry, pressCard, wasCarried } from '../lib/inboxCarry'
+import { moving } from '../lib/moving'
 
 onMounted(() => void loadInbox())
 // Every board load follows a write somewhere (yours, the agent's, a live event): the Inbox reads again with it.
 watch(() => store.state.board, () => void loadInbox())
+// The card beside the field goes when the move ends: placed, sent with your words, or taken off (lib/moving.ts).
+watch(() => moving.goalId, (id) => { if (!id || id !== carry.beside?.id) carry.beside = null })
 
 function open(id: string, title: string, event: Event): void {
+  if (wasCarried()) return
   openWindow({ kind: 'goal', target: id, title }, event.currentTarget as Element)
 }
 </script>
@@ -47,6 +52,7 @@ function open(id: string, title: string, event: Event): void {
           :data-goal-id="goal.id"
           role="button"
           tabindex="0"
+          @pointerdown="pressCard($event, goal)"
           @click="open(goal.id, goal.title, $event)"
           @keydown.enter.prevent="open(goal.id, goal.title, $event)"
         >
@@ -57,6 +63,14 @@ function open(id: string, title: string, event: Event): void {
         </div>
       </div>
     </section>
+    <Teleport to="body">
+      <div v-if="carry.item" class="inbox-carried" :style="{ left: `${carry.x}px`, top: `${carry.y}px`, width: `${Math.max(carry.width, 300)}px` }">
+        <InboxCard :item="carry.item" />
+      </div>
+      <div v-if="carry.beside && moving.goalId === carry.beside.id" class="inbox-beside" data-role="inbox-beside">
+        <InboxCard :item="carry.beside" />
+      </div>
+    </Teleport>
     <p v-if="inbox.loaded && !inbox.goals.length" class="inbox-desk__empty">Nothing waits here. What you write in the field lands in Today.</p>
   </div>
 </template>
@@ -100,5 +114,13 @@ function open(id: string, title: string, event: Event): void {
 .inbox-row__title { min-width: 0; font: var(--kkov-collapsed-goal-font-weight, 500) var(--kkov-collapsed-goal-font-size, 12px)/var(--kkov-collapsed-goal-line-height, 19px)
   var(--kkov-collapsed-goal-font-family, Commissioner, system-ui, sans-serif); overflow-wrap: break-word; }
 .inbox-row--private .inbox-row__title { color: transparent; background: #e4e4e4; border-radius: 2px; }
+/* The card in the hand, and the card waiting beside the field: on its line, 12 px to its left, at its Today size. */
+.inbox-carried { position: fixed; z-index: 290; pointer-events: none; transform: rotate(-1deg) scale(1.02); }  /* under the field (300), which takes it */
+.inbox-carried .inbox-card { box-shadow: 0 0 0 .5px rgba(16, 18, 32, .06), 0 24px 60px -10px rgba(16, 18, 32, .3); }
+.inbox-beside { position: fixed; z-index: 299; bottom: 24px; width: 443px; max-width: calc(50vw - 160px);
+  left: calc(50% - var(--moving-field-width, 300px) / 2 - 12px - min(443px, calc(50vw - 160px)));
+  transition: left 300ms cubic-bezier(.22, 1, .36, 1); animation: inbox-beside-in 300ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes inbox-beside-in { from { opacity: 0; transform: translateX(40px) scale(.96); } }
+@media (prefers-reduced-motion: reduce) { .inbox-beside { transition: none; animation: none; } }
 .inbox-desk__empty { margin: 38px 0 0; font: 400 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 52%); }
 </style>
