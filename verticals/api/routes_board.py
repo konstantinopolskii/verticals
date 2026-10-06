@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from verticals.api.deps import get_conn, verify_bearer_token
 from verticals.api.schemas import board_to_json
 from verticals.core import board as core_board
-from verticals.core import inbox as core_inbox
+from verticals.core import undated as core_undated
 from verticals.core import morning as core_morning
 from verticals.core import replan as core_replan
 from verticals.core import spans as core_spans
@@ -90,13 +90,13 @@ def post_morning(request: Request, date: _date) -> dict:
     return {"task_id": made.task_id, "doc_id": made.doc_id}
 
 
-@router.get("/api/inbox")
-def get_inbox(request: Request, response: Response) -> dict:
-    """The Inbox: every open goal with no date, the ones under a goal included (`core/inbox.py`), newest first, with
-    the goal each sits under and its value's colour, so the Inbox draws Today's cards and the shelves from one call."""
+@router.get("/api/undated")
+def get_undated(request: Request, response: Response) -> dict:
+    """Every open goal with no date, the ones under a goal included (`core/undated.py`), newest first, with the goal
+    each sits under and its value's colour: the web's Inbox draws its cards and shelves from this one call."""
     owner = request.app.state.config.owner
     with get_conn(request) as conn:
-        rows = core_inbox.items(conn, owner=owner)
+        rows = core_undated.undated(conn, owner=owner)
         response.headers["X-Query-Count"] = str(conn.query_count)
     return {
         "goals": [

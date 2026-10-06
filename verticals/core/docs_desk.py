@@ -17,6 +17,8 @@ from datetime import datetime
 
 import psycopg
 
+from verticals.core import vertical
+
 CAP = 22
 EXCERPT = 1500
 
@@ -105,9 +107,9 @@ def desk(conn: psycopg.Connection, *, owner: str) -> Desk:
         else:
             piles.append((i, s))
 
-    roots = sorted((g for g in goals if g[1] is None), key=lambda g: (g[3] != "life", g[5], g[0]))
+    roots = sorted((g for g in goals if g[1] is None), key=lambda g: (not vertical.is_value_scale(g[3]), g[5], g[0]))
     for r in roots:
-        split(r[0], heading=r[3] == "life")
+        split(r[0], heading=vertical.is_value_scale(r[3]))
 
     seen: set[str] = set()
     claimed: dict[str, list[str]] = {}
@@ -142,7 +144,7 @@ def desk(conn: psycopg.Connection, *, owner: str) -> Desk:
         stacks = by_root.get(r[0])
         if not stacks:
             continue
-        if r[3] == "life":
+        if vertical.is_value_scale(r[3]):
             values.append(ValueGroup(id=r[0], title=r[2], color=r[4], stacks=tuple(stacks)))
         else:
             others.extend(stacks)

@@ -4,7 +4,7 @@
 // nobody watches, looks for the goal they belong under. The app files the card there and the card shows it. Nothing is
 // planned or started. Words the agent reads as a request to it go on as a conversation instead.
 import { computed, reactive } from 'vue'
-import { createGoal, deleteGoal, fetchInbox, patchGoal, reparentGoal, type InboxGoal } from './api'
+import { createGoal, deleteGoal, fetchUndated, patchGoal, reparentGoal, type InboxGoal } from './api'
 import { agentChat, newThread, quietTurn, send } from './agentChat'
 import { isoDate } from './schedule'
 import { todayIso } from '../store'
@@ -26,7 +26,7 @@ let epoch = 0
 export async function loadInbox(): Promise<void> {
   const mine = ++epoch
   try {
-    const { goals } = await fetchInbox()
+    const { goals } = await fetchUndated()
     if (mine !== epoch) return
     inbox.goals = goals
     inbox.loaded = true

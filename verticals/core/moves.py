@@ -295,7 +295,7 @@ def reparent(conn: psycopg.Connection, *, owner: str, id: str, parent_id: str | 
         conn.execute(
             """
             UPDATE goals g
-               SET parked_from_vertical = COALESCE(p.vertical, p.parked_from_vertical, g.parked_from_vertical)
+               SET parked_from_vertical = COALESCE(p.vertical::text, p.parked_from_vertical, g.parked_from_vertical)
               FROM goals p
              WHERE g.owner = %(owner)s AND g.id = %(id)s AND g.vertical IS NULL
                AND p.owner = g.owner AND p.id = %(parent_id)s

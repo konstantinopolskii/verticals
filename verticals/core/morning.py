@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from functools import cache
+from pathlib import Path
 
 import psycopg
 
@@ -31,6 +33,15 @@ BLUE = "#278dea"
 HEADER = "| Goal | Under | When | Your comment |\n| --- | --- | --- | --- |\n"
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November",
           "December")
+
+
+@cache
+def _words() -> dict[str, str]:
+    """The report's words, from `morning_words.txt` beside this file."""
+    lines = (Path(__file__).with_name("morning_words.txt").read_text(encoding="utf-8")).splitlines()
+    return dict(
+        (key.strip(), text.strip()) for key, _, text in (line.partition("=") for line in lines if line and not line.startswith("#"))
+    )
 
 
 @dataclass(frozen=True)
@@ -94,40 +105,40 @@ def run(conn: psycopg.Connection, *, owner: str, today: date) -> Made:
         "   AND g.origin <> 'app' ORDER BY g.created_at DESC LIMIT 60",
         {"owner": owner, "since": since},
     ).fetchall()
-    week_start, week_end = vertical.descriptor("week").bounds_fn(today)
+    week_start, week_end = vertical.descriptor(vertical.WEEK).bounds_fn(today)
     planned = conn.execute(
         "SELECT g.id, g.title, p.title, g.vertical::text, g.anchor_date FROM goals g"
         "  LEFT JOIN goals p ON p.owner = g.owner AND p.id = g.parent_id"
         " WHERE g.owner = %(owner)s AND g.done_at IS NULL AND g.origin <> 'app'"
-        "   AND ((g.vertical = 'day' AND g.anchor_date = %(today)s)"
-        "     OR (g.vertical = 'week' AND g.anchor_date BETWEEN %(ws)s AND %(we)s))"
+        "   AND ((g.vertical = %(day)s AND g.anchor_date = %(today)s)"
+        "     OR (g.vertical = %(week)s AND g.anchor_date BETWEEN %(ws)s AND %(we)s))"
         " ORDER BY g.vertical, g.position, g.id",
-        {"owner": owner, "today": today, "ws": week_start, "we": week_end},
+        {"owner": owner, "today": today, "ws": week_start, "we": week_end, "day": vertical.DAY, "week": vertical.WEEK},
     ).fetchall()
 
     title = doc_title(today)
-    lines = [f"# {title}", "",
-             f"Made by the morning rule from the board, for {_short(today)}. Write in Your comment and press Go: "
-             "the agent puts each comment on its goal and clears the cell.", ""]
+    words = _words()
+    lines = [f"# {title}", "", words["intro"].format(day=_short(today)), ""]
     if done:
-        lines += ["## What changed", ""] + [f"- Done: [{_cell(t)}](goal:{i})" + (f", under {_cell(u)}" if u else "")
-                                            for i, t, u in done] + [""]
+        lines += [f"## {words['done']}", ""] + [f"- Done: [{_cell(t)}](goal:{i})" + (f", under {_cell(u)}" if u else "")
+                                               for i, t, u in done] + [""]
     if written:
-        lines += ["## Inbox — decisions needed", "", HEADER.rstrip("\n")]
+        lines += [f"## {words['written']}", "", HEADER.rstrip("\n")]
         lines += [_row(i, t, u, f"Written {_short(c)}").rstrip("\n") for i, t, u, c in written] + [""]
-    today_rows = [r for r in planned if r[3] == "day"]
-    week_rows = [r for r in planned if r[3] == "week"]
+    today_rows = [r for r in planned if r[3] == vertical.DAY]
+    week_rows = [r for r in planned if r[3] == vertical.WEEK]
     if today_rows:
-        lines += ["## Today", "", HEADER.rstrip("\n")]
+        lines += [f"## {words['today']}", "", HEADER.rstrip("\n")]
         lines += [_row(i, t, u, "Today").rstrip("\n") for i, t, u, _, _ in today_rows] + [""]
     if week_rows:
-        lines += ["## This week — keep in mind", "", HEADER.rstrip("\n")]
+        lines += [f"## {words['week']}", "", HEADER.rstrip("\n")]
         lines += [_row(i, t, u, f"This week, from {_short(week_start)}").rstrip("\n") for i, t, u, _, _ in week_rows] + [""]
     carried = replan.open_task(conn, owner=owner)
     if carried is not None and carried.rows:
-        lines += ["## Carried over", "", f"{carried.rows} plans wait in [{_cell(carried.doc_title)}](doc:{carried.doc_path}) to be sorted.", ""]
+        link = f"[{_cell(carried.doc_title)}](doc:{carried.doc_path})"
+        lines += [f"## {words['carried']}", "", words["carried_line"].format(count=carried.rows, link=link), ""]
     if not (done or written or today_rows or week_rows):
-        lines += ["Nothing new on the board since the last report.", ""]
+        lines += [words["quiet"], ""]
     body = "\n".join(lines).rstrip("\n") + "\n"
 
     if found is None:
@@ -139,7 +150,7 @@ def run(conn: psycopg.Connection, *, owner: str, today: date) -> Made:
         {"owner": owner, "blue": BLUE},
     ).fetchall()
     task = goals.create(
-        conn, owner=owner, title=TITLE, body=f"[{title}](doc:{path})", vertical="day", anchor_date=today,
+        conn, owner=owner, title=TITLE, body=f"[{title}](doc:{path})", vertical=vertical.DAY, anchor_date=today,
         parent_id=blue[0][0] if len(blue) == 1 else None, origin="app",
     ).goal
     return Made(task_id=task.id, doc_id=doc_id)

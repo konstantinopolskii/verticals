@@ -64,7 +64,7 @@ function open(event: MouseEvent): void {
   position: relative; box-sizing: border-box; padding: 18px 20px 16px 18px; border-radius: 12px; background: #fff;
   box-shadow: 0 0 0 .5px rgba(16, 18, 32, .05), 0 2px 6px rgba(16, 18, 32, .04), 0 14px 36px -12px rgba(16, 18, 32, .18);
   color: #000; cursor: default; outline: none;
-  transition: box-shadow 160ms cubic-bezier(.2, 0, 0, 1), transform 160ms cubic-bezier(.2, 0, 0, 1);
+  transition: box-shadow 160ms var(--vt-ease-medium), transform 160ms var(--vt-ease-medium);
 }
 .inbox-card:hover, .inbox-card:focus-visible {
   box-shadow: 0 0 0 .5px rgba(16, 18, 32, .06), 0 18px 45px -6px rgba(16, 18, 32, .2), 0 0 120px 12px rgba(16, 18, 32, .08);

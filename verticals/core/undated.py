@@ -1,11 +1,12 @@
-"""The Inbox: everything with no date (KK, 6 Oct 2026: "inbox = all notes and tasks which were created and have no
-scheduled data").
+"""Every open goal with no date, the ones under a parent included: what the web's Inbox draws (KK, 6 Oct 2026: "inbox =
+all notes and tasks which were created and have no scheduled data").
 
 The board's Maybe column holds only parentless undated goals (``board.MAYBE_PREDICATE``); an undated goal under a parent
-is an "idea" and stays off the board. The Inbox shows both, because a thought the agent warms up goes under the goal it
-belongs to and stays undated. Each row carries what the Inbox draws: the goal it sits under, its value's colour, when it
-was written, and the column it left (``parked_from_vertical``, which the schema sets exactly when ``vertical`` is null,
-008_park_foil.sql), so the Inbox can put it on that column's shelf.
+is an "idea" and stays off the board. This read returns both, because a thought the agent warms up goes under the goal it
+belongs to and stays undated. It is a plain read over ``vertical IS NULL``, no code path of its own for the Inbox: each
+row carries the goal it sits under, its value's colour, when it was written, and the column it left
+(``parked_from_vertical``, which the schema sets exactly when ``vertical`` is null, 008_park_foil.sql), so a client can
+shelve it by that column.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import psycopg
 
 
 @dataclass(frozen=True)
-class InboxItem:
+class UndatedGoal:
     id: str
     title: str
     parent_id: str | None
@@ -30,7 +31,7 @@ class InboxItem:
     private: bool
 
 
-def items(conn: psycopg.Connection, *, owner: str) -> tuple[InboxItem, ...]:
+def undated(conn: psycopg.Connection, *, owner: str) -> tuple[UndatedGoal, ...]:
     """Every open goal with no date, newest first; one statement. The value colour is the root's, as on the board
     (``board.py``'s ``value_color``): a root on the life scale gives its colour, anything else gives none."""
     rows = conn.execute(
@@ -48,4 +49,4 @@ def items(conn: psycopg.Connection, *, owner: str) -> tuple[InboxItem, ...]:
         """,
         {"owner": owner},
     ).fetchall()
-    return tuple(InboxItem(*row) for row in rows)
+    return tuple(UndatedGoal(*row) for row in rows)

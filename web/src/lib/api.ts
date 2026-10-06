@@ -531,7 +531,7 @@ export interface DocRevisionDetail {
   saved_at: string
 }
 
-/** `GET /api/inbox` (`core/inbox.py`): every open goal with no date, the ones under a goal included, newest first. */
+/** `GET /api/undated` (`core/undated.py`): every open goal with no date, the ones under a goal included, newest first. */
 export interface InboxGoal {
   id: string
   title: string
@@ -544,8 +544,8 @@ export interface InboxGoal {
   private: boolean
 }
 
-export function fetchInbox(): Promise<{ goals: InboxGoal[] }> {
-  return request('/api/inbox')
+export function fetchUndated(): Promise<{ goals: InboxGoal[] }> {
+  return request('/api/undated')
 }
 
 /** `GET /api/docs/desk` (`core/docs_desk.py`): stacks by goal under each value, the documents no goal holds first. */

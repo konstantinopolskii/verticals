@@ -42,11 +42,11 @@ function open(docId: string, title: string, event: Event): void {
 /* On the circle: centred over it, 8 px above the field, above the tags when they come in. */
 .waiting-pages { position: absolute; left: 50%; bottom: var(--vt-tags-lift, 0px); z-index: 1; display: flex; align-items: flex-end; gap: 8px;
   transform: translate(-50%, 8px); opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity 160ms ease, transform 300ms cubic-bezier(.22, 1, .36, 1), bottom 160ms ease, visibility 0s linear 160ms; }
+  transition: opacity 160ms ease, transform 300ms var(--vt-ease-large), bottom 160ms ease, visibility 0s linear 160ms; }
 .waiting-pages.is-shown { transform: translate(-50%, 0); opacity: 1; visibility: visible; pointer-events: auto;
-  transition: opacity 160ms ease, transform 300ms cubic-bezier(.22, 1, .36, 1), bottom 160ms ease, visibility 0s; }
+  transition: opacity 160ms ease, transform 300ms var(--vt-ease-large), bottom 160ms ease, visibility 0s; }
 .waiting-pages__page { display: block; padding: 0; border: 0; border-radius: 6px; background: none; cursor: default; }
-.waiting-pages__page > .doc-page { border-radius: 6px; transition: transform 160ms cubic-bezier(.2, 0, 0, 1), box-shadow 160ms ease; }
+.waiting-pages__page > .doc-page { border-radius: 6px; transition: transform 160ms var(--vt-ease-medium), box-shadow 160ms ease; }
 .waiting-pages__page:hover > .doc-page, .waiting-pages__page:focus-visible > .doc-page {
   transform: translateY(-2px) scale(1.03);
   box-shadow: 0 0 0 .5px rgba(16, 18, 32, .07), 0 2px 6px rgba(16, 18, 32, .06), 0 18px 40px -12px rgba(16, 18, 32, .28);

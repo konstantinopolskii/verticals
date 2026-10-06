@@ -103,10 +103,10 @@ def _make(conn: psycopg.Connection, *, owner: str, today: date, table: str, task
     docs_mod.create(conn, owner=owner, path=path, title=title, body=f"# {title}\n\n{table}")
     link = f"[{title}](doc:{path})"
     if task_id is None:
-        return goals.create(conn, owner=owner, title=TITLE, body=link, vertical="week", anchor_date=today,
+        return goals.create(conn, owner=owner, title=TITLE, body=link, vertical=vertical.WEEK, anchor_date=today,
                             origin="app").goal.id
     goals.update(conn, owner=owner, id=task_id, body=link)
-    moves.schedule(conn, owner=owner, id=task_id, vertical="week", anchor_date=today)
+    moves.schedule(conn, owner=owner, id=task_id, vertical=vertical.WEEK, anchor_date=today)
     return task_id
 
 
@@ -122,10 +122,10 @@ def run(conn: psycopg.Connection, *, owner: str, today: date) -> str | None:
         # From before the redesign: the table moves from the task's notes into its document, word for word.
         _make(conn, owner=owner, today=today, table=task.task_body, task_id=task.task_id)
         task = open_task(conn, owner=owner)
-    elif task is not None and (task.vertical != "week" or task.anchor_date is None
-                               or _period_end("week", task.anchor_date) < today):
+    elif task is not None and (task.vertical != vertical.WEEK or task.anchor_date is None
+                               or _period_end(vertical.WEEK, task.anchor_date) < today):
         # The week turned with the task open: it moves into this week.
-        moves.schedule(conn, owner=owner, id=task.task_id, vertical="week", anchor_date=today)
+        moves.schedule(conn, owner=owner, id=task.task_id, vertical=vertical.WEEK, anchor_date=today)
     if last is not None and last[0] >= today:
         return task.task_id if task else None
     conn.execute(

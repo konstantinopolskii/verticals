@@ -119,7 +119,7 @@ function open(id: string, title: string, event: Event): void {
 .inbox-carried .inbox-card { box-shadow: 0 0 0 .5px rgba(16, 18, 32, .06), 0 24px 60px -10px rgba(16, 18, 32, .3); }
 .inbox-beside { position: fixed; z-index: 299; bottom: 24px; width: 443px; max-width: calc(50vw - 160px);
   left: calc(50% - var(--moving-field-width, 300px) / 2 - 12px - min(443px, calc(50vw - 160px)));
-  transition: left 300ms cubic-bezier(.22, 1, .36, 1); animation: inbox-beside-in 300ms cubic-bezier(.22, 1, .36, 1) both; }
+  transition: left 300ms var(--vt-ease-large); animation: inbox-beside-in 300ms var(--vt-ease-large) both; }
 @keyframes inbox-beside-in { from { opacity: 0; transform: translateX(40px) scale(.96); } }
 @media (prefers-reduced-motion: reduce) { .inbox-beside { transition: none; animation: none; } }
 .inbox-desk__empty { margin: 38px 0 0; font: 400 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 52%); }
