@@ -25,6 +25,7 @@ from verticals.api.schemas import (
     doc_to_summary,
 )
 from verticals.core import docs as core_docs
+from verticals.core import docs_desk as core_docs_desk
 
 router = APIRouter(dependencies=[Depends(verify_bearer_token)])
 
@@ -60,6 +61,30 @@ def list_docs(request: Request, response: Response) -> dict:
         summaries = core_docs.tree(conn, owner=owner)
         response.headers["X-Query-Count"] = str(conn.query_count)
     return {"docs": [doc_to_summary(d) for d in summaries]}
+
+
+@router.get("/api/docs/desk")
+def get_docs_desk(request: Request, response: Response) -> dict:
+    """The Documents desk (`core/docs_desk.py`): stacks by goal under each value in the board's order, the documents
+    no goal holds first, each document with the top of its body for its page. Declared before `/api/docs/{id}` so
+    `desk` is never read as an id."""
+    owner = request.app.state.config.owner
+    with get_conn(request) as conn:
+        result = core_docs_desk.desk(conn, owner=owner)
+        response.headers["X-Query-Count"] = str(conn.query_count)
+    return {
+        "docs": {
+            d.id: {"id": d.id, "path": d.path, "title": d.title, "excerpt": d.excerpt, "created_at": d.created_at,
+                   "updated_at": d.updated_at, "revision": d.revision}
+            for d in result.docs.values()
+        },
+        "no_goal": list(result.no_goal),
+        "values": [
+            {"id": v.id, "title": v.title, "color": v.color,
+             "stacks": [{"goal_id": s.goal_id, "goal_title": s.goal_title, "docs": list(s.docs)} for s in v.stacks]}
+            for v in result.values
+        ],
+    }
 
 
 # --- read one -----------------------------------------------------------------------------------
