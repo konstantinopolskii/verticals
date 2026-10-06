@@ -58,12 +58,11 @@ def _window_top(page: Page, goal_id: str) -> float:
 
 
 def _goals_in_window(page: Page) -> list[tuple[str, float]]:
-    """The column's goals whose titles show above the board's bottom fade, each with where it stands."""
+    """The column's goals whose titles show in the window, each with where it stands."""
     return page.locator(SCROLLER.format(COLUMN)).evaluate(
         f"""slide => {{
           const top = {CONTENT_TOP}
-          const fade = document.querySelector('[data-role="board-bottom-fade"]')
-          const seen = Math.min(slide.clientHeight, fade.getBoundingClientRect().top - slide.getBoundingClientRect().top)
+          const seen = Math.min(slide.clientHeight, window.innerHeight - slide.getBoundingClientRect().top)
           const out = []
           for (const card of slide.querySelectorAll('.goal-card[data-row-key]')) {{
             const y = top(card, slide) - slide.scrollTop
@@ -85,15 +84,14 @@ def _goal_high_in_window(page: Page) -> str:
 
 
 def _assert_seen_whole(page: Page) -> None:
-    """The open goal, its card down to its notes, stands between the window's top and the board's bottom fade."""
+    """The open goal, its card down to its notes, stands between the window's top and its bottom."""
     top, bottom, seen = page.locator(SCROLLER.format(COLUMN)).evaluate(
         """slide => {
           const box = slide.getBoundingClientRect()
-          const fade = document.querySelector('[data-role="board-bottom-fade"]')
           const card = slide.querySelector('.goal-card--detail-open')
           const list = card.nextElementSibling
           return [card.getBoundingClientRect().top - box.top, list.getBoundingClientRect().bottom - box.top,
-                  Math.min(slide.clientHeight, fade.getBoundingClientRect().top - box.top)]
+                  Math.min(slide.clientHeight, window.innerHeight - box.top)]
         }"""
     )
     assert top >= 0 and bottom <= seen, (top, bottom, seen)
