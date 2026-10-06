@@ -100,6 +100,15 @@
   color: rgba(45, 48, 54, 0.65);
   font-weight: 600;
 }
+/* `![alt](src)` (bodyMarkdown.ts): a screenshot sits on its own line at its natural size, never
+   wider than the body. */
+.goal-detail__body-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border-radius: 6px;
+}
 .goal-detail__body > :is(ul, ol) {
   margin: 16px 0 32px 12px;
   padding-left: 18px;
