@@ -14,7 +14,7 @@ import { useCarriedFilter } from '../lib/carriedFilter'
 import type { GoalCardData } from '../types'
 
 const props = defineProps<{ vertical: string; goals: GoalCardData[] }>()
-const emit = defineEmits<{ replan: [from: Element] }>()
+const emit = defineEmits<{ replan: [from: Element, plans: { id: string; title: string }[]] }>()
 
 function isoDay(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -117,7 +117,7 @@ function cardProps(goal: GoalCardData) {
     >
       <div class="carried-group__head" @click="onHeadClick">
         <span class="carried-group__notice" data-role="carried-notice">{{ notice }}</span>
-        <button type="button" class="carried-group__replan" data-role="replan" @click="emit('replan', $event.currentTarget as Element)">
+        <button type="button" class="carried-group__replan" data-role="replan" @click="emit('replan', $event.currentTarget as Element, goals.map((g) => ({ id: g.id, title: g.title })))">
           Replan<span class="carried-group__dot" aria-hidden="true"></span>
         </button>
       </div>

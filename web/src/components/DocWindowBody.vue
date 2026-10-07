@@ -6,7 +6,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect
 import DocDetail from './DocDetail.vue'
 import { ApiError, getDoc, type DocDetail as DocWire } from '../lib/api'
 import { windows } from '../lib/windows'
-import { waitingPages } from '../lib/waiting'
 import { shortDay, stackGoalOf } from '../lib/docsDesk'
 
 const props = defineProps<{ id: string; part?: string }>()
@@ -39,15 +38,13 @@ function showPart(): void {
 
 const win = computed(() => windows.list.find((w) => w.kind === 'doc' && w.target === props.id) ?? null)
 
-/* The facts: a page waiting on the circle says when its rule made it ("Today · made 07:00"); any other document, the
-   goal it lies under on the desk and when it was last edited. */
+/* The facts: the goal it lies under on the desk and when it was last edited. */
 watchEffect(() => {
   const w = win.value
   const d = doc.value
   if (!w || !d) return
-  const waiting = waitingPages.value.find((page) => page.docId === d.id)
-  const place = waiting ? null : stackGoalOf(d.id)
-  w.facts = waiting ? waiting.facts.split(' · ') : [...(place ? [place] : []), `edited ${shortDay(d.updated_at)}`]
+  const place = stackGoalOf(d.id)
+  w.facts = [...(place ? [place] : []), `edited ${shortDay(d.updated_at)}`]
   w.versions = d.revision
 })
 

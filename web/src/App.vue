@@ -24,13 +24,12 @@ import { inbox, loadInbox, writeDown } from './lib/inbox'
 import { endMove, moveContext } from './lib/moving'
 import { findGoal } from './lib/boardIndex'
 import { spanGoal } from './lib/spans'
-import { carryOver, FIRST_MESSAGE, replanTask } from './lib/replan'
+import { REPLAN_ASK, type CarriedPlan } from './lib/replan'
 import { closeWindows, frontWindow, openWindow, outOfFocus, stepWindow, windows } from './lib/windows'
 import WindowStack from './components/WindowStack.vue'
 import AgentConversation from './components/AgentConversation.vue'
 import AgentStep from './components/AgentStep.vue'
 import AgentTag from './components/AgentTag.vue'
-import WaitingPages from './components/WaitingPages.vue'
 import { ensureMorning } from './lib/morning'
 
 /* The shell, not `Board.vue`, owns the day-rollover watcher: it is mounted for the whole life of
@@ -196,23 +195,15 @@ function onDiscussGoal(event: Event): void {
   // The menu that asked gives its focus back on its next tick; the field takes it after that (S3.P2.016).
   void nextTick(() => nextTick(() => searchBar.value?.focusField()))
 }
-/* "Replan": the task pops out as a goal's window with its conversation over it, and our first message goes from you
-   when the task has no conversation yet (S4.P4.004-.006, .032). */
-async function onReplan(event: Event): Promise<void> {
-  const from = ((event as CustomEvent).detail?.from ?? null) as Element | null
-  let task = replanTask(store.state.board)
-  if (!task && await carryOver(todayIso())) {
-    await store.reloadBoard()
-    task = replanTask(store.state.board)
-  }
-  if (!task || !agentChat.available) return
-  openWindow({ kind: 'goal', target: task.id, title: task.title }, from)
+/* "Replan" (lib/replan.ts; round 8): a conversation of its own over the board, your words in it, the carried plans with
+   them; the agent answers with its table as a document attached. Nothing is made before the click. */
+function onReplan(event: Event): void {
+  const detail = ((event as CustomEvent).detail ?? {}) as { plans?: CarriedPlan[]; column?: string }
+  if (!agentChat.available || !detail.plans?.length) return
+  newThread()
   agentChat.open = true
   agentChat.engaged = true
-  const opening = openForGoal(task)
-  goalOpening = opening.then(() => undefined).finally(() => { goalOpening = null })
-  // Our first message only opens the task's first conversation; the server knows it even where this browser doesn't.
-  if (!await opening) void send(FIRST_MESSAGE)
+  void send(REPLAN_ASK, { replan: { plans: detail.plans, column: detail.column ?? '' } })
 }
 /* An address naming a goal with no date (a link, Back, Forward; lib/detailSurface.ts step b): its window over the Inbox,
    as a click there opens it. One already in front stays as it is. */
@@ -237,22 +228,21 @@ function onWindowsKey(event: KeyboardEvent): void {
   }
 }
 onMounted(() => {
-  void startAgentChat()
+  // The morning report is looked for once the agent has answered (lib/morning.ts).
+  void startAgentChat().then(() => void morningCheck())
   window.addEventListener('verticals:discuss-goal', onDiscussGoal)
   window.addEventListener('verticals:replan', onReplan)
   window.addEventListener('verticals:open-goal-window', onOpenGoalWindow)
   window.addEventListener('keydown', onWindowsKey)
-  void carryOver(todayIso())
-  void morningCheck()
   // The Inbox read once at start, so it opens with its rows; it reads again whenever it is opened (InboxView.vue).
   void loadInbox()
   morningTimer = setInterval(() => void morningCheck(), 5 * 60_000)
 })
-/* The morning report's rule (lib/morning.ts): on start and every five minutes; a report made reloads the board, where
-   its task and its waiting page come from. */
+/* The morning report (lib/morning.ts): looked for on start and every five minutes; once the hour has come, the agent is
+   asked for it once a day. The agent is there only after the gateway answered, so the first look waits for it. */
 let morningTimer: ReturnType<typeof setInterval> | null = null
 async function morningCheck(): Promise<void> {
-  if (await ensureMorning(todayIso())) await store.reloadBoard()
+  ensureMorning(todayIso())
 }
 onUnmounted(() => {
   if (morningTimer) clearInterval(morningTimer)
@@ -272,7 +262,6 @@ onUnmounted(() => {
     <AgentConversation @link="onConversationLink" />
     <AgentStep />
     <SearchBar id="verticals-command-bar" ref="searchBar" :agent-available="agentChat.available" @submit="onSubmit">
-      <template #above><WaitingPages /></template>
       <template #agent-tag><AgentTag /></template>
     </SearchBar>
     <div class="app-content" :class="{ 'app-content--out-of-focus': outOfFocus, 'app-content--window': windows.list.length }">

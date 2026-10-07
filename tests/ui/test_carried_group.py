@@ -2,7 +2,8 @@
 under the pointer, keeps that filter until another goal takes it, the pointer leaves its way, or "N more" is clicked
 (S4.P3, KK 2026-10-02), keeps its place under a goal of its own column and fills it, with a mascot in the room the
 filter leaves that says what is happening (KK 2026-10-04), and "Replan"
-opens the sorting task as a goal's window with our first message sent."""
+asks the agent to sort the plans out, in a new conversation with your one sentence (Inbox and Documents redesign, final
+page: nothing is made before you ask)."""
 
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from datetime import date
 import psycopg
 from playwright.sync_api import Page, expect
 
-from verticals.core import goals, replan
+from verticals.core import goals
 from tests.ui.conftest import UiSession
 from tests.ui.test_agent_conversation import ui_agent  # noqa: F401  (the fixture)
 from tests.ui.views import FIELD
@@ -20,8 +21,7 @@ from tests.ui.views import FIELD
 GROUP = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-group"]'
 PLACE = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-place"]'
 GAP = f'{PLACE} [data-role="carried-gap"]'
-FIRST = ("Read this task and its document and help me sort these plans out: where each goes, based on when I planned it"
-         " and what it belongs to.")
+FIRST = "Sort out the plans carried over: where each goes, based on when I planned it and what it belongs to."
 
 
 def _last_year(conn: psycopg.Connection, title: str, parent: str | None = None) -> str:
@@ -353,36 +353,17 @@ def test_an_open_plan_stands_under_the_boxs_header_line_alone(ui_f2: UiSession) 
     expect(_carried_cards(group)).to_have_count(3)
 
 
-def test_replan_opens_the_task_as_a_window_with_our_first_message(ui_agent: UiSession) -> None:  # noqa: F811
-    """S4.P4.028: the task pops out as a goal's window, our first message sent, the agent answering under it."""
+def test_replan_asks_the_agent_in_a_new_conversation(ui_agent: UiSession) -> None:  # noqa: F811
+    """Replan is a request: a new conversation opens with your one sentence, and the agent answers it; no task and no
+    document are made before it (the agent makes the document, `desktop/chat/chat.py`'s REPLAN_ASK_RULES)."""
     with psycopg.connect(ui_agent.backend.dsn, autocommit=True) as conn:
         _last_year(conn, "SYN plan to sort")
-        with conn.transaction():
-            task = replan.run(conn, owner="t1", today=date.today())
+        before = conn.execute("SELECT count(*) FROM goals WHERE owner = 't1'").fetchone()[0]
     page = ui_agent.page
     _goto_today(page, ui_agent.base_url)
     page.locator(GROUP).locator('[data-role="replan"]').click()
-    window = page.locator('.vt-window[data-window="goal"]')
-    expect(window).to_have_count(1)
-    expect(window.locator(f'.goal-card[data-goal-id="{task}"]')).to_have_count(1)
-    expect(page.locator('[data-balloon][data-who="you"]').first).to_have_text(FIRST)
+    expect(page.locator('[data-balloon][data-who="you"]')).to_have_text([FIRST])
     expect(page.locator('[data-balloon][data-who="agent"]')).to_have_count(1, timeout=10000)
-    page.mouse.click(window.bounding_box()["x"] + 40, window.bounding_box()["y"] + 40)
-    # Since the redesign (round 5) the task lives in this week, so its facts say the week, not "Inbox · made …".
-    expect(window.locator('[data-role="goal-facts"]')).to_contain_text(re.compile(r"\d{1,2}\D+\d{1,2} \w{3}"))
-    expect(window.locator('[data-role="goal-made"]')).to_have_count(0)
-    # Since the Inbox and Documents redesign (round 5) the table lives in the task's document; the task's notes link it.
-    expect(window.locator('a[data-link-kind="doc"]')).to_have_text(replan.doc_title(date.today()))
-    # S4.P4.010: every turn in the task tells the agent how its table is worked.
-    page.keyboard.press("Control+k")
-    page.locator(FIELD).fill("[context]")
-    page.keyboard.press("Enter")
-    expect(page.locator('[data-balloon][data-who="agent"]').last).to_contain_text("Your comment, one row per plan", timeout=10000)
-
-    # A browser that has never seen the task's conversation continues it: our first message goes only once.
-    page.evaluate("() => localStorage.clear()")
-    _goto_today(page, ui_agent.base_url)
-    page.locator(GROUP).locator('[data-role="replan"]').click()
-    expect(page.locator('[data-balloon][data-who="agent"]').last).to_contain_text("Your comment, one row per plan", timeout=10000)
-    page.wait_for_timeout(500)
-    expect(page.locator('[data-balloon][data-who="you"]', has_text=FIRST)).to_have_count(1)
+    expect(page.locator('.vt-window[data-window="goal"]')).to_have_count(0)
+    with psycopg.connect(ui_agent.backend.dsn, autocommit=True) as conn:
+        assert conn.execute("SELECT count(*) FROM goals WHERE owner = 't1'").fetchone()[0] == before

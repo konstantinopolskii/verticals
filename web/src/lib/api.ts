@@ -341,17 +341,6 @@ export function fetchSpans(vertical: string, date: string, count: number, value:
   return request<BoardResponse>(`/api/spans${qs({ vertical, date, count, ...(value ? { value } : {}) })}`)
 }
 
-/** The day's carry-over into the "Replan carried-over plans" task (docs/design-handoff S4.P1): the server does it once
- *  a day, however often it is asked, and answers the task it wrote to. */
-export function runReplan(date: string): Promise<{ task_id: string | null; doc_id: string | null }> {
-  return request<{ task_id: string | null; doc_id: string | null }>(`/api/replan${qs({ date })}`, { method: 'POST' })
-}
-
-/** `POST /api/morning` (`core/morning.py`): the day's morning report and its task, made by the first ask of the day. */
-export function runMorning(date: string): Promise<{ task_id: string | null; doc_id: string | null }> {
-  return request<{ task_id: string | null; doc_id: string | null }>(`/api/morning${qs({ date })}`, { method: 'POST' })
-}
-
 export function createGoal(payload: CreateGoalPayload): Promise<GoalCard> {
   return request<GoalCard>('/api/goals', { method: 'POST', body: JSON.stringify(payload) })
 }

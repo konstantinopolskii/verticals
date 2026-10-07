@@ -574,13 +574,10 @@ def test_s77_capability_manifest_ui(ui_f2: UiSession) -> None:
         for request in session.request_log[activation_start:]
         if request["method"] in MUTATING_METHODS
     ]
-    # The app's own daily carry-over (docs/design-handoff S4.P1.017) runs on every page load; it
-    # is housekeeping, not a capability, the same carve-out as `tests/mcp/test_cross_transport.py`.
     off_manifest = [
         _route_shape(request)
         for request in writes
         if not any(_request_matches(row, request) for row in rows)
-        and urlsplit(request["url"]).path != "/api/replan"
     ]
     assert off_manifest == [], f"unmanifested mutating route shape(s): {off_manifest}"
 

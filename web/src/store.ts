@@ -52,7 +52,6 @@ import { bump as bumpBoardEpoch, current as currentBoardEpoch } from './lib/boar
 import { verticalRank, type VerticalScale } from './lib/periods'
 import type { BoardColumnData } from './types'
 import { refreshPrivacy } from './lib/privacy'
-import { carryOver } from './lib/replan'
 import { captureRows, slideIntoGroups } from './lib/rollSlide'
 import { spanAnchor, spanGoal, withSpans } from './lib/spans'
 import { afterRelease, beforeRelease, bindSpansDrag, onDragMove } from './lib/spansDrag'
@@ -204,10 +203,8 @@ const dayRollover = createDayRollover({
   today: todayIso,
   anchorDate: () => state.board?.anchor_date ?? null,
   busy: () => Boolean(state.drag.id || state.drag.settling),
-  // The day turned: the carry-over first, so the board it loads holds the day's Replan task (S4.P1.017); the plans left
-  // over slide into their groups (S4.P1.013).
+  // The day turned: the plans left over slide into their groups (S4.P1.013). Replan waits for its click (lib/replan.ts).
   load: async (date) => {
-    await carryOver(date)
     const before = captureRows()
     await loadBoard(date)
     await slideIntoGroups(before)

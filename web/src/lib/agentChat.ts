@@ -117,7 +117,8 @@ export const balloons = computed<Balloon[]>(() => {
     switch (event.t) {
       case 'user':
         turn = null
-        out.push({ key: `u${index}`, who: 'you', text: String(event.text ?? ''), pending: !!event.pending })
+        // What the app asked on its own (the morning report, lib/morning.ts) is no balloon of yours.
+        if (!event.app) out.push({ key: `u${index}`, who: 'you', text: String(event.text ?? ''), pending: !!event.pending })
         break
       case 'turn_start':
         turn = null
@@ -405,8 +406,9 @@ function pageContext(goal: GoalRef | undefined) {
   }
 }
 
-/** Your words, as your balloon at once; while the agent works they wait in the server's queue (S2.P1.015). */
-export async function send(text: string, extra: Record<string, unknown> = {}): Promise<void> {
+/** Your words, as your balloon at once; while the agent works they wait in the server's queue (S2.P1.015). `settings`
+ *  adds to the agent's for this turn: the morning report's `{ sources: 'connected' }` (lib/morning.ts). */
+export async function send(text: string, extra: Record<string, unknown> = {}, settings: Record<string, unknown> = {}): Promise<void> {
   const words = text.trim()
   if (!words || !agentChat.available) return
   if (!agentChat.current) newThread()
@@ -418,7 +420,7 @@ export async function send(text: string, extra: Record<string, unknown> = {}): P
   touchThread({ provider: agentChat.selection!.provider, status: 'working' })
   agentChat.answer = null
   awaitingReplies += 1
-  record({ t: 'user', text: words, pending: true }, false)
+  record({ t: 'user', text: words, pending: true, ...(settings.sources ? { app: true } : {}) }, false)
   const since: Record<string, unknown> = {}
   if (goal && goalSince !== null) {
     since.continuing = true
@@ -426,7 +428,7 @@ export async function send(text: string, extra: Record<string, unknown> = {}): P
   }
   try {
     await api('send', { session: agentChat.current, text: words, context: { ...pageContext(goal), ...since, ...extra },
-      settings: agentChat.selection, mode: agentChat.running ? 'queue' : 'send' })
+      settings: { ...agentChat.selection, ...settings }, mode: agentChat.running ? 'queue' : 'send' })
   } catch (error) {
     record({ t: 'local_error', text: (error as Error).message }, false)
     touchThread({ status: agentChat.running ? 'working' : 'idle' })

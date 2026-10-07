@@ -55,17 +55,14 @@ EXPECTED_OPERATIONS = {
     ("POST", "/api/comments"),
     ("POST", "/api/comments/{thread_id}/messages"),
     ("POST", "/api/comments/{thread_id}/resolve"),
-    # The roll (docs/design-handoff S4.P1.017): the app's daily carry-over into the Replan task.
-    ("POST", "/api/replan"),
     # Moving a goal (docs/design-handoff S5.P1.030): one vertical's periods in a row.
     ("GET", "/api/spans"),
     # Privacy mode: the covered ids and the mode switch.
     ("GET", "/api/privacy"),
     ("PUT", "/api/privacy"),
-    # The Inbox and Documents redesign: every goal with no date, the Documents desk, and the day's morning report.
+    # The Inbox and Documents redesign: every goal with no date, and the Documents desk.
     ("GET", "/api/undated"),
     ("GET", "/api/docs/desk"),
-    ("POST", "/api/morning"),
 }
 
 # J7's negative space: none of these ever appear in a path string, in either direction of the

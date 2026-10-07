@@ -1,7 +1,7 @@
-"""`GET /api/board` — the whole board, one call (S-33, IR-07) — and `POST /api/replan`, the
-roll's one write (docs/design-handoff S4.P1): `core/board.py` is a single frozen function with
-no write half, so the carry-over task has its own writer, `core/replan.py`, fronted here beside
-the board it reads like.
+"""`GET /api/board` — the whole board, one call (S-33, IR-07) — and the reads drawn beside it: a
+vertical's periods in a row, and every goal with no date. The carried-over plans are sorted out by
+the agent when the owner asks (Inbox and Documents redesign, final page), so the server writes no
+task of its own for them.
 
 `owner` is never taken from the request — read from `request.app.state.config.owner` on every
 call, matching `verticals/config.py`'s own docstring ("this module only carries it for whichever
@@ -20,8 +20,6 @@ from verticals.api.deps import get_conn, verify_bearer_token
 from verticals.api.schemas import board_to_json
 from verticals.core import board as core_board
 from verticals.core import undated as core_undated
-from verticals.core import morning as core_morning
-from verticals.core import replan as core_replan
 from verticals.core import spans as core_spans
 
 router = APIRouter(dependencies=[Depends(verify_bearer_token)])
@@ -59,35 +57,6 @@ def get_spans(
         result = core_spans.spans(conn, owner=owner, scale=vertical, start=date, count=count, value=value)
         response.headers["X-Query-Count"] = str(conn.query_count)
     return board_to_json(result)
-
-
-@router.post("/api/replan")
-def post_replan(request: Request, date: _date) -> dict:
-    """The day's carry-over into the "Replan carried-over plans" task (S4.P1.017): the app asks
-    on start and when its day turns, and the server does it once a day however often it is
-    asked. `date` is the owner's today, as the board's own `date`; a day more than one away from
-    the server's own is not run, so a wrong clock can neither mark days that have not come nor
-    gather plans against a day long gone."""
-    if abs((date - _date.today()).days) > 1:
-        return {"task_id": None, "doc_id": None}
-    owner = request.app.state.config.owner
-    with get_conn(request) as conn:
-        task_id = core_replan.run(conn, owner=owner, today=date)
-        task = core_replan.open_task(conn, owner=owner) if task_id else None
-    return {"task_id": task_id, "doc_id": task.doc_id if task else None}
-
-
-@router.post("/api/morning")
-def post_morning(request: Request, date: _date) -> dict:
-    """The day's morning report (`core/morning.py`): the app asks once the owner's morning hour has come, on start and
-    when its day turns; the first ask of a day makes the document and its task in that day, later ones return them. A
-    day more than one away from the server's own is not made, as for the carry-over above."""
-    if abs((date - _date.today()).days) > 1:
-        return {"task_id": None, "doc_id": None}
-    owner = request.app.state.config.owner
-    with get_conn(request) as conn:
-        made = core_morning.run(conn, owner=owner, today=date)
-    return {"task_id": made.task_id, "doc_id": made.doc_id}
 
 
 @router.get("/api/undated")

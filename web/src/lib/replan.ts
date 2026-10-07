@@ -1,29 +1,10 @@
-// The sorting task (docs/design-handoff S4.P1, S4.P4): the task in this week that holds the carried plans in its
-// document, made and filled by the server once a day (`core/replan.py`); "Replan" opens it as a goal's window with our
-// first message sent, and its page waits on the circle (`lib/waiting.ts`).
-import { runReplan, type BoardResponse } from './api'
+// Replan (Inbox and Documents redesign, round 8; KK 7 Oct 2026: "determenistic replan automatic one not needed. I didn't
+// ask for this automatisation"): nothing is made until you click Replan in a carried box. The click asks the agent, in a
+// conversation of its own, to sort those plans out; it answers with the table as a document attached (goal, summary, next
+// step, your comment: flow 1's table; desktop/chat/chat.py's REPLAN_ASK_RULES). You comment in the table, the field asks
+// "Ready?", and the agent moves them.
 
-export const REPLAN_TITLE = 'Replan carried-over plans'
-export const FIRST_MESSAGE = 'Read this task and its document and help me sort these plans out: where each goes, based on when I planned it and what it belongs to.'
+export interface CarriedPlan { id: string; title: string }
 
-/** The open task, if there is one: in this week since the redesign, in the Inbox before it. */
-export function replanTask(board: BoardResponse | null): { id: string; title: string } | null {
-  for (const column of board?.columns ?? []) {
-    const task = column.goals.find((goal) => goal.title === REPLAN_TITLE && goal.done_at === null && goal.origin === 'app' && !goal.ghost)
-    if (task) return { id: task.id, title: task.title }
-  }
-  return null
-}
-
-let ranOn: string | null = null
-/** The day's carry-over into the task (S4.P1.017), asked once a day from this tab on start and when the day turns. */
-export async function carryOver(today: string): Promise<string | null> {
-  if (ranOn === today) return null
-  ranOn = today
-  try {
-    return (await runReplan(today)).task_id
-  } catch {
-    ranOn = null
-    return null
-  }
-}
+/** Your words, as your balloon: one sentence; the plans themselves go with it in the message's context. */
+export const REPLAN_ASK = 'Sort out the plans carried over: where each goes, based on when I planned it and what it belongs to.'
