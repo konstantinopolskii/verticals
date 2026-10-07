@@ -4,7 +4,7 @@ docs/E2E.md, S-65. Fixture F2. Steps: navigate to Inbox, click the place to writ
 Required by J3, L1, L8, Stage 2.
 
 Since the Inbox and Documents redesign (round 7, KK 7 Oct 2026) the place to write in the Inbox is the field itself: in
-the Inbox it rests open saying "Write anything", and ↵ puts the words first among Today's cards as a goal with no date
+the Inbox it rests open saying "Write to inbox" (final page), and ↵ puts the words first among Today's cards as a goal with no date
 and no parent, the Maybe bucket (`board.MAYBE_PREDICATE`). Nothing is planned. Navigating to the Inbox is not a
 gesture, the same distinction every other scenario in this package draws between loading the app and acting inside
 it, so `GestureCounter`'s count still reads 2 (click + Enter) below.
@@ -47,7 +47,7 @@ def test_s65_capture_to_maybe(ui_f2: UiSession) -> None:
         assert session.gestures.count == 0, "navigating to Inbox must not be counted as a gesture"
 
         # --- resting entry affordance: the field, open, inviting words -------------------------------
-        expect(page.locator(CAPTION)).to_have_text("Write anything")
+        expect(page.locator(CAPTION)).to_have_text("Write to inbox")
         expect(page.locator(FIELD)).to_be_visible()
 
         # --- step 1: click (gesture 1) — L8: one text box, zero required selects ---------------------

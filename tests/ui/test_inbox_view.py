@@ -1,7 +1,7 @@
-"""The Inbox (Inbox and Documents redesign, round 7, KK 7 Oct 2026) through Chromium, live HTTP and real Postgres: tasks
-only, what was written today as cards on top, newest first, each saying the goal it sits under, and the rest on shelves
-by the column each task left (`parked_from_vertical`). Documents are never in the Inbox: a document no goal holds sits
-under "No goal" at the beginning of Documents instead.
+"""The Inbox (Inbox and Documents redesign, final page, KK 7 Oct 2026) through Chromium, live HTTP and real Postgres:
+what was written today on top, newest first, each with the goal it sits under above it, the last three and the rest
+behind "N more"; then Earlier, the older tasks, and Documents, every document newest first, each a row that "Show all"
+opens in place onto shelves (a task on the shelf of the column it left, `parked_from_vertical`). × goes back to the board.
 
 The page's clock is pinned (`conftest.PINNED_CLOCK_ISO`) while the rows below are stamped by the database's clock, so
 each scenario moves the page's clock to the database's day first: "today" means the same day on both sides, as in use.
@@ -38,7 +38,7 @@ def _open_inbox(session: UiSession) -> None:
     switch_view(session.page, "inbox")
 
 
-def test_today_stands_on_top_and_the_rest_lies_on_the_shelf_of_the_column_it_left(ui_f2: UiSession) -> None:
+def test_today_stands_on_top_and_show_all_puts_the_rest_on_the_shelf_of_the_column_it_left(ui_f2: UiSession) -> None:
     session = ui_f2
     page = session.page
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
@@ -60,13 +60,47 @@ def test_today_stands_on_top_and_the_rest_lies_on_the_shelf_of_the_column_it_lef
     expect(cards.nth(1)).to_have_attribute("data-goal-id", idea)
     expect(cards.nth(1).locator('[data-role="inbox-goal"]')).to_have_text("SYN Inbox month")
 
-    expect(page.locator(f'[data-shelf="week"] [data-goal-id="{parked}"]')).to_be_visible()
-    expect(page.locator(f'[data-shelf="life"] [data-goal-id="{old}"]')).to_be_visible()
     expect(page.locator(f'{TODAY} [data-goal-id="{parked}"], {TODAY} [data-goal-id="{old}"]')).to_have_count(0)
 
-    inbox = page.locator('[data-cap="inbox"]')
-    expect(inbox).not_to_contain_text("SYN Inbox loose document")
-    expect(inbox.locator(f'[data-doc-id="{doc}"]')).to_have_count(0)
+    earlier = page.locator('[data-role="inbox-earlier"]')
+    expect(earlier.locator(f'[data-role="inbox-tile"][data-goal-id="{parked}"]')).to_contain_text("Week ·")
+    expect(earlier.locator(f'[data-role="inbox-tile"][data-goal-id="{old}"]')).to_contain_text("Life ·")
+    earlier.locator('[data-role="inbox-earlier-all"]').click()
+    expect(earlier.locator('[data-role="inbox-earlier-all"]')).to_have_text("Show less")
+    expect(page.locator(f'[data-shelf="week"] + .inbox-desk__grid [data-goal-id="{parked}"]')).to_be_visible()
+    expect(page.locator(f'[data-shelf="life"] + .inbox-desk__grid [data-goal-id="{old}"]')).to_be_visible()
+
+    # Every document is in the Inbox too, newest first: the one just made leads the Documents row.
+    docs = page.locator('[data-role="inbox-docs"]')
+    expect(docs.locator('[data-role="doc-chip"]').first).to_have_attribute("data-doc-id", doc)
+    expect(docs.locator('[data-role="doc-chip"]').first).to_contain_text("SYN Inbox loose document")
+
+    # The title and × stay at the top; × goes back to the board.
+    page.locator('[data-cap="inbox"] [data-role="desk-close"]').click()
+    expect(page.locator('[data-cap="inbox"]')).to_have_count(0)
+
+
+def test_today_shows_its_last_three_and_the_rest_behind_n_more(ui_f2: UiSession) -> None:
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        ids = [_goal(conn, f"SYN Inbox today {i}") for i in range(5)]
+        for i, goal_id in enumerate(ids):
+            _written(conn, goal_id, f"{5 - i} minutes")
+
+    _open_inbox(session)
+    cards = page.locator(f"{TODAY} {CARD}")
+    expect(cards.first).to_have_attribute("data-goal-id", ids[-1], timeout=10000)
+    shown = cards.count()
+    assert shown == 3, f"today shows its last three, not {shown}"
+    more = page.locator('[data-role="inbox-more"]')
+    hidden = int(more.inner_text().split()[0])
+    assert hidden >= 2
+    more.click()
+    expect(cards).to_have_count(3 + hidden)
+    expect(more).to_contain_text("Show fewer")
+    more.click()
+    expect(cards).to_have_count(3)
 
 
 def test_a_card_written_today_has_no_goal_until_one_is_found(ui_f2: UiSession) -> None:

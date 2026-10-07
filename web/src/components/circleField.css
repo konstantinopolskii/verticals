@@ -44,7 +44,11 @@
   inset: 0;
   border-radius: var(--vt-radius-field);
   background: #000;
+  transition: border-radius var(--vt-dur-shape) var(--vt-ease-large);
 }
+/* A message inside the field takes a message's corners, the balloon's, not the pill's (round 11, KK 7 Oct 2026: "Rounding
+   of the corners should be like from message"). The circle, the open field and "Ready?" keep their round ends. */
+.circle-field[data-state='answer'] .circle-field__surface { border-radius: var(--vt-radius-balloon); }
 .circle-field__words {
   position: absolute;
   left: 32px;
@@ -178,6 +182,16 @@
   color: rgb(255 255 255 / 64%);
 }
 .circle-field__answer-measure--lead { width: 376px; }
+/* A message bringing documents (round 11): the first one's page on the left, three lines tall, a stack when there are
+   more; on the right a short title saying what came, then two lines of the message, all from the top. */
+.circle-field__answer--note { inset: 12px 32px 12px 24px; flex-direction: row; align-items: flex-start; justify-content: flex-start; gap: 16px; }
+.circle-field__note-page { position: relative; flex: none; display: block; }
+.circle-field__note-page > .doc-page { border-radius: 3px; box-shadow: none; }
+.circle-field__note-behind { position: absolute; left: 4px; top: 0; width: 50px; height: 67px; border-radius: 3px; background: #d9d9de; }
+.circle-field__note-page > .doc-page { position: relative; }
+.circle-field__note-words { flex: 1; min-width: 0; }
+.circle-field__note-title { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; }
+.circle-field__note-text { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
 .circle-field__answer-caret {
   display: inline-block;
   width: 2px;

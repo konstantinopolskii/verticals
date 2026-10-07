@@ -1,12 +1,13 @@
 <script setup lang="ts">
-// A card in the Inbox's Today (round 7, .local-design/inbox-and-docs/round7): your words at reading size with the
-// board's square, and under them the goal they sit under with its value's colour and the time you wrote them. While
-// the agent looks for that goal the square and the line wait in grey, "Looking for its goal…". A click opens the
-// goal; the square completes it.
+// A task written today, in the Inbox's centre (Inbox and Documents redesign, round 11; .local-design/inbox-and-docs/final,
+// section 2): at the wide column's size (the board's expanded goal, 500 24/32, a 22 px square), and above it its goal at a
+// step's size, as the wide column shows a parent (goalCard.css's path line: 500 15/19, a 16 px square, inset 6 px). While
+// the agent looks for that goal the squares and the line wait in grey, "Looking for its goal…". No time and no border;
+// under the pointer it turns white. A click opens the task; its square completes it.
 import { computed } from 'vue'
 import GoalAffordance from '../kit-ext/goal-affordance/GoalAffordance.vue'
 import type { InboxGoal } from '../lib/api'
-import { completeInboxGoal, timeOf } from '../lib/inbox'
+import { completeInboxGoal } from '../lib/inbox'
 import { goalWashInk } from '../lib/goalColor'
 import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
 import { isPrivate } from '../lib/privacy'
@@ -16,7 +17,7 @@ import { pressCard, wasCarried } from '../lib/inboxCarry'
 const props = defineProps<{ item: InboxGoal; finding?: boolean }>()
 
 const color = computed(() => (props.finding ? null : props.item.value_color))
-/* The goal line's small square takes the card's own square colour, as the board paints it (GoalAffordance.vue). */
+/* The goal's square takes the value's colour as the board paints it (GoalAffordance.vue). */
 const mark = computed(() => {
   if (!color.value) return '#e5e5e5'
   const box = devPaletteFor(color.value)?.box
@@ -42,49 +43,41 @@ function open(event: MouseEvent): void {
     @click="open"
     @keydown.enter.prevent="open($event as unknown as MouseEvent)"
   >
+    <div v-if="finding || item.parent" class="inbox-card__goal" :class="{ 'inbox-card__goal--finding': finding }">
+      <i class="inbox-card__mark" :style="{ background: mark }" aria-hidden="true"></i>
+      <span v-if="finding" data-role="inbox-finding">Looking for its goal…</span>
+      <span v-else data-role="inbox-goal">{{ item.parent!.title }}</span>
+    </div>
     <div class="inbox-card__row">
       <span class="inbox-card__square" @click.stop>
         <GoalAffordance kind="square" :color="color" @toggle="(done: boolean) => done && completeInboxGoal(item.id)" />
       </span>
       <p class="inbox-card__words">{{ item.title }}</p>
     </div>
-    <div class="inbox-card__line">
-      <i class="inbox-card__mark" :style="{ background: mark }" aria-hidden="true"></i>
-      <span v-if="finding" class="inbox-card__goal inbox-card__goal--finding" data-role="inbox-finding">Looking for its goal…</span>
-      <span v-else-if="item.parent" class="inbox-card__goal" data-role="inbox-goal">{{ item.parent.title }}</span>
-      <span v-else class="inbox-card__goal"></span>
-      <time class="inbox-card__time" :datetime="item.created_at">{{ timeOf(item.created_at) }}</time>
-    </div>
   </article>
 </template>
 
 <style>
-/* The card's paper (round 7's `.tc`): 12 px corners, the floating shadow, the words at 17/26. */
-.inbox-card {
-  position: relative; box-sizing: border-box; padding: 18px 20px 16px 18px; border-radius: 12px; background: #fff;
-  box-shadow: 0 0 0 .5px rgba(16, 18, 32, .05), 0 2px 6px rgba(16, 18, 32, .04), 0 14px 36px -12px rgba(16, 18, 32, .18);
-  color: #000; cursor: default; outline: none;
-  transition: box-shadow 160ms var(--vt-ease-medium), transform 160ms var(--vt-ease-medium);
+.inbox-card { position: relative; box-sizing: border-box; margin: 0 -14px 0 -12px; padding: 10px 14px 12px 12px; border-radius: 12px;
+  background: transparent; color: #000; cursor: default; outline: none;
+  transition: background-color 200ms ease, box-shadow 200ms ease, transform 200ms var(--vt-ease-large); }
+/* Under the pointer it turns white and comes alive at once; it settles back in 200 ms (round 9). */
+@media (hover: hover) and (pointer: fine) {
+  .inbox-card:hover { background: #fff; transform: translateY(-1px); transition-duration: 0s;
+    box-shadow: 0 0 0 .5px rgb(16 18 32 / 5%), 0 1px 3px rgb(16 18 32 / 4%), 0 8px 22px -12px rgb(16 18 32 / 14%); }
 }
-.inbox-card:hover, .inbox-card:focus-visible {
-  box-shadow: 0 0 0 .5px rgba(16, 18, 32, .06), 0 18px 45px -6px rgba(16, 18, 32, .2), 0 0 120px 12px rgba(16, 18, 32, .08);
-  transform: translateY(-1px);
-}
-.inbox-card__row { display: flex; align-items: flex-start; gap: 12px; }
-.inbox-card__square { flex: none; display: block; width: 18px; height: 26px; }
-/* Round 7's square at the card's reading size: 18 px, 5 px corners, centred on the first line. */
-.inbox-card__square .goal-affordance, .inbox-card__square .goal-affordance .checkbox__box {
-  width: 18px; height: 18px; min-width: 18px; min-height: 18px; border-radius: 5px; }
-.inbox-card__square .goal-affordance { position: relative; top: 4px; }
-.inbox-card__words { margin: 0; min-width: 0; font: 500 17px/26px var(--font-body, Commissioner, system-ui, sans-serif);
-  overflow-wrap: break-word; }
-.inbox-card__line { display: flex; align-items: flex-start; gap: 7px; margin: 12px 0 0 30px;
-  font: 400 13px/18px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 60%); }
-.inbox-card__mark { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 2px; transition: background-color 160ms ease; }
-.inbox-card__goal { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.inbox-card:focus-visible { background: #fff; box-shadow: 0 0 0 2px #007aff; }
+/* The goal above, at a step's size, its words on the task's own edge. */
+.inbox-card__goal { display: flex; align-items: flex-start; gap: 12px; margin: 4px 0 4px 6px; font: 500 15px/19px var(--font-body, Commissioner, system-ui, sans-serif); }
 .inbox-card__goal--finding { color: rgb(45 48 54 / 45%); }
-.inbox-card__time { flex: none; margin-left: auto; padding-left: 10px; white-space: nowrap; }
-.inbox-card--private .inbox-card__words, .inbox-card--private .inbox-card__goal {
+.inbox-card__mark { flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 3px; transition: background-color 160ms ease; }
+.inbox-card__row { display: flex; align-items: flex-start; gap: 12px; }
+.inbox-card__square { flex: none; display: block; width: 22px; height: 32px; }
+.inbox-card__square .goal-affordance, .inbox-card__square .goal-affordance .checkbox__box {
+  width: 22px; height: 22px; min-width: 22px; min-height: 22px; border-radius: 6px; }
+.inbox-card__square .goal-affordance { position: relative; top: 5px; vertical-align: top; }
+.inbox-card__words { margin: 0; min-width: 0; font: 500 24px/32px var(--font-body, Commissioner, system-ui, sans-serif); overflow-wrap: break-word; }
+.inbox-card--private .inbox-card__words, .inbox-card--private .inbox-card__goal span {
   color: transparent; background: #e4e4e4; border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 @media (prefers-reduced-motion: reduce) { .inbox-card { transition: none; } .inbox-card:hover { transform: none; } }

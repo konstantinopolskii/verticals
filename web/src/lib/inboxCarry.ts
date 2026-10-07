@@ -1,13 +1,15 @@
 // Carrying a card in the Inbox onto the field (Inbox and Documents redesign, round 5, frames c2–c3; KK 7 Oct 2026: "If
 // we are in Inbox I believe it should Jump on the same line to field and stay on the left side and big"). Press a card
 // or a row and move it past 10 px: it follows the hand. Held over the field, the field becomes the pill that takes it
-// (S5.P3.002); let go there and it waits beside the field, on its line at its left, at its Today size, as a goal waits in
-// Move (`lib/moving.ts`): what you ask next carries it. Let go anywhere else, or Esc, and it goes back to its place.
+// (S5.P3.002); let go there and it waits beside the field, on its line at its left, at the Inbox's tile size (final page,
+// frame carry), as a goal waits in Move (`lib/moving.ts`): what you ask next carries it. Let go anywhere else, or Esc, and
+// it goes back to its place.
 import { reactive } from 'vue'
 import type { InboxGoal } from './api'
 import { park } from './moving'
 
 const THRESHOLD = 10
+const TILE_HEIGHT = 92
 
 export const carry = reactive({
   item: null as InboxGoal | null,
@@ -66,8 +68,14 @@ function onKey(event: KeyboardEvent): void {
 
 export function pressCard(event: PointerEvent, item: InboxGoal): void {
   if (event.button !== 0 || (event.target as HTMLElement).closest('.goal-affordance')) return
-  const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
-  start = { x: event.clientX, y: event.clientY, dx: event.clientX - box.left, dy: event.clientY - box.top, item, width: box.width }
+  const card = event.currentTarget as HTMLElement
+  const box = card.getBoundingClientRect()
+  // In the hand and beside the field a task is the Inbox's tile, a quarter of the desk, held where it was taken.
+  const desk = card.closest('.inbox-desk')
+  const width = desk ? (desk.clientWidth - 92 - 48) / 4 : box.width
+  const dx = Math.min(event.clientX - box.left, width - 24)
+  const dy = Math.min(event.clientY - box.top, TILE_HEIGHT - 24)
+  start = { x: event.clientX, y: event.clientY, dx, dy, item, width }
   window.addEventListener('pointermove', onMove, { passive: false })
   window.addEventListener('pointerup', onUp)
   window.addEventListener('pointercancel', onCancel)

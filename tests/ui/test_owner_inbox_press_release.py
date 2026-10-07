@@ -30,6 +30,8 @@ def test_owner_inbox_press_and_hold_releases_and_leaves_the_card_visible(ui_f2: 
     switch_view(session.page, "inbox")
     card = session.page.locator(f'[data-cap="inbox"] [data-goal-id="{MAYBE_GOAL}"]')
     card.wait_for(state="visible")
+    # An older task lies in Earlier's row, which you swipe (Inbox and Documents redesign, final page): bring it into view.
+    card.scroll_into_view_if_needed()
 
     box = card.bounding_box()
     assert box is not None, f"{MAYBE_GOAL} has no box in the Inbox"

@@ -51,6 +51,13 @@ export function shortDay(iso: string): string {
   return `${d.getDate()} ${MONTH(d)}`
 }
 
+/** When a document was edited, as its chip says it: the time if today, the day before that ("Today, 07:04", "1 Oct"). */
+export function whenEdited(iso: string): string {
+  const d = new Date(iso)
+  if (isoDate(d) !== isoDate(new Date())) return shortDay(iso)
+  return `Today, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 /** The days a stack's documents were made, as the board writes days: "Thu 1 Oct", "7–15 Sep", "24 Aug – 1 Oct". */
 export function daySpan(docs: DeskDoc[]): string {
   const days = docs.map((d) => new Date(d.created_at)).sort((a, b) => a.getTime() - b.getTime())

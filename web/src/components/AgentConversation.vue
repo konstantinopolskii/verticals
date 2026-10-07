@@ -1,8 +1,11 @@
 <script setup lang="ts">
 // The conversation (docs/design-handoff S2.P1): a column of balloons over the board or a window, the agent's black on
 // the left, yours a shade lighter on the right, rising out of the circle and sinking back into it. Its links move the
-// app in place; an ask of the agent's is its balloon with the choices as buttons.
+// app in place; an ask of the agent's is its balloon with the choices as buttons. The documents a message links stand
+// under its words as chips (DocChip.vue; Inbox and Documents redesign, rounds 9–10).
 import { computed, nextTick, ref, watch } from 'vue'
+import DocChip from './DocChip.vue'
+import { docLinks, withoutDocLines } from '../lib/docLinks'
 import { agentChat, agentOf, balloons, decide } from '../lib/agentChat'
 import { chatMarkdown } from '../lib/chatMarkdown'
 import { scrollLook, useMessageScroll } from '../lib/messageScroll'
@@ -90,7 +93,10 @@ function onClick(event: MouseEvent): void {
           >
             <div v-if="balloon.who === 'you'" class="agent-balloon__plain">{{ balloon.text }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -- chatMarkdown escapes every byte of the source -->
-            <div v-else-if="balloon.text" class="agent-balloon__markdown" v-html="chatMarkdown(balloon.text)"></div>
+            <div v-else-if="withoutDocLines(balloon.text)" class="agent-balloon__markdown" v-html="chatMarkdown(withoutDocLines(balloon.text))"></div>
+            <div v-if="balloon.who === 'agent' && docLinks(balloon.text).length" class="agent-balloon__docs" data-role="agent-docs">
+              <DocChip v-for="doc in docLinks(balloon.text)" :id="doc.id" :key="doc.id" :label="doc.label" dark />
+            </div>
             <div v-if="balloon.ask" class="agent-balloon__ask" data-role="agent-ask">
               <p class="agent-balloon__ask-title">{{ balloon.ask.title }}</p>
               <div class="agent-balloon__choices">
@@ -182,6 +188,10 @@ function onClick(event: MouseEvent): void {
 .agent-balloon__markdown th { font-weight: 600; }
 .agent-balloon__ask-title { margin: 0 0 10px; font-weight: 600; }
 .agent-balloon__markdown + .agent-balloon__ask { margin-top: 12px; }
+/* The documents the message brings, one chip under another, after its words. */
+.agent-balloon__docs { display: flex; flex-direction: column; gap: 12px; }
+.agent-balloon__markdown + .agent-balloon__docs { margin-top: 14px; }
+.agent-balloon__docs + .agent-balloon__ask { margin-top: 12px; }
 .agent-balloon__choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .agent-balloon__choice {
   height: 32px;

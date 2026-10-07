@@ -17,8 +17,9 @@ const CAPTIONS: Record<CircleJob, string> = {
   moving: 'Find a goal',
 }
 /** In the Inbox the field is where you write (KK, 7 Oct 2026: "place for writing could be right inside the field and it
- *  simply can invite us to do that"): it rests open with its invitation, and ↵ writes your words down (`lib/inbox.ts`). */
-export const INBOX_CAPTION = 'Write anything'
+ *  simply can invite us to do that"): it rests open with its invitation, and ↵ writes your words down (`lib/inbox.ts`).
+ *  Round 9: “"Write to inbox" in field actually.” */
+export const INBOX_CAPTION = 'Write to inbox'
 
 export const circle = reactive({
   job: 'board' as CircleJob,
@@ -62,7 +63,7 @@ export const circleState = computed<CircleState>(() => {
   if (circle.focused) return 'open'
   if (circleWords.value) return 'answer'
   if (agentChat.running) return 'working'
-  // After an edit in an open document the circle offers Go (lib/go.ts); pointing at it doesn't open the field.
+  // After an edit in an open document the circle asks "Ready?" (lib/go.ts); pointing at it doesn't open the field.
   if (goShown.value) return 'go'
   if (circle.pointed || inboxWriting.value) return 'open'
   return 'rest'
