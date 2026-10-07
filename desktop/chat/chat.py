@@ -41,6 +41,19 @@ def load_prompt():
 
 
 PROMPT = load_prompt()
+# "Verticals only" keeps a Claude turn to the board; every other permission mode is Claude Code's own: its tools, the
+# owner's MCP servers and the home folder, each action outside Verticals asked in the chat unless the mode allows it.
+BOARD_ONLY = "board"
+ACCESS_PROMPT = {
+    False: "In this conversation Verticals is all you reach: you have no shell, files or web.",
+    True: "In this conversation you also have Claude Code's own tools (shell, files, web) and the owner's other MCP "
+          "servers, under the permission mode the owner chose; an action outside Verticals is asked in the chat "
+          "unless that mode allows it.",
+}
+
+
+def full_access(settings):
+    return (settings.get("permission") or BOARD_ONLY) != BOARD_ONLY
 
 
 def load_morning_prompt():
@@ -90,6 +103,7 @@ AGENTS = {
         "defaultEffort": "medium",
         "fast": "Faster responses on supported models. Uses paid usage credits or API billing.",
         "permissions": [
+            ["board", "Verticals only", "Work with the board alone: no shell, files, web or other MCP servers."],
             ["manual", "Manual", "Ask before file edits and commands that are not already allowed."],
             ["acceptEdits", "Accept edits", "Approve project file edits and common file commands. Ask before other actions."],
             ["plan", "Plan", "Explore and propose a plan before changing your source files."],
@@ -97,7 +111,7 @@ AGENTS = {
             ["dontAsk", "Don't ask", "Run only pre-approved tools. Deny anything that would need permission."],
             ["bypassPermissions", "Bypass permissions", "Skip permission checks. Use only in an isolated environment you trust."],
         ],
-        "defaultPermission": "auto",
+        "defaultPermission": "board",
     },
     "codex": {
         "label": "Codex", "exe": "codex", "image": "codex.png", "order": 20,
@@ -266,17 +280,20 @@ class ClaudeAgent:
         effort = settings.get("effort")
         claude_settings = {"fastMode": bool(settings.get("fast")), "ultracode": effort == "ultracode"}
         # The morning report's turn (web lib/morning.ts) also reaches the owner's own connected tools, read-only, and
-        # makes its document and task in Verticals without asking; every other turn has Verticals alone.
+        # makes its document and task in Verticals without asking, whatever the permission mode.
         self.connected = settings.get("sources") == "connected"
+        self.full = full_access(settings) and not self.connected
         allowed = READ_TOOLS + (MORNING_WRITES if self.connected else [])
+        mode = settings.get("permission") or BOARD_ONLY
         args = [which("claude"), "--print", "--verbose", "--include-partial-messages",
                 "--input-format", "stream-json", "--output-format", "stream-json",
-                "--permission-mode", settings.get("permission") or "auto",
+                "--permission-mode", "manual" if mode == BOARD_ONLY else mode,
                 "--permission-prompts", "host", "--permission-prompt-tool", "stdio",
-                *([] if self.connected else ["--strict-mcp-config"]), "--mcp-config", str(chat.claude_mcp),
+                *([] if self.connected or self.full else ["--strict-mcp-config"]), "--mcp-config", str(chat.claude_mcp),
                 "--settings", json.dumps(claude_settings),
-                "--tools", "", "--allowedTools", ",".join(f"mcp__verticals__{t}" for t in allowed),
-                "--append-system-prompt", PROMPT + ("\n" + MORNING_PROMPT if self.connected else ""),
+                *(["--add-dir", str(Path.home())] if self.full else ["--tools", ""]),
+                "--allowedTools", ",".join(f"mcp__verticals__{t}" for t in allowed),
+                "--append-system-prompt", PROMPT + "\n" + (MORNING_PROMPT if self.connected else ACCESS_PROMPT[self.full]),
                 "--resume" if resume_id else "--session-id", self.session_id]
         if settings.get("model") and settings["model"] != "default":
             args += ["--model", settings["model"]]
@@ -339,10 +356,9 @@ class ClaudeAgent:
         elif kind == "control_request" and msg.get("request", {}).get("subtype") == "can_use_tool":
             req, rid = msg["request"], msg.get("request_id")
             tool, tool_input = req.get("tool_name", ""), req.get("input", {})
-            if not tool.startswith("mcp__verticals__"):
-                self.pending[rid] = tool_input
-                return self.decide(rid, "accept" if self.connected and reads_only(tool) else "decline")
             self.pending[rid] = tool_input
+            if not tool.startswith("mcp__verticals__") and not self.full:
+                return self.decide(rid, "accept" if self.connected and reads_only(tool) else "decline")
             s.ask(self, rid, f"Allow Claude to use {short(tool)}?",
                   "\n\n".join(filter(None, [req.get("decision_reason"), json.dumps(tool_input, indent=2, ensure_ascii=False)])),
                   [("Allow once", "accept"), ("Decline", "decline")])
