@@ -2,7 +2,7 @@
 // A document as a page on the desk (round 2's sheet, KK 6 Oct 2026: "как документы в Pages отображались, сразу с превью
 // текста … вроде и иконка а вроде объект"): the document's own top, its window's one-line head and its title over its
 // first words, set at the window's 720 px and drawn at the page's size, so its text is the page's texture.
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import type { DeskDoc } from '../lib/api'
 import { renderBodyElement } from '../lib/bodyMarkdown'
@@ -21,6 +21,9 @@ function render(): void {
   // The title stands large above; a first "# title" line in the text would say it twice.
   renderBodyElement(el, props.doc.excerpt.replace(/^\s*#\s[^\n]*\n?/, ''))
 }
+/* The page's one line of facts: in the window's head on a desk page; under the title on a narrow page waiting on the
+   circle (round 5's `.wpage`, frame m1). */
+const line = computed(() => props.facts || `edited ${shortDay(props.doc.updated_at)}`)
 onMounted(render)
 watch(() => props.doc.excerpt, render)
 </script>
@@ -28,9 +31,10 @@ watch(() => props.doc.excerpt, render)
 <template>
   <div class="doc-page" :style="{ width: `${width}px`, height: `${Math.round(width * 4 / 3)}px` }" aria-hidden="true">
     <div class="doc-page__in" :class="{ 'doc-page__in--narrow': measure < 720 }" :style="{ width: `${measure}px`, height: `${Math.round(measure * 4 / 3)}px`, transform: `scale(${width / measure})` }">
-      <div class="doc-page__bar"><AppIcon name="file" :size="16" />{{ facts || `edited ${shortDay(doc.updated_at)}` }}</div>
+      <div v-if="measure >= 720" class="doc-page__bar"><AppIcon name="file" :size="16" />{{ line }}</div>
       <div class="doc-page__text">
         <h1>{{ doc.title || doc.path }}</h1>
+        <p v-if="measure < 720" class="doc-page__facts">{{ line }}</p>
         <div ref="body"></div>
       </div>
     </div>
@@ -52,8 +56,9 @@ watch(() => props.doc.excerpt, render)
 .doc-page__text table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 13px; line-height: 18px; }
 .doc-page__text th, .doc-page__text td { padding: 6px 8px; border-bottom: 1px solid rgba(45, 48, 54, .12); text-align: left; vertical-align: top; }
 .doc-page__text img { display: none; }
-/* Set narrow, the page keeps a readable title: the window's head drops, the text's margins shrink. */
-.doc-page__in--narrow .doc-page__bar { height: 34px; padding: 0 22px; }
-.doc-page__in--narrow .doc-page__text { padding: 0 22px; }
-.doc-page__in--narrow .doc-page__text h1 { margin: 0 0 10px; }
+/* Set narrow, the page keeps a readable title (round 5's `.wpage`): no head, the title first, its facts under it, the
+   text's margins shrunk. */
+.doc-page__in--narrow .doc-page__text { padding: 22px 24px; }
+.doc-page__in--narrow .doc-page__text h1 { margin: 0 0 4px; }
+.doc-page__facts.doc-page__facts { margin: 0 0 14px; font: 400 13px/20px var(--font-body, Commissioner, system-ui, sans-serif); color: rgba(0, 0, 0, .5); }
 </style>

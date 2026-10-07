@@ -93,5 +93,9 @@ watch(() => props.part, () => void nextTick(showPart))
 
 <style>
 .doc-window { padding: 0 24px 24px; }
+/* The document under its one-line head, as the frame draws it (round 5's `.dw-in`): 48 px in, the title 6 px under the
+   head at 28/34. */
+.doc-window .doc-detail { padding: 6px 24px 24px; }
+.doc-window .doc-detail__title.doc-detail__title { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -.012em; }
 .doc-window__note { margin: 0; padding: 24px 0; color: rgb(0 0 0 / 55%); font: 400 16px/24px var(--font-body); }
 </style>

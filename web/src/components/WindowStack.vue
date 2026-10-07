@@ -219,7 +219,7 @@ function onWindowClick(index: number, event: MouseEvent): void {
   text-overflow: ellipsis; white-space: nowrap; }
 /* A document's head, from the frame (round 5's `.dw-bar`): 52 px, the page icon, the facts at 13/20 in grey with its
    actions in black, the title at 14 px once it has scrolled up, a hairline under it then. */
-.vt-window__head--doc { height: 52px; min-height: 0; padding: 0 12px 0 24px; gap: 0; transition: box-shadow var(--vt-dur-fade) linear; }
+.vt-window__head--doc { flex: none; height: 52px; min-height: 0; padding: 0 12px 0 24px; gap: 0; transition: box-shadow var(--vt-dur-fade) linear; }
 .vt-window__head--doc.is-titled { box-shadow: 0 1px 0 rgb(45 48 54 / 10%); }
 .vt-window__icon { flex: none; margin-right: 8px; color: rgb(0 0 0 / 38%); }
 .vt-window__facts { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: rgb(0 0 0 / 50%); font: 400 13px/20px var(--font-body);
