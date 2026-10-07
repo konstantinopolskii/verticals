@@ -91,6 +91,30 @@ function onWheel(event: WheelEvent): void {
   swiped = -Math.sign(swiped) * 1000
 }
 
+/* A document's head (round 2, frame f2b): its facts, then its versions and its open comments, each opening its own
+   place: history in Documents, the comments' sidebar. */
+type HeadPart = { text: string; act?: 'versions' | 'comments' }
+function headParts(win: VtWindow): HeadPart[] {
+  const parts: HeadPart[] = (win.facts ?? []).map((text) => ({ text }))
+  if ((win.versions ?? 0) > 1) parts.push({ text: `${win.versions} versions`, act: 'versions' })
+  const comments = store.unresolvedCommentCount('doc', win.target)
+  if (comments > 0) parts.push({ text: `${comments} ${comments === 1 ? 'comment' : 'comments'}`, act: 'comments' })
+  return parts
+}
+function commentsOpenFor(win: VtWindow): boolean {
+  const c = store.state.comments
+  return c.open && c.targetType === 'doc' && c.targetId === win.target
+}
+function onHeadAct(win: VtWindow, act: 'versions' | 'comments'): void {
+  if (act === 'comments') {
+    if (commentsOpenFor(win)) store.closeCommentsPanel()
+    else store.openCommentsPanel('doc', win.target)
+    return
+  }
+  closeWindow(win.key)
+  void store.openHistoryOf(win.target)
+}
+
 function onWindowClick(index: number, event: MouseEvent): void {
   if (index !== windows.front) {
     event.preventDefault()
@@ -133,8 +157,22 @@ function onWindowClick(index: number, event: MouseEvent): void {
         }"
         @click.capture="onWindowClick(index, $event)"
       >
-        <header v-if="win.kind !== 'goal'" class="vt-window__head">
-          <h2 class="vt-window__name" :title="win.title">{{ win.title }}</h2>
+        <header v-if="win.kind !== 'goal'" class="vt-window__head"
+          :class="{ 'vt-window__head--doc': win.kind === 'doc', 'is-titled': win.kind === 'doc' && win.titled }">
+          <template v-if="win.kind === 'doc'">
+            <AppIcon class="vt-window__icon" name="file" :size="16" />
+            <p class="vt-window__facts" data-role="doc-facts">
+              <template v-if="win.titled"><b class="vt-window__title" data-role="doc-head-title">{{ win.title }}</b><span class="vt-window__sep">·</span></template>
+              <template v-for="(part, i) in headParts(win)" :key="i">
+                <span v-if="i" class="vt-window__sep">·</span>
+                <button v-if="part.act" type="button" class="vt-window__act" :data-role="`doc-${part.act}`"
+                  :aria-expanded="part.act === 'comments' ? commentsOpenFor(win) : undefined"
+                  @click.stop="onHeadAct(win, part.act)">{{ part.text }}</button>
+                <template v-else>{{ part.text }}</template>
+              </template>
+            </p>
+          </template>
+          <h2 v-else class="vt-window__name" :title="win.title">{{ win.title }}</h2>
           <a v-if="win.kind === 'page'" class="vt-window__button" :href="win.target" target="_blank" rel="noreferrer"
             aria-label="Open in Chrome" title="Open in Chrome"><AppIcon name="arrow-up-right" :size="16" /></a>
           <button type="button" class="vt-window__button" aria-label="Close" @click.stop="closeWindow(win.key)"><AppIcon name="x" :size="16" /></button>
@@ -179,6 +217,18 @@ function onWindowClick(index: number, event: MouseEvent): void {
 .vt-window__head { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 12px 12px 0 24px; box-sizing: border-box; }
 .vt-window__name { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: #000; font: 600 14px/20px var(--font-body);
   text-overflow: ellipsis; white-space: nowrap; }
+/* A document's head, from the frame (round 5's `.dw-bar`): 52 px, the page icon, the facts at 13/20 in grey with its
+   actions in black, the title at 14 px once it has scrolled up, a hairline under it then. */
+.vt-window__head--doc { height: 52px; min-height: 0; padding: 0 12px 0 24px; gap: 0; transition: box-shadow var(--vt-dur-fade) linear; }
+.vt-window__head--doc.is-titled { box-shadow: 0 1px 0 rgb(45 48 54 / 10%); }
+.vt-window__icon { flex: none; margin-right: 8px; color: rgb(0 0 0 / 38%); }
+.vt-window__facts { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: rgb(0 0 0 / 50%); font: 400 13px/20px var(--font-body);
+  text-overflow: ellipsis; white-space: nowrap; }
+.vt-window__title { color: #000; font-size: 14px; font-weight: 600; }
+.vt-window__sep { margin: 0 6px; }
+.vt-window__act { padding: 0; border: 0; background: none; color: #000; font: inherit; font-weight: 500; cursor: pointer; }
+.vt-window__act:hover { text-decoration: underline; text-underline-offset: .2em; }
+.vt-window__head--doc .vt-window__button { width: 32px; height: 32px; margin-left: 12px; border-radius: 16px; }
 .vt-window__button { display: grid; flex: none; width: 28px; height: 28px; place-items: center; padding: 0; border: 0;
   border-radius: 14px; background: transparent; color: rgb(0 0 0 / 55%); cursor: pointer; }
 .vt-window__button:hover { background: rgb(0 0 0 / 6%); color: #000; }

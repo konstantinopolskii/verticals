@@ -14,7 +14,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { KChip } from '@konstantinopolskii/vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store'
-import { closeWindow, openWindow, windows } from '../lib/windows'
+import { openWindow } from '../lib/windows'
 import type { DocDetail as DocDetailWire } from '../lib/api'
 import { internalLinkOf, renderBodyElement, serializeBodyElement, type InternalLink } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
@@ -27,8 +27,9 @@ import {
   resetBodyHistory,
 } from '../lib/bodyTextarea'
 
-/* `inWindow`: drawn in a document's window (S3.P4, DocWindowBody.vue) rather than in Documents; its actions then act on
-   this document, not on the one Documents has open, and the window's own × closes it. */
+/* `inWindow`: drawn in a document's window (S3.P4, DocWindowBody.vue) rather than in Documents. The window's one-line
+   head stands for the path and the actions row (round 2, frame f2b): its facts, its versions that open history, its
+   comments, its ×. Links in a window open beside it. */
 const props = defineProps<{ doc: DocDetailWire; inWindow?: boolean }>()
 
 const revision = ref(props.doc.revision)
@@ -183,20 +184,8 @@ function cancelPathEdit(): void {
 
 // --- delete: same "409/422 refusal surfaces honestly, no confirm dialog" shape as removeGoal ----
 
-async function onDelete(): Promise<void> {
-  if (!(await store.deleteCurrentDoc(props.doc.id)) || !props.inWindow) return
-  const win = windows.list.find((w) => w.kind === 'doc' && w.target === props.doc.id)
-  if (win) closeWindow(win.key)
-}
-
-function onHistory(): void {
-  if (!props.inWindow) {
-    void store.loadHistory()
-    return
-  }
-  const win = windows.list.find((w) => w.kind === 'doc' && w.target === props.doc.id)
-  if (win) closeWindow(win.key)
-  void store.openHistoryOf(props.doc.id)
+function onDelete(): void {
+  void store.deleteCurrentDoc()
 }
 
 // --- comments: header icon + badge, same affordance shape as GoalDetailEditor.vue's own ----------
@@ -237,7 +226,7 @@ watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) p
 
 <template>
   <div class="doc-detail" data-role="doc-detail">
-    <div class="doc-detail__header">
+    <div v-if="!inWindow" class="doc-detail__header">
       <div
         v-if="!editingPath"
         class="doc-detail__path t-caption t-muted"
@@ -268,13 +257,13 @@ watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) p
           <AppIcon name="comment" :size="16" /> Comments
           <span v-if="commentCount > 0" class="doc-detail__comments-badge" data-role="comments-badge">{{ commentCount }}</span>
         </button>
-        <button type="button" class="doc-detail__action" data-role="doc-history-trigger" @click="onHistory">
+        <button type="button" class="doc-detail__action" data-role="doc-history-trigger" @click="store.loadHistory()">
           <AppIcon name="history" :size="16" /> History
         </button>
         <button type="button" class="doc-detail__action" data-role="doc-delete" @click="onDelete">
           <AppIcon name="trash" :size="16" /> Delete
         </button>
-        <button v-if="!inWindow" type="button" class="doc-detail__action" data-role="doc-close" @click="store.closeDoc()">
+        <button type="button" class="doc-detail__action" data-role="doc-close" @click="store.closeDoc()">
           <AppIcon name="x" :size="16" />
         </button>
       </div>

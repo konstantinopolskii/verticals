@@ -1,10 +1,13 @@
 <script setup lang="ts">
 // A document in a window (docs/design-handoff S3.P4): the document as the Docs view draws it, opened at the part the
-// answer points to; a link to a deleted one says so in words.
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+// answer points to; a link to a deleted one says so in words. Its head is one line (round 2, frame f2b; round 5, m3–m5):
+// the facts its page shows on the circle or the desk, its versions, and its title once the title has scrolled away.
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import DocDetail from './DocDetail.vue'
 import { ApiError, getDoc, type DocDetail as DocWire } from '../lib/api'
 import { windows } from '../lib/windows'
+import { waitingPages } from '../lib/waiting'
+import { shortDay, stackGoalOf } from '../lib/docsDesk'
 
 const props = defineProps<{ id: string; part?: string }>()
 const root = ref<HTMLElement | null>(null)
@@ -33,6 +36,35 @@ function showPart(): void {
     .find((el) => el.textContent?.toLocaleLowerCase().includes(words))
   found?.scrollIntoView({ block: 'start' })
 }
+
+const win = computed(() => windows.list.find((w) => w.kind === 'doc' && w.target === props.id) ?? null)
+
+/* The facts: a page waiting on the circle says when its rule made it ("Today · made 07:00"); any other document, the
+   goal it lies under on the desk and when it was last edited. */
+watchEffect(() => {
+  const w = win.value
+  const d = doc.value
+  if (!w || !d) return
+  const waiting = waitingPages.value.find((page) => page.docId === d.id)
+  const place = waiting ? null : stackGoalOf(d.id)
+  w.facts = waiting ? waiting.facts.split(' · ') : [...(place ? [place] : []), `edited ${shortDay(d.updated_at)}`]
+  w.versions = d.revision
+})
+
+/* The title in the head once the document's own has scrolled out of the window's top. */
+let titleWatch: IntersectionObserver | null = null
+function watchTitle(): void {
+  titleWatch?.disconnect()
+  const title = root.value?.querySelector('[data-role="doc-title"]')
+  const scroller = root.value?.closest('.vt-window__body')
+  if (!title || !scroller || typeof IntersectionObserver === 'undefined') return
+  titleWatch = new IntersectionObserver(([entry]) => {
+    if (win.value && entry) win.value.titled = !entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0)
+  }, { root: scroller })
+  titleWatch.observe(title)
+}
+watch(doc, () => void nextTick(watchTitle))
+onBeforeUnmount(() => titleWatch?.disconnect())
 
 /* A save of this document from this window (or anywhere): the window shows the saved copy, not the one it opened. */
 function onEdited(event: Event): void {

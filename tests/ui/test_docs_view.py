@@ -94,7 +94,8 @@ def test_a_new_document_opens_as_a_window_and_lies_on_the_desk(ui_f2: UiSession)
     new_input.press("Enter")
 
     window = page.locator('[data-role="doc-window"]')
-    expect(window.locator('[data-role="doc-path"]')).to_have_text("syn-notes/plan.md", timeout=10000)
+    expect(window.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
+    expect(page.locator('.vt-window[data-window="doc"] [data-role="doc-facts"]')).to_contain_text("edited")
     expect(page.locator('[data-role="docs-new-input"]')).to_have_count(0)
 
     tick(page)
@@ -217,7 +218,11 @@ def test_history_restore_old_revision_creates_new_revision_with_old_text(ui_f2: 
     open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("History Test", timeout=10000)
 
-    page.click('[data-role="doc-history-trigger"]')
+    # The window's head says "2 versions" (round 2, frame f2b); a click takes the document into Documents with its
+    # versions beside it.
+    versions = page.locator('[data-role="doc-facts"] [data-role="doc-versions"]')
+    expect(versions).to_have_text("2 versions")
+    versions.click()
     page.wait_for_selector('[data-role="docs-history"]', timeout=5000)
     rows = page.locator('[data-role="docs-history-row"]')
     expect(rows).to_have_count(2, timeout=5000)
@@ -457,8 +462,7 @@ def test_doc_body_doc_link_opens_the_target_doc(ui_f2: UiSession) -> None:
 
     # In a window the target opens as one more window, in the centre, the source beside it (S3.P4).
     front = page.locator(".vt-window--front")
-    expect(front.locator('[data-role="doc-path"]')).to_have_text("syn-bodylink/target.md", timeout=10000)
-    expect(front.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Target")
+    expect(front.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Target", timeout=10000)
     expect(page.locator('.vt-window[data-window="doc"]')).to_have_count(2)
     assert page.locator(TOAST_TEXT).count() == 0
     assert page.url.startswith(session.base_url)
@@ -620,3 +624,30 @@ def test_editing_a_doc_body_keeps_its_images(ui_f2: UiSession) -> None:
 
     fresh = _api_get_doc(session, doc_id)
     assert fresh["body"] == f"Shot: ![arrows]({PIXEL_PNG}) here. Then rest."
+
+
+def test_a_document_window_has_one_line_head_of_facts(ui_f2: UiSession) -> None:
+    """Round 2, frame f2b; round 5, m3–m5: the window's head is one line, the facts and ×. The document's own title stands
+    large under it and goes up into the head once scrolled away; its versions and its open comments are the head's
+    actions. The path and the old row of buttons are not in a window."""
+    session = ui_f2
+    page = session.page
+    long_body = "\n\n".join(f"SYN paragraph {n} of a long document." for n in range(80))
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        doc_id = _create_doc(conn, "syn-head/doc.md", title="SYN Head", body=long_body)
+        core_docs.save(conn, owner="t1", id=doc_id, expected_revision=1, body=long_body + "\n\nOne more line.")
+
+    page.reload()
+    _open_docs(session)
+    open_page(page, doc_id)
+    head = page.locator('.vt-window[data-window="doc"] [data-role="doc-facts"]')
+    expect(head).to_contain_text("edited")
+    expect(head.locator('[data-role="doc-versions"]')).to_have_text("2 versions")
+    expect(head.locator('[data-role="doc-head-title"]')).to_have_count(0)
+    expect(page.locator('[data-role="doc-window"] [data-role="doc-path"]')).to_have_count(0)
+    expect(page.locator('[data-role="doc-window"] [data-role="doc-history-trigger"]')).to_have_count(0)
+
+    page.locator('.vt-window[data-window="doc"] .vt-window__body').evaluate("el => { el.scrollTop = 600 }")
+    expect(head.locator('[data-role="doc-head-title"]')).to_have_text("SYN Head")
+    page.locator('.vt-window[data-window="doc"] .vt-window__body').evaluate("el => { el.scrollTop = 0 }")
+    expect(head.locator('[data-role="doc-head-title"]')).to_have_count(0)

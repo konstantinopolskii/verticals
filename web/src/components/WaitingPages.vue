@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // The pages that wait on the circle (`lib/waiting.ts`; round 5, frames m1–m2): each the document's own top set narrow,
 // so its title reads. Pointed at, a page lifts; a click opens the document as a window over the board (S3.P4). They step
-// aside while you type, while the agent talks and while a window is open.
+// aside while you type, while the agent talks and while a window is open, and they are not in the Inbox, where the field
+// is an open place to write rather than the circle (round 7, frame i1).
 import { computed } from 'vue'
 import DocPage from './DocPage.vue'
 import { agentChat } from '../lib/agentChat'
-import { circle, circleState } from '../lib/circle'
+import { circle, circleState, inboxWriting } from '../lib/circle'
 import { openWindow, windows } from '../lib/windows'
 import { carry } from '../lib/inboxCarry'
 import { startWaiting, waitingPages } from '../lib/waiting'
@@ -13,7 +14,7 @@ import { startWaiting, waitingPages } from '../lib/waiting'
 startWaiting()
 
 const shown = computed(() => waitingPages.value.length > 0 && !windows.list.length && !agentChat.open && !circle.moving && !carry.item
-  && (circleState.value === 'rest' || circleState.value === 'open'))
+  && !inboxWriting.value && (circleState.value === 'rest' || circleState.value === 'open'))
 
 function open(docId: string, title: string, event: Event): void {
   openWindow({ kind: 'doc', target: docId, title }, event.currentTarget as Element)

@@ -117,6 +117,14 @@ export const openStack = computed(() => {
   return null
 })
 
+/** The goal whose stack holds a document, if the desk has been read. */
+export function stackGoalOf(id: string): string | null {
+  for (const value of desk.data?.values ?? []) {
+    for (const stack of value.stacks) if (stack.docs.includes(id)) return stack.goal_title
+  }
+  return null
+}
+
 export function docMatches(id: string): boolean {
   const doc = desk.data?.docs[id]
   return !doc || !terms.value.length || matchesWords(doc)

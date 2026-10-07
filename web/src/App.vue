@@ -20,7 +20,7 @@ import { store, todayIso } from './store'
 import { commandFilter } from './lib/commandFilter'
 import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
 import { circle, inboxWriting } from './lib/circle'
-import { inbox, writeDown } from './lib/inbox'
+import { inbox, loadInbox, writeDown } from './lib/inbox'
 import { endMove, moveContext } from './lib/moving'
 import { findGoal } from './lib/boardIndex'
 import { spanGoal } from './lib/spans'
@@ -244,6 +244,8 @@ onMounted(() => {
   window.addEventListener('keydown', onWindowsKey)
   void carryOver(todayIso())
   void morningCheck()
+  // The Inbox read once at start, so it opens with its rows; it reads again whenever it is opened (InboxView.vue).
+  void loadInbox()
   morningTimer = setInterval(() => void morningCheck(), 5 * 60_000)
 })
 /* The morning report's rule (lib/morning.ts): on start and every five minutes; a report made reloads the board, where
