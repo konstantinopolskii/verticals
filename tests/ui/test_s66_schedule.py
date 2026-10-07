@@ -48,7 +48,9 @@ DETAIL_POPOVER = (
 
 
 def _card_title(goal_id: str) -> str:
-    return f'[data-goal-id="{goal_id}"] .goal-card__title'
+    """The goal's row in the Inbox: since the Inbox and Documents redesign (round 7) a click there opens the goal as a
+    window over the Inbox (S3.P4), its card open inside with the date fact that opens the schedule popup."""
+    return f'[data-cap="inbox"] [data-goal-id="{goal_id}"]'
 
 
 def _in_popover(rest: str) -> str:

@@ -20,7 +20,8 @@ from tests.ui.views import FIELD
 GROUP = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-group"]'
 PLACE = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-place"]'
 GAP = f'{PLACE} [data-role="carried-gap"]'
-FIRST = "Read this task and help me sort these plans out: where each goes, based on when I planned it and what it belongs to."
+FIRST = ("Read this task and its document and help me sort these plans out: where each goes, based on when I planned it"
+         " and what it belongs to.")
 
 
 def _last_year(conn: psycopg.Connection, title: str, parent: str | None = None) -> str:
@@ -367,8 +368,11 @@ def test_replan_opens_the_task_as_a_window_with_our_first_message(ui_agent: UiSe
     expect(page.locator('[data-balloon][data-who="you"]').first).to_have_text(FIRST)
     expect(page.locator('[data-balloon][data-who="agent"]')).to_have_count(1, timeout=10000)
     page.mouse.click(window.bounding_box()["x"] + 40, window.bounding_box()["y"] + 40)
-    expect(window.locator('[data-role="goal-made"]')).to_have_text(re.compile(r"^made \w{3} \d{1,2} \w{3}$"))
-    expect(window.locator("table")).to_contain_text("SYN plan to sort")
+    # Since the redesign (round 5) the task lives in this week, so its facts say the week, not "Inbox · made …".
+    expect(window.locator('[data-role="goal-facts"]')).to_contain_text(re.compile(r"\d{1,2}\D+\d{1,2} \w{3}"))
+    expect(window.locator('[data-role="goal-made"]')).to_have_count(0)
+    # Since the Inbox and Documents redesign (round 5) the table lives in the task's document; the task's notes link it.
+    expect(window.locator('a[data-link-kind="doc"]')).to_have_text(replan.doc_title(date.today()))
     # S4.P4.010: every turn in the task tells the agent how its table is worked.
     page.keyboard.press("Control+k")
     page.locator(FIELD).fill("[context]")

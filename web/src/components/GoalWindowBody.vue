@@ -4,7 +4,7 @@
 import { computed, onBeforeUnmount, watch } from 'vue'
 import GoalCard from './GoalCard.vue'
 import { store } from '../store'
-import { windows } from '../lib/windows'
+import { closeWindow, windows } from '../lib/windows'
 import type { GoalCardData } from '../types'
 
 const props = defineProps<{ id: string; front: boolean }>()
@@ -20,6 +20,12 @@ watch(() => [store.state.openGoalId, store.state.openGoalVertical] as const, ([i
   if (!props.front || vertical !== 'window' || !id || id === props.id) return
   const win = windows.list.find((w) => w.kind === 'goal' && w.target === props.id)
   if (win) { win.target = id; win.key = `goal:${id}` }
+})
+/* The address left the goal (Back, a view's tag): the window goes with it. */
+watch(() => store.state.openGoalId, (id, was) => {
+  if (!props.front || id !== null || was !== props.id) return
+  const win = windows.list.find((w) => w.kind === 'goal' && w.target === props.id)
+  if (win) closeWindow(win.key)
 })
 onBeforeUnmount(() => {
   if (store.state.openGoalVertical === 'window' && store.state.openGoalId === props.id) store.closeGoal()

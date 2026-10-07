@@ -64,7 +64,7 @@ def test_owner_ruling2_nav_items_trimmed(ui_f2: UiSession) -> None:
     assert page.locator('[data-role="column-strip"]').count() == 0, (
         "Inbox must not render the board's own column strip"
     )
-    assert page.locator('[data-vertical="maybe"] [data-goal-id]').count() > 0, (
+    assert page.locator('[data-cap="inbox"] [data-goal-id]').count() > 0, (
         "Inbox must render the unverticaled (Maybe) goals F2 seeds"
     )
 

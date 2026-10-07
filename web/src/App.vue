@@ -214,6 +214,13 @@ async function onReplan(event: Event): Promise<void> {
   // Our first message only opens the task's first conversation; the server knows it even where this browser doesn't.
   if (!await opening) void send(FIRST_MESSAGE)
 }
+/* An address naming a goal with no date (a link, Back, Forward; lib/detailSurface.ts step b): its window over the Inbox,
+   as a click there opens it. One already in front stays as it is. */
+function onOpenGoalWindow(event: Event): void {
+  const { id, title } = ((event as CustomEvent).detail ?? {}) as { id?: string; title?: string }
+  if (!id || (frontWindow.value?.kind === 'goal' && frontWindow.value.target === id)) return
+  openWindow({ kind: 'goal', target: id, title: title || 'Goal' })
+}
 /* Esc, when nothing smaller takes it, sends the windows away; ⌘[ and ⌘] move one window (S3.P2.011, S3.P3.017). */
 function onWindowsKey(event: KeyboardEvent): void {
   if (!windows.list.length || event.defaultPrevented) return
@@ -233,6 +240,7 @@ onMounted(() => {
   void startAgentChat()
   window.addEventListener('verticals:discuss-goal', onDiscussGoal)
   window.addEventListener('verticals:replan', onReplan)
+  window.addEventListener('verticals:open-goal-window', onOpenGoalWindow)
   window.addEventListener('keydown', onWindowsKey)
   void carryOver(todayIso())
   void morningCheck()
@@ -248,6 +256,7 @@ onUnmounted(() => {
   if (morningTimer) clearInterval(morningTimer)
   window.removeEventListener('verticals:discuss-goal', onDiscussGoal)
   window.removeEventListener('verticals:replan', onReplan)
+  window.removeEventListener('verticals:open-goal-window', onOpenGoalWindow)
   window.removeEventListener('keydown', onWindowsKey)
 })
 

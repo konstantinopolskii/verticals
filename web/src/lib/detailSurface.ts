@@ -211,11 +211,11 @@ export function createDetailSurface(
 
   /** Decision ladder:
    *  (a) already on the current board — expand + open there.
-   *  (b) no host, and the fetched detail's `vertical` is null — the goal lives in the Maybe/Inbox
-   *      bucket (`MAYBE_PREDICATE`: `vertical IS NULL AND parent_id IS NULL`); switch to the Inbox
-   *      view and open with the exact host key an Inbox `GoalCard` computes for it
-   *      (`detailHostKey` in `GoalCard.vue`), so the surface opens on the SAME rendered card
-   *      Inbox itself would mount rather than a stale-default key that matches nothing.
+   *  (b) no host, and the fetched detail's `vertical` is null — the goal has no date, so it lives in
+   *      the Inbox; switch to the Inbox and open it as a window over it, exactly as a click there
+   *      does (`InboxView.vue`, Inbox and Documents redesign round 7: the Inbox draws no goal cards
+   *      to open in place). `App.vue` opens the window on `verticals:open-goal-window`, an event
+   *      rather than an import, since the windows module reaches back to the store.
    *  (c) no host, but the detail carries a real `anchor_date` — a dated goal that just is not on
    *      the board that happens to be loaded. Reload at its own anchor date and retry (a)'s path.
    *      A host that still does not resolve after that reload is reported, never swallowed. */
@@ -235,11 +235,7 @@ export function createDetailSurface(
 
     if (detail.vertical === null) {
       state.activeView = 'inbox'
-      // Parked goals and parented ideas are absent from the Inbox projection. The shell
-      // renders the same GoalCard/detail surface for this explicit host instead of opening
-      // a key with no corresponding card.
-      const inInbox = state.board?.columns.find(column => column.vertical === null)?.goals.some(goal => goal.id === id)
-      await openGoal(id, inInbox ? 'maybe' : 'search', [inInbox ? 'maybe' : 'search', 'root', 0, id].join(':'))
+      window.dispatchEvent(new CustomEvent('verticals:open-goal-window', { detail: { id, title: detail.title } }))
       return
     }
 

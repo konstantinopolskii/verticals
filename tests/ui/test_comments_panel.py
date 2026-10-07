@@ -29,7 +29,7 @@ from playwright.sync_api import Page, expect
 
 from verticals.core import comments as core_comments, docs as core_docs, goals as core_goals
 from tests.ui.conftest import UiSession
-from tests.ui.views import switch_view
+from tests.ui.views import open_page, switch_view
 
 ANCHOR = date(2026, 8, 8)  # the pinned clock date (tests/ui/conftest.py PINNED_CLOCK_ISO)
 
@@ -82,7 +82,7 @@ def _open_docs_and_doc(session: UiSession, doc_id: str) -> None:
     page = session.page
     switch_view(page, "docs")
     page.wait_for_selector('[data-cap="docs"]', timeout=5000)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-path"]')).to_be_visible(timeout=10000)
 
 

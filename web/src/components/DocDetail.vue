@@ -14,8 +14,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { KChip } from '@konstantinopolskii/vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store'
+import { closeWindow, openWindow, windows } from '../lib/windows'
 import type { DocDetail as DocDetailWire } from '../lib/api'
-import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
+import { internalLinkOf, renderBodyElement, serializeBodyElement, type InternalLink } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
 import { onBeforeQuit } from '../lib/beforeQuit'
 import {
@@ -26,7 +27,9 @@ import {
   resetBodyHistory,
 } from '../lib/bodyTextarea'
 
-const props = defineProps<{ doc: DocDetailWire }>()
+/* `inWindow`: drawn in a document's window (S3.P4, DocWindowBody.vue) rather than in Documents; its actions then act on
+   this document, not on the one Documents has open, and the window's own × closes it. */
+const props = defineProps<{ doc: DocDetailWire; inWindow?: boolean }>()
 
 const revision = ref(props.doc.revision)
 
@@ -93,7 +96,8 @@ function onBodyClick(event: MouseEvent): void {
     const internal = internalLinkOf(link)
     if (internal) {
       event.preventDefault()
-      void store.followBodyLink(internal)
+      if (props.inWindow) void openBeside(internal, link)
+      else void store.followBodyLink(internal)
     }
     return
   }
@@ -179,8 +183,20 @@ function cancelPathEdit(): void {
 
 // --- delete: same "409/422 refusal surfaces honestly, no confirm dialog" shape as removeGoal ----
 
-function onDelete(): void {
-  void store.deleteCurrentDoc()
+async function onDelete(): Promise<void> {
+  if (!(await store.deleteCurrentDoc(props.doc.id)) || !props.inWindow) return
+  const win = windows.list.find((w) => w.kind === 'doc' && w.target === props.doc.id)
+  if (win) closeWindow(win.key)
+}
+
+function onHistory(): void {
+  if (!props.inWindow) {
+    void store.loadHistory()
+    return
+  }
+  const win = windows.list.find((w) => w.kind === 'doc' && w.target === props.doc.id)
+  if (win) closeWindow(win.key)
+  void store.openHistoryOf(props.doc.id)
 }
 
 // --- comments: header icon + badge, same affordance shape as GoalDetailEditor.vue's own ----------
@@ -195,8 +211,25 @@ function onToggleComments(): void {
   else store.openCommentsPanel('doc', props.doc.id)
 }
 
-function onLinkedGoalClick(goalId: string): void {
-  void store.navigateToGoal(goalId)
+function onLinkedGoalClick(goalId: string, event?: MouseEvent): void {
+  if (props.inWindow) {
+    const title = props.doc.linked_goals.find((g) => g.goal_id === goalId)?.title ?? 'Goal'
+    openWindow({ kind: 'goal', target: goalId, title }, (event?.currentTarget as Element | null) ?? null)
+  } else {
+    void store.navigateToGoal(goalId)
+  }
+}
+
+/* In a window a link opens its goal or document as one more window beside it (S3.P4), as GoalLinks.vue does, and the
+   board stays where it is. */
+async function openBeside(link: InternalLink, from: HTMLAnchorElement): Promise<void> {
+  const title = from.textContent?.trim()
+  if (link.kind === 'goal') {
+    openWindow({ kind: 'goal', target: link.target, title: title || 'Goal' }, from)
+    return
+  }
+  const id = await store.docIdByPath(link.target)
+  if (id) openWindow({ kind: 'doc', target: id, title: title || link.target }, from)
 }
 
 watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) paintBody() })
@@ -235,13 +268,13 @@ watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) p
           <AppIcon name="comment" :size="16" /> Comments
           <span v-if="commentCount > 0" class="doc-detail__comments-badge" data-role="comments-badge">{{ commentCount }}</span>
         </button>
-        <button type="button" class="doc-detail__action" data-role="doc-history-trigger" @click="store.loadHistory()">
+        <button type="button" class="doc-detail__action" data-role="doc-history-trigger" @click="onHistory">
           <AppIcon name="history" :size="16" /> History
         </button>
         <button type="button" class="doc-detail__action" data-role="doc-delete" @click="onDelete">
           <AppIcon name="trash" :size="16" /> Delete
         </button>
-        <button type="button" class="doc-detail__action" data-role="doc-close" @click="store.closeDoc()">
+        <button v-if="!inWindow" type="button" class="doc-detail__action" data-role="doc-close" @click="store.closeDoc()">
           <AppIcon name="x" :size="16" />
         </button>
       </div>
@@ -311,7 +344,7 @@ watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) p
         :key="goal.goal_id"
         data-role="doc-linked-goal-chip"
         :data-goal-id="goal.goal_id"
-        @click="onLinkedGoalClick(goal.goal_id)"
+        @click="onLinkedGoalClick(goal.goal_id, $event)"
       >{{ goal.title }}</KChip>
     </div>
   </div>

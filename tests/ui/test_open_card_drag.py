@@ -521,23 +521,22 @@ def test_od5_search_navigates_across_a_period_boundary_and_opens_in_place(ui_f2:
 # --- OD-6 --------------------------------------------------------------------------------------
 
 
-def test_od6_inbox_goal_expands_in_place(ui_f2: UiSession) -> None:
-    """D248: Inbox cards expand in place exactly like board cards — `GoalCard.vue`'s
-    `onOpenDetail` routes a maybe-vertical click straight through `store.openGoal(id, 'maybe',
-    hostKey)` (its own `columnVertical !== 'maybe'` guard skips the board-only `openBoardGoal`
-    path), same inline `#goal-detail` mount, no modal, ever."""
+def test_od6_inbox_goal_opens_as_a_window(ui_f2: UiSession) -> None:
+    """D248, since the Inbox and Documents redesign (round 7): the Inbox is no column of board cards any more, so a goal
+    in it opens the way a goal opens from anywhere off the board (S3.P4): as a window over the Inbox, its card open
+    inside. No modal, ever."""
     session = ui_f2
     g_id = _create_maybe(session, "SYN OD6 inbox target")
 
     session.page.reload()
     switch_view(session.page, "inbox")
-    title = session.page.locator(f'{_card(g_id)} > .goal-card__row .goal-card__title')
-    expect(title).to_be_visible()
-    title.click()
+    row = session.page.locator(f'[data-cap="inbox"] [data-goal-id="{g_id}"]')
+    expect(row).to_be_visible()
+    row.click()
 
-    host = session.page.locator(f'{_card(g_id)}.goal-card--detail-open')
-    expect(host).to_be_visible(timeout=10000)
-    expect(host.locator("xpath=following-sibling::*[1]").locator(".goal-detail-inline")).to_be_visible()
+    window = session.page.locator(f'[data-role="goal-window"][data-goal-id-window="{g_id}"]')
+    expect(window).to_be_visible(timeout=10000)
+    expect(window.locator(f'{_card(g_id)}.goal-card--detail-open')).to_be_visible()
     _assert_no_dialog(session.page)
 
 

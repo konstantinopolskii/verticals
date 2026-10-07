@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A document in a window (docs/design-handoff S3.P4): the document as the Docs view draws it, opened at the part the
 // answer points to; a link to a deleted one says so in words.
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DocDetail from './DocDetail.vue'
 import { ApiError, getDoc, type DocDetail as DocWire } from '../lib/api'
 import { windows } from '../lib/windows'
@@ -34,14 +34,26 @@ function showPart(): void {
   found?.scrollIntoView({ block: 'start' })
 }
 
-onMounted(load)
+/* A save of this document from this window (or anywhere): the window shows the saved copy, not the one it opened. */
+function onEdited(event: Event): void {
+  const detail = (event as CustomEvent<{ doc?: DocWire; linksFresh?: boolean }>).detail
+  const fresh = detail?.doc
+  if (!fresh || fresh.id !== props.id || !doc.value) return
+  doc.value = detail.linksFresh ? fresh : { ...fresh, linked_goals: doc.value.linked_goals }
+}
+
+onMounted(() => {
+  void load()
+  window.addEventListener('verticals:doc-edited', onEdited)
+})
+onBeforeUnmount(() => window.removeEventListener('verticals:doc-edited', onEdited))
 watch(() => props.id, load)
 watch(() => props.part, () => void nextTick(showPart))
 </script>
 
 <template>
   <div ref="root" class="doc-window" data-role="doc-window">
-    <DocDetail v-if="doc" :key="doc.id" :doc="doc" />
+    <DocDetail v-if="doc" :key="doc.id" :doc="doc" in-window />
     <p v-else-if="gone" class="doc-window__note" data-role="doc-gone">This document was deleted</p>
     <p v-else class="doc-window__note">Opening…</p>
   </div>

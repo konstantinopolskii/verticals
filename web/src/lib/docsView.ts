@@ -172,15 +172,18 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
 
   /** A body names a doc by PATH (`core/docs.py::extract_links`), so the tree list resolves it —
    *  refetched first: the target may postdate the last load, or nothing has loaded the list yet. */
-  async function openDocByPath(path: string): Promise<void> {
+  async function docIdByPath(path: string): Promise<string | null> {
     await loadDocs()
     const found = state.docs.list.find((d) => d.path === path)
-    if (!found) {
-      toast(`No document at ${path}.`)
-      return
-    }
+    if (!found) toast(`No document at ${path}.`)
+    return found?.id ?? null
+  }
+
+  async function openDocByPath(path: string): Promise<void> {
+    const id = await docIdByPath(path)
+    if (!id) return
     deps.setView('docs')
-    await openDoc(found.id)
+    await openDoc(id)
   }
 
   /** One dispatch for an in-app link clicked in any rendered body (`bodyMarkdown.ts::internalLinkOf`). */
@@ -234,10 +237,14 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
       const fresh = patch.body !== undefined
         ? await getDoc(id)
         : { ...updated, linked_goals: state.docs.currentId === id ? (state.docs.current?.linked_goals ?? []) : [] }
+      const linksFresh = patch.body !== undefined || state.docs.currentId === id
       if (state.docs.currentId === id) state.docs.current = fresh
       patchListEntry(fresh)
-      // The field offers Go after an edit (lib/go.ts).
-      window.dispatchEvent(new CustomEvent('verticals:doc-edited', { detail: { id, title: fresh.title, path: fresh.path } }))
+      // The field offers Go after an edit (lib/go.ts); a window showing this document takes the fresh copy
+      // (DocWindowBody.vue), its links too when they are known.
+      window.dispatchEvent(new CustomEvent('verticals:doc-edited', {
+        detail: { id, title: fresh.title, path: fresh.path, doc: fresh, linksFresh },
+      }))
       return fresh
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -254,13 +261,12 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
   /** Refused (422) while any `goal_doc_links` row still references this doc — `ApiError.message`
    *  already names every linked goal id (`core.docs.delete()`'s own docstring), so surfacing it
    *  verbatim is the whole job; nothing here re-derives or re-words the server's own refusal. */
-  async function deleteCurrentDoc(): Promise<boolean> {
-    const current = state.docs.current
-    if (!current) return false
+  async function deleteCurrentDoc(id: string | undefined = state.docs.current?.id): Promise<boolean> {
+    if (!id) return false
     try {
-      await apiDeleteDoc(current.id)
-      state.docs.list = state.docs.list.filter((d) => d.id !== current.id)
-      closeDoc()
+      await apiDeleteDoc(id)
+      state.docs.list = state.docs.list.filter((d) => d.id !== id)
+      if (state.docs.currentId === id) closeDoc()
       return true
     } catch (err) {
       deps.reportError(err)
@@ -281,6 +287,14 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
     } finally {
       state.docs.historyLoading = false
     }
+  }
+
+  /** History from a document's window (S3.P4): the document moves into Documents with its versions beside it, the
+   *  one place history is drawn. */
+  async function openHistoryOf(id: string): Promise<void> {
+    deps.setView('docs')
+    if (state.docs.currentId !== id) await openDoc(id)
+    await loadHistory()
   }
 
   function closeHistory(): void {
@@ -342,7 +356,7 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
   return {
     loadDocs, openDoc, closeDoc, openDocFromGoal, openDocByPath, followBodyLink, createDoc, saveDoc,
     deleteCurrentDoc,
-    loadHistory, closeHistory, viewRevision, backToHistoryList, restoreRevision,
+    docIdByPath, loadHistory, openHistoryOf, closeHistory, viewRevision, backToHistoryList, restoreRevision,
     toggleFolder, isFolderCollapsed,
   }
 }

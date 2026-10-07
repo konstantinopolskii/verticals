@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /* The Inbox (Inbox and Documents redesign, round 7, KK 7 Oct 2026; .local-design/inbox-and-docs/round7): everything with
-   no date (`core/inbox.py`), tasks only, on the desk's grey. What you wrote today stands on top as cards, newest first,
+   no date (`core/undated.py`), tasks only, on the desk's grey. What you wrote today stands on top as cards, newest first,
    and keeps the window's first 80 %; below it the rest lies on shelves, one for each column a task left, in the board's
    own rows. You write in the field, which rests open here saying "Write anything" (`lib/circle.ts`); ↵ puts your words
    first in Today (`lib/inbox.ts`). While you write, the desk goes quiet behind the field, as the board does (S1.P3).
