@@ -13,6 +13,7 @@ import DevDeckPanel from './components/DevDeckPanel.vue'
 import DevIconPanel from './components/DevIconPanel.vue'
 import DevGoalLayoutPanel from './components/DevGoalLayoutPanel.vue'
 import DevTuningPanel from './components/DevTuningPanel.vue'
+import DevZoomPanel from './components/DevZoomPanel.vue'
 import './lib/look'
 import { DEV_TUNING_ENABLED } from './lib/devTuning'
 import { isPrivacyHotkey, togglePrivacy } from './lib/privacy'
@@ -307,6 +308,7 @@ onUnmounted(() => {
     <DevIconPanel />
     <DevGoalLayoutPanel />
     <DevTuningPanel />
+    <DevZoomPanel />
   </template>
 </template>
 

@@ -32,7 +32,8 @@ final class WebView: WKWebView {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, WKNavigationDelegate, WKUIDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, WKNavigationDelegate, WKUIDelegate,
+                         WKScriptMessageHandler {
     var window: NSWindow!
     var webView: WebView!
     var status: NSTextField!
@@ -76,7 +77,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         buildTray()
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
+        config.userContentController.add(self, name: "zoom")
         webView = WebView(frame: .zero, configuration: config)
+        let zoom = UserDefaults.standard.double(forKey: "PageZoom")
+        if zoom > 0 { webView.pageZoom = zoom }
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.isHidden = true
@@ -522,10 +526,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     @objc func reload(_ sender: Any?) { webView.reload() }
 
-    // The page keeps its content below the title bar by `--titlebar-height`; full screen has none.
+    // The dev panel's zoom buttons (web DevZoomPanel.vue) set the page zoom; it is kept for the next launch.
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "zoom", let value = (message.body as? NSNumber)?.doubleValue else { return }
+        webView.pageZoom = min(max(value, 0.5), 2)
+        UserDefaults.standard.set(webView.pageZoom, forKey: "PageZoom")
+        syncTitlebar()
+    }
+
+    // The page keeps its content below the title bar by `--titlebar-height`, in its own zoomed pixels; full screen has
+    // none. `verticalsPageZoom` tells the dev panel's zoom buttons where they start.
     func syncTitlebar() {
         let height = window.styleMask.contains(.fullScreen) ? 0 : window.frame.height - window.contentLayoutRect.height
-        let js = "document.documentElement.style.setProperty('--titlebar-height', '\(Int(height))px')"
+        let js = "document.documentElement.style.setProperty('--titlebar-height', '\(Int((height / webView.pageZoom).rounded()))px');"
+            + "window.verticalsPageZoom = \(webView.pageZoom)"
         let scripts = webView.configuration.userContentController
         scripts.removeAllUserScripts()
         scripts.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true))
