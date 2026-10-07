@@ -12,8 +12,11 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+import psycopg
 import pytest
 from playwright.sync_api import Browser, Page, expect
+
+from verticals.core import docs as core_docs
 
 from tests.ui.conftest import (
     F2_OWNER, REPO_ROOT, TEST_TOKEN, Server, UiSession, _backend, _free_port, _make_ui_session, _shutdown, _wait_http_ok,
@@ -114,6 +117,45 @@ def test_an_answer_lands_in_the_circle_and_a_click_sends_it_up(ui_agent: UiSessi
     expect(page.locator(CONVERSATION)).to_have_count(1)
     expect(page.locator(f'{BALLOON}[data-who="agent"]').last).to_contain_text("The third part closes it")
     expect(page.locator(FIELD)).to_be_focused()
+    expect(page.locator('[data-role="circle-answer"]')).to_have_count(0)
+
+
+def test_an_answer_that_links_a_document_stands_in_the_field_as_its_page(ui_agent: UiSession) -> None:
+    """Inbox and Documents redesign, final page: an answer that links a document is a note in the field, the document's
+    page on the left, a short title and the message on the right, a message's 24 px corners; a click opens the
+    conversation, where the document is a chip under the words."""
+    with psycopg.connect(ui_agent.backend.dsn, autocommit=True) as conn:
+        doc = core_docs.create(conn, owner=F2_OWNER, path="reports/syn-note.md", title="SYN report — 8 August 2026").doc.id
+    page = ui_agent.page
+    page.wait_for_selector(".goal-card__row")
+    _send(page, f"[say] Your report is ready. [SYN report](#doc/{doc}) [slow]")
+    page.locator('[data-role="out-of-focus"]').click(position={"x": 60, "y": 60})
+    note = page.locator(".circle-field__answer--note")
+    expect(note).to_contain_text("SYN report", timeout=10000)
+    expect(note).to_contain_text("Your report is ready.")
+    expect(note.locator(".doc-page")).to_have_count(1)
+    expect(page.locator(".circle-field__surface")).to_have_css("border-radius", "24px")  # once its corners have settled
+    page.locator(".circle-field__shape").click()
+    chip = page.locator(f'{BALLOON}[data-who="agent"] [data-role="doc-chip"][data-doc-id="{doc}"]')
+    expect(chip).to_contain_text("SYN report — 8 August 2026")
+
+
+def test_the_morning_report_is_asked_once_its_hour_has_come(ui_agent: UiSession) -> None:
+    """Inbox and Documents redesign, final page: past the morning hour (the pinned clock says 09:00) the app asks the agent
+    for the day's report by itself, once a day. The ask is not your balloon; the answer lands in the field."""
+    page = ui_agent.page
+    page.wait_for_selector(".goal-card__row")
+    page.evaluate("() => { sessionStorage.setItem('vt-morning-test', 'on'); localStorage.clear() }")
+    page.reload()
+    expect(page.locator('[data-role="circle-answer"]')).to_contain_text("Make my morning report for 2026-08-08", timeout=15000)
+    assert page.evaluate("() => !!localStorage.getItem('vt-morning:2026-08-08')")
+    page.locator(".circle-field__shape").click()
+    expect(page.locator(f'{BALLOON}[data-who="agent"]')).to_have_count(1)
+    expect(page.locator(f'{BALLOON}[data-who="you"]')).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.reload()
+    page.wait_for_selector(".goal-card__row")
+    page.wait_for_timeout(1500)
     expect(page.locator('[data-role="circle-answer"]')).to_have_count(0)
 
 

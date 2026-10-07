@@ -72,26 +72,3 @@ def test_board_flags_ghost_and_http_update_suppresses_on_the_live_board(
     assert returned["ghost"] is True
     assert returned["ghost_until"] == year_end.isoformat()
 
-
-def test_replan_writes_once_a_day_and_refuses_a_day_that_has_not_come(client: httpx.Client) -> None:
-    """docs/design-handoff S4.P1.017, .029: the route runs the day's carry-over, a second call the same day changes
-    nothing, and a date more than a day from the server's is not run."""
-    today = date.today()
-    created = client.post(
-        "/api/goals",
-        json={"title": "HTTP carried plan", "vertical": "day", "anchor_date": (today - timedelta(days=2)).isoformat()},
-    )
-    assert created.status_code == 201, created.text
-    first = client.post("/api/replan", params={"date": today.isoformat()})
-    assert first.status_code == 200, first.text
-    task_id = first.json()["task_id"]
-    task = client.get(f"/api/goals/{task_id}").json()
-    assert task["title"] == "Replan carried-over plans" and task["origin"] == "app"
-    assert f"(goal:{created.json()['id']})" in task["body"]
-    again = client.post("/api/replan", params={"date": today.isoformat()})
-    assert again.json()["task_id"] == task_id
-    assert client.get(f"/api/goals/{task_id}").json()["updated_at"] == task["updated_at"]
-    far = client.post("/api/replan", params={"date": (today + timedelta(days=5)).isoformat()})
-    assert far.status_code == 200 and far.json() == {"task_id": None}, far.text
-    after = client.post("/api/replan", params={"date": (today + timedelta(days=1)).isoformat()})
-    assert after.json()["task_id"] == task_id

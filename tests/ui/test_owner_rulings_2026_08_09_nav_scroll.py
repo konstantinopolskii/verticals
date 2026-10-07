@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import httpx
 
+from playwright.sync_api import expect
+
 from tests.ui.conftest import UiSession
 from tests.ui.views import show_tags, switch_view
 
@@ -64,9 +66,8 @@ def test_owner_ruling2_nav_items_trimmed(ui_f2: UiSession) -> None:
     assert page.locator('[data-role="column-strip"]').count() == 0, (
         "Inbox must not render the board's own column strip"
     )
-    assert page.locator('[data-vertical="maybe"] [data-goal-id]').count() > 0, (
-        "Inbox must render the unverticaled (Maybe) goals F2 seeds"
-    )
+    # The Inbox's rows come from their own read (`GET /api/undated`), which may land a moment after the view opens.
+    expect(page.locator('[data-cap="inbox"] [data-goal-id]').first).to_be_visible(timeout=10000)
 
     switch_view(page, "verticals")
     page.wait_for_selector('[data-role="column-strip"]')

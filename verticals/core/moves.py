@@ -280,16 +280,31 @@ def reparent(conn: psycopg.Connection, *, owner: str, id: str, parent_id: str | 
     # parent silently dead). An explicit reparent — detach or a new parent — is now always
     # legal; the cycle guard and depth clamp below in `tree.py` still judge the destination.
     current = conn.execute(
-        "SELECT 1 FROM goals WHERE owner = %(owner)s AND id = %(id)s",
+        "SELECT vertical IS NULL FROM goals WHERE owner = %(owner)s AND id = %(id)s",
         {"owner": owner, "id": id},
     ).fetchone()
     if current is None:
         raise NotFound(f"no goal {id!r} for owner {owner!r}", id=id, owner=owner)
+    undated = bool(current[0])
 
     if parent_id is None:
         tree.detach(conn, owner=owner, id=id)
     else:
         tree.move(conn, owner=owner, id=id, new_parent_id=parent_id)
+    if parent_id is not None and undated:
+        # An undated goal takes the column of the goal it now sits under, as a new one does (`tree.attach`): the Inbox
+        # shelves it there (`core/undated.py`). A dated goal keeps no such column (008_park_foil.sql's CHECK), so S-10's
+        # dated move stays one UPDATE.
+        conn.execute(
+            """
+            UPDATE goals g
+               SET parked_from_vertical = COALESCE(p.vertical::text, p.parked_from_vertical, g.parked_from_vertical)
+              FROM goals p
+             WHERE g.owner = %(owner)s AND g.id = %(id)s AND g.vertical IS NULL
+               AND p.owner = g.owner AND p.id = %(parent_id)s
+            """,
+            {"owner": owner, "id": id, "parent_id": parent_id},
+        )
 
     row = conn.execute(
         f"SELECT {COLUMNS} FROM goals WHERE owner = %(owner)s AND id = %(id)s", {"owner": owner, "id": id}

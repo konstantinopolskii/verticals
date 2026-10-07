@@ -117,7 +117,8 @@ export const balloons = computed<Balloon[]>(() => {
     switch (event.t) {
       case 'user':
         turn = null
-        out.push({ key: `u${index}`, who: 'you', text: String(event.text ?? ''), pending: !!event.pending })
+        // What the app asked on its own (the morning report, lib/morning.ts) is no balloon of yours.
+        if (!event.app) out.push({ key: `u${index}`, who: 'you', text: String(event.text ?? ''), pending: !!event.pending })
         break
       case 'turn_start':
         turn = null
@@ -405,8 +406,9 @@ function pageContext(goal: GoalRef | undefined) {
   }
 }
 
-/** Your words, as your balloon at once; while the agent works they wait in the server's queue (S2.P1.015). */
-export async function send(text: string, extra: Record<string, unknown> = {}): Promise<void> {
+/** Your words, as your balloon at once; while the agent works they wait in the server's queue (S2.P1.015). `settings`
+ *  adds to the agent's for this turn: the morning report's `{ sources: 'connected' }` (lib/morning.ts). */
+export async function send(text: string, extra: Record<string, unknown> = {}, settings: Record<string, unknown> = {}): Promise<void> {
   const words = text.trim()
   if (!words || !agentChat.available) return
   if (!agentChat.current) newThread()
@@ -418,7 +420,7 @@ export async function send(text: string, extra: Record<string, unknown> = {}): P
   touchThread({ provider: agentChat.selection!.provider, status: 'working' })
   agentChat.answer = null
   awaitingReplies += 1
-  record({ t: 'user', text: words, pending: true }, false)
+  record({ t: 'user', text: words, pending: true, ...(settings.sources ? { app: true } : {}) }, false)
   const since: Record<string, unknown> = {}
   if (goal && goalSince !== null) {
     since.continuing = true
@@ -426,11 +428,40 @@ export async function send(text: string, extra: Record<string, unknown> = {}): P
   }
   try {
     await api('send', { session: agentChat.current, text: words, context: { ...pageContext(goal), ...since, ...extra },
-      settings: agentChat.selection, mode: agentChat.running ? 'queue' : 'send' })
+      settings: { ...agentChat.selection, ...settings }, mode: agentChat.running ? 'queue' : 'send' })
   } catch (error) {
     record({ t: 'local_error', text: (error as Error).message }, false)
     touchThread({ status: agentChat.running ? 'working' : 'idle' })
   }
+}
+
+/** A turn nobody watches (the Inbox's warm-up): its own session, never a thread of yours, no balloon and nothing in the
+ *  circle. Resolves with the agent's last words, or '' when it fails, stops or takes longer than `limit` ms. */
+export async function quietTurn(text: string, extra: Record<string, unknown> = {}, limit = 180_000): Promise<string> {
+  if (!agentChat.available || typeof EventSource === 'undefined') return ''
+  const session = crypto.randomUUID()
+  const settings = agentChat.selection ?? defaultSelection(load(KEY.lastAgent, 'claude'))
+  return new Promise<string>((resolve) => {
+    let words = ''
+    let fresh = false
+    const events = new EventSource(`/__chat/events?session=${encodeURIComponent(session)}&since=0&boot=`)
+    const finish = (value: string) => { events.close(); clearTimeout(timer); resolve(value) }
+    // Asked for a permission nobody will see, or too slow: stopped, so it never waits in the background.
+    const abandon = () => { void api('stop', { session }).catch(() => undefined); finish('') }
+    const timer = setTimeout(abandon, limit)
+    events.onmessage = (message) => {
+      const { event } = JSON.parse(message.data) as { event: ChatEvent }
+      if (event.t === 'turn_start') words = ''
+      else if (event.t === 'text_start') fresh = !!words
+      else if (event.t === 'text') { words += (fresh ? '\n' : '') + String(event.text ?? ''); fresh = false }
+      else if (event.t === 'done') finish(event.error ? '' : words)
+      else if (event.t === 'exit') finish('')
+      else if (event.t === 'permission') abandon()
+    }
+    events.onerror = () => { if (events.readyState === EventSource.CLOSED) finish('') }
+    api('send', { session, text, context: { ...pageContext(undefined), ...extra }, settings, mode: 'send' })
+      .catch(() => finish(''))
+  })
 }
 
 export async function stop(): Promise<void> {

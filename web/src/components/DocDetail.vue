@@ -14,8 +14,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { KChip } from '@konstantinopolskii/vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store'
+import { openWindow } from '../lib/windows'
 import type { DocDetail as DocDetailWire } from '../lib/api'
-import { internalLinkOf, renderBodyElement, serializeBodyElement } from '../lib/bodyMarkdown'
+import { internalLinkOf, renderBodyElement, serializeBodyElement, type InternalLink } from '../lib/bodyMarkdown'
 import { useCommentAnchoring } from '../lib/commentAnchoring'
 import { onBeforeQuit } from '../lib/beforeQuit'
 import {
@@ -26,7 +27,10 @@ import {
   resetBodyHistory,
 } from '../lib/bodyTextarea'
 
-const props = defineProps<{ doc: DocDetailWire }>()
+/* `inWindow`: drawn in a document's window (S3.P4, DocWindowBody.vue) rather than in Documents. The window's one-line
+   head stands for the path and the actions row (round 2, frame f2b): its facts, its versions that open history, its
+   comments, its ×. Links in a window open beside it. */
+const props = defineProps<{ doc: DocDetailWire; inWindow?: boolean }>()
 
 const revision = ref(props.doc.revision)
 
@@ -93,7 +97,8 @@ function onBodyClick(event: MouseEvent): void {
     const internal = internalLinkOf(link)
     if (internal) {
       event.preventDefault()
-      void store.followBodyLink(internal)
+      if (props.inWindow) void openBeside(internal, link)
+      else void store.followBodyLink(internal)
     }
     return
   }
@@ -195,8 +200,25 @@ function onToggleComments(): void {
   else store.openCommentsPanel('doc', props.doc.id)
 }
 
-function onLinkedGoalClick(goalId: string): void {
-  void store.navigateToGoal(goalId)
+function onLinkedGoalClick(goalId: string, event?: MouseEvent): void {
+  if (props.inWindow) {
+    const title = props.doc.linked_goals.find((g) => g.goal_id === goalId)?.title ?? 'Goal'
+    openWindow({ kind: 'goal', target: goalId, title }, (event?.currentTarget as Element | null) ?? null)
+  } else {
+    void store.navigateToGoal(goalId)
+  }
+}
+
+/* In a window a link opens its goal or document as one more window beside it (S3.P4), as GoalLinks.vue does, and the
+   board stays where it is. */
+async function openBeside(link: InternalLink, from: HTMLAnchorElement): Promise<void> {
+  const title = from.textContent?.trim()
+  if (link.kind === 'goal') {
+    openWindow({ kind: 'goal', target: link.target, title: title || 'Goal' }, from)
+    return
+  }
+  const id = await store.docIdByPath(link.target)
+  if (id) openWindow({ kind: 'doc', target: id, title: title || link.target }, from)
 }
 
 watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) paintBody() })
@@ -204,7 +226,7 @@ watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) p
 
 <template>
   <div class="doc-detail" data-role="doc-detail">
-    <div class="doc-detail__header">
+    <div v-if="!inWindow" class="doc-detail__header">
       <div
         v-if="!editingPath"
         class="doc-detail__path t-caption t-muted"
@@ -311,7 +333,7 @@ watch(() => [props.doc.body, props.doc.title], () => { if (!editingBody.value) p
         :key="goal.goal_id"
         data-role="doc-linked-goal-chip"
         :data-goal-id="goal.goal_id"
-        @click="onLinkedGoalClick(goal.goal_id)"
+        @click="onLinkedGoalClick(goal.goal_id, $event)"
       >{{ goal.title }}</KChip>
     </div>
   </div>

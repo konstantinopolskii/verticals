@@ -19,16 +19,18 @@ import { isPrivacyHotkey, togglePrivacy } from './lib/privacy'
 import { store, todayIso } from './store'
 import { commandFilter } from './lib/commandFilter'
 import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
-import { circle } from './lib/circle'
+import { circle, inboxWriting } from './lib/circle'
+import { inbox, loadInbox, writeDown } from './lib/inbox'
 import { endMove, moveContext } from './lib/moving'
 import { findGoal } from './lib/boardIndex'
 import { spanGoal } from './lib/spans'
-import { carryOver, FIRST_MESSAGE, replanTask } from './lib/replan'
+import { REPLAN_ASK, type CarriedPlan } from './lib/replan'
 import { closeWindows, frontWindow, openWindow, outOfFocus, stepWindow, windows } from './lib/windows'
 import WindowStack from './components/WindowStack.vue'
 import AgentConversation from './components/AgentConversation.vue'
 import AgentStep from './components/AgentStep.vue'
 import AgentTag from './components/AgentTag.vue'
+import { ensureMorning } from './lib/morning'
 
 /* The shell, not `Board.vue`, owns the day-rollover watcher: it is mounted for the whole life of
    the tab, while `Board` unmounts every time Inbox is active — a planner left on Inbox overnight
@@ -126,10 +128,17 @@ onUnmounted(() => {
 /* The goal conversation Discuss is opening; a message sent meanwhile waits for it. */
 let goalOpening: Promise<void> | null = null
 async function onSubmit(text: string): Promise<void> {
+  // In the Inbox the field writes things down: your words land first in Today, with or without an agent (lib/inbox.ts).
+  if (inboxWriting.value) {
+    commandFilter.text = ''
+    void writeDown(text)
+    return
+  }
   if (!agentChat.available) return
   // Sent while moving a goal: a new task with the move's context, and the move ends (docs/design-handoff S5.P3.041, .042).
   if (circle.moving) {
-    const move = moveContext((id) => (findGoal(store.state.board, id) ?? spanGoal(id))?.title ?? null)
+    const move = moveContext((id) => (findGoal(store.state.board, id) ?? spanGoal(id))?.title
+      ?? inbox.goals.find((g) => g.id === id)?.title ?? null)
     endMove()
     newThread()
     agentChat.open = true
@@ -186,23 +195,22 @@ function onDiscussGoal(event: Event): void {
   // The menu that asked gives its focus back on its next tick; the field takes it after that (S3.P2.016).
   void nextTick(() => nextTick(() => searchBar.value?.focusField()))
 }
-/* "Replan": the task pops out as a goal's window with its conversation over it, and our first message goes from you
-   when the task has no conversation yet (S4.P4.004-.006, .032). */
-async function onReplan(event: Event): Promise<void> {
-  const from = ((event as CustomEvent).detail?.from ?? null) as Element | null
-  let task = replanTask(store.state.board)
-  if (!task && await carryOver(todayIso())) {
-    await store.reloadBoard()
-    task = replanTask(store.state.board)
-  }
-  if (!task || !agentChat.available) return
-  openWindow({ kind: 'goal', target: task.id, title: task.title }, from)
+/* "Replan" (lib/replan.ts; round 8): a conversation of its own over the board, your words in it, the carried plans with
+   them; the agent answers with its table as a document attached. Nothing is made before the click. */
+function onReplan(event: Event): void {
+  const detail = ((event as CustomEvent).detail ?? {}) as { plans?: CarriedPlan[]; column?: string }
+  if (!agentChat.available || !detail.plans?.length) return
+  newThread()
   agentChat.open = true
   agentChat.engaged = true
-  const opening = openForGoal(task)
-  goalOpening = opening.then(() => undefined).finally(() => { goalOpening = null })
-  // Our first message only opens the task's first conversation; the server knows it even where this browser doesn't.
-  if (!await opening) void send(FIRST_MESSAGE)
+  void send(REPLAN_ASK, { replan: { plans: detail.plans, column: detail.column ?? '' } })
+}
+/* An address naming a goal with no date (a link, Back, Forward; lib/detailSurface.ts step b): its window over the Inbox,
+   as a click there opens it. One already in front stays as it is. */
+function onOpenGoalWindow(event: Event): void {
+  const { id, title } = ((event as CustomEvent).detail ?? {}) as { id?: string; title?: string }
+  if (!id || (frontWindow.value?.kind === 'goal' && frontWindow.value.target === id)) return
+  openWindow({ kind: 'goal', target: id, title: title || 'Goal' })
 }
 /* Esc, when nothing smaller takes it, sends the windows away; ⌘[ and ⌘] move one window (S3.P2.011, S3.P3.017). */
 function onWindowsKey(event: KeyboardEvent): void {
@@ -220,15 +228,27 @@ function onWindowsKey(event: KeyboardEvent): void {
   }
 }
 onMounted(() => {
-  void startAgentChat()
+  // The morning report is looked for once the agent has answered (lib/morning.ts).
+  void startAgentChat().then(() => void morningCheck())
   window.addEventListener('verticals:discuss-goal', onDiscussGoal)
   window.addEventListener('verticals:replan', onReplan)
+  window.addEventListener('verticals:open-goal-window', onOpenGoalWindow)
   window.addEventListener('keydown', onWindowsKey)
-  void carryOver(todayIso())
+  // The Inbox read once at start, so it opens with its rows; it reads again whenever it is opened (InboxView.vue).
+  void loadInbox()
+  morningTimer = setInterval(() => void morningCheck(), 5 * 60_000)
 })
+/* The morning report (lib/morning.ts): looked for on start and every five minutes; once the hour has come, the agent is
+   asked for it once a day. The agent is there only after the gateway answered, so the first look waits for it. */
+let morningTimer: ReturnType<typeof setInterval> | null = null
+async function morningCheck(): Promise<void> {
+  ensureMorning(todayIso())
+}
 onUnmounted(() => {
+  if (morningTimer) clearInterval(morningTimer)
   window.removeEventListener('verticals:discuss-goal', onDiscussGoal)
   window.removeEventListener('verticals:replan', onReplan)
+  window.removeEventListener('verticals:open-goal-window', onOpenGoalWindow)
   window.removeEventListener('keydown', onWindowsKey)
 })
 

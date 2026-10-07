@@ -172,9 +172,9 @@ function carriedGoals(slide: PeriodSlide): GoalCardData[] {
   // The goal in the hand is out of its group while you hold it (docs/design-handoff S5.P1, drawn).
   return slide.goals.filter(goal => goal.ghost && goal.id !== store.state.drag.id)
 }
-/* "Replan" opens the Inbox task that holds the carried plans (S4.P2.038, S4.P4). */
-function onReplan(from: Element): void {
-  window.dispatchEvent(new CustomEvent('verticals:replan', { detail: { from } }))
+/* "Replan" asks the agent about the carried plans (lib/replan.ts; Inbox and Documents redesign, round 8). */
+function onReplan(from: Element, plans: { id: string; title: string }[]): void {
+  window.dispatchEvent(new CustomEvent('verticals:replan', { detail: { from, plans, column: props.vertical } }))
 }
 
 const columnRoot = ref<HTMLElement | null>(null)

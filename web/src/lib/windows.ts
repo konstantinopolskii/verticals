@@ -13,6 +13,12 @@ export interface VtWindow {
   title: string
   /** Where a document or page opens: a heading's words or an anchor (S3.P4.003). */
   part?: string
+  /** A document's head (round 2, frame f2b; round 5, m3–m5): its one line of facts, and its versions, which open
+   *  history. Set by DocWindowBody.vue. */
+  facts?: string[]
+  versions?: number
+  /** The document's own title has scrolled out of view, so the head says it; it never shows twice. */
+  titled?: boolean
 }
 
 export const windows = reactive({

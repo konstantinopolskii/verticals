@@ -23,7 +23,7 @@ from playwright.sync_api import expect
 
 from verticals.core import docs as core_docs, goals as core_goals
 from tests.ui.conftest import UiSession, activate_column
-from tests.ui.views import expect_view, switch_view
+from tests.ui.views import expect_view, open_page, switch_view, tick
 
 ANCHOR = date(2026, 8, 8)
 TOAST_TEXT = ".toast-stack .toast .toast__text"
@@ -68,10 +68,20 @@ def _open_docs(session: UiSession) -> None:
     switch_view(session.page, "docs")
 
 
+def _open_by_address(session: UiSession, doc_id: str) -> None:
+    """`#doc/<id>`: the document in Documents itself, not a window (the address a chip, a goal's link or Back
+    reaches). The `about:blank` hop forces a real boot (see the boot scenario below)."""
+    session.page.goto("about:blank")
+    session.page.goto(f"{session.base_url}/#doc/{doc_id}")
+    expect(session.page.locator('[data-cap="docs"] [data-role="doc-detail"]')).to_be_visible(timeout=10000)
+
+
 # --- create in a subfolder, collapsible tree ----------------------------------------------------
 
 
-def test_create_doc_in_subfolder_appears_under_collapsible_folder(ui_f2: UiSession) -> None:
+def test_a_new_document_opens_as_a_window_and_lies_on_the_desk(ui_f2: UiSession) -> None:
+    """The desk's "+" (Inbox and Documents redesign, round 7): a path, folders by "/", committed with ↵; the new document
+    opens as a window over the desk, as any page does, and lies in the newest "No goal" stack, first in Documents."""
     session = ui_f2
     page = session.page
     page.reload()
@@ -83,22 +93,18 @@ def test_create_doc_in_subfolder_appears_under_collapsible_folder(ui_f2: UiSessi
     new_input.fill("syn-notes/plan")
     new_input.press("Enter")
 
-    # The doc opened in the right pane the moment it was created.
-    expect(page.locator('[data-role="doc-path"]')).to_have_text("syn-notes/plan.md", timeout=10000)
+    window = page.locator('[data-role="doc-window"]')
+    expect(window.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
+    expect(page.locator('.vt-window[data-window="doc"] [data-role="doc-facts"]')).to_contain_text("edited")
+    expect(page.locator('[data-role="docs-new-input"]')).to_have_count(0)
 
-    folder = page.locator('[data-role="docs-folder"][data-folder-path="syn-notes"]')
-    expect(folder).to_be_visible()
-    assert folder.get_attribute("aria-expanded") == "true", "a new folder starts expanded"
-    doc_row = page.locator('[data-role="docs-tree-doc"]', has_text="plan")
-    expect(doc_row).to_be_visible()
-
-    folder.click()
-    expect(folder).to_have_attribute("aria-expanded", "false", timeout=5000)
-    expect(doc_row).to_be_hidden()
-
-    folder.click()
-    expect(folder).to_have_attribute("aria-expanded", "true", timeout=5000)
-    expect(doc_row).to_be_visible()
+    tick(page)
+    page.locator('.vt-window[data-window="doc"] [aria-label="Close"]').click()
+    expect(window).to_have_count(0)
+    groups = page.locator("[data-group]")
+    expect(groups.first).to_have_attribute("data-group", "no-goal")
+    page.click('[data-group="no-goal"] [data-stack="age:0"]')
+    expect(page.locator('[data-role="docs-open"] .docs-open__page', has_text="syn-notes/plan.md")).to_have_count(1)
 
 
 # --- body edit bumps a real revision --------------------------------------------------------------
@@ -112,7 +118,7 @@ def test_edit_body_and_save_bumps_revision(ui_f2: UiSession) -> None:
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("Rev Test", timeout=10000)
 
     body = page.locator('[data-role="doc-body"]')
@@ -133,7 +139,7 @@ def test_leading_heading_repeating_title_is_hidden_and_kept_on_save(ui_f2: UiSes
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("Dup Title", timeout=10000)
 
     body = page.locator('[data-role="doc-body"]')
@@ -143,7 +149,14 @@ def test_leading_heading_repeating_title_is_hidden_and_kept_on_save(ui_f2: UiSes
     body.locator("p").click()
     page.keyboard.press("End")
     page.keyboard.type(" edited")
-    page.keyboard.press("Home")
+    # The caret to the paragraph's start. Not with Home: in a window that scrolls, Home on a Mac scrolls the window and
+    # leaves the caret where it is.
+    page.evaluate("""() => {
+      const range = document.createRange()
+      range.setStart(document.querySelector('[data-role="doc-body"] p').firstChild, 0)
+      getSelection().removeAllRanges()
+      getSelection().addRange(range)
+    }""")
     page.keyboard.press("Backspace")
     page.wait_for_timeout(BODY_SAVE_SETTLE_MS)
     assert _api_get_doc(session, doc_id)["body"] == "# Dup Title\n\nSYN body edited"
@@ -165,7 +178,7 @@ def test_conflicting_save_surfaces_toast_and_never_overwrites(ui_f2: UiSession) 
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("Conflict Test", timeout=10000)
 
     # A second client (httpx, simulating another tab or an agent) saves first — the UI's own
@@ -202,10 +215,14 @@ def test_history_restore_old_revision_creates_new_revision_with_old_text(ui_f2: 
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("History Test", timeout=10000)
 
-    page.click('[data-role="doc-history-trigger"]')
+    # The window's head says "2 versions" (round 2, frame f2b); a click takes the document into Documents with its
+    # versions beside it.
+    versions = page.locator('[data-role="doc-facts"] [data-role="doc-versions"]')
+    expect(versions).to_have_text("2 versions")
+    versions.click()
     page.wait_for_selector('[data-role="docs-history"]', timeout=5000)
     rows = page.locator('[data-role="docs-history-row"]')
     expect(rows).to_have_count(2, timeout=5000)
@@ -279,9 +296,7 @@ def test_doc_goal_chip_navigates_to_board_and_opens_card_in_place(ui_f2: UiSessi
             conn, "syn-linked/source.md", title="SYN Source Doc", body=f"[the goal](goal:{goal_id})",
         )
 
-    page.reload()
-    _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    _open_by_address(session, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Source Doc", timeout=10000)
 
     chip = page.locator(f'[data-role="doc-linked-goal-chip"][data-goal-id="{goal_id}"]')
@@ -400,9 +415,7 @@ def test_doc_body_goal_link_renders_as_anchor_and_navigates_to_board(ui_f2: UiSe
             body=f"See [the goal](goal:{goal_id}) and [outside](https://example.com/x).",
         )
 
-    page.reload()
-    _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    _open_by_address(session, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Source", timeout=10000)
     body = page.locator('[data-role="doc-body"]')
 
@@ -438,7 +451,7 @@ def test_doc_body_doc_link_opens_the_target_doc(ui_f2: UiSession) -> None:
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{source_id}"]')
+    open_page(page, source_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Source", timeout=10000)
 
     link = page.locator(
@@ -447,10 +460,41 @@ def test_doc_body_doc_link_opens_the_target_doc(ui_f2: UiSession) -> None:
     expect(link).to_have_text("the target")
     link.click()
 
-    expect(page.locator('[data-role="doc-path"]')).to_have_text("syn-bodylink/target.md", timeout=10000)
-    expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Target")
+    # In a window the target opens as one more window, in the centre, the source beside it (S3.P4).
+    front = page.locator(".vt-window--front")
+    expect(front.locator('[data-role="doc-title"]')).to_have_text("SYN Body Link Target", timeout=10000)
+    expect(page.locator('.vt-window[data-window="doc"]')).to_have_count(2)
     assert page.locator(TOAST_TEXT).count() == 0
     assert page.url.startswith(session.base_url)
+
+
+def test_in_a_window_a_goal_link_and_a_goal_chip_open_the_goal_beside_the_document(ui_f2: UiSession) -> None:
+    """A page opened from the desk is a window (S3.P4); its goal links and its goal chips open the goal as one more
+    window beside it, as a goal's own links do (GoalLinks.vue), and the desk stays where it is."""
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        goal_id = _create_goal(conn, "SYN window-link target goal", vertical="day")
+        doc_id = _create_doc(conn, "syn-winlink/source.md", title="SYN Window Link Source", body=f"See [the goal](goal:{goal_id}).")
+
+    page.reload()
+    _open_docs(session)
+    open_page(page, doc_id)
+    page.locator(f'[data-role="doc-body"] a[data-link-kind="goal"][data-link-target="{goal_id}"]').click()
+    goal_window = page.locator(f'[data-role="goal-window"][data-goal-id-window="{goal_id}"]')
+    expect(goal_window).to_be_visible(timeout=10000)
+    expect(page.locator(".vt-window--front")).to_have_attribute("data-window", "goal")
+    expect(page.locator('.vt-window[data-window="doc"]')).to_have_count(1)
+    expect_view(page, "docs")
+
+    tick(page)
+    page.locator('[data-role="window-close"]').click()
+    expect(page.locator(".vt-window")).to_have_count(0)
+    open_page(page, doc_id)
+    page.locator(f'[data-role="doc-linked-goal-chip"][data-goal-id="{goal_id}"]').click()
+    expect(goal_window).to_be_visible(timeout=10000)
+    expect_view(page, "docs")
+    _assert_no_dialog(page)
 
 
 def test_goal_body_doc_link_opens_docs_view(ui_f2: UiSession) -> None:
@@ -495,7 +539,7 @@ def test_editing_a_doc_body_keeps_its_in_app_links(ui_f2: UiSession) -> None:
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Round Trip", timeout=10000)
 
     body = page.locator('[data-role="doc-body"]')
@@ -539,7 +583,7 @@ def test_doc_body_renders_data_image_and_refuses_other_sources(ui_f2: UiSession)
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Images", timeout=10000)
     body = page.locator('[data-role="doc-body"]')
 
@@ -568,7 +612,7 @@ def test_editing_a_doc_body_keeps_its_images(ui_f2: UiSession) -> None:
 
     page.reload()
     _open_docs(session)
-    page.click(f'[data-doc-id="{doc_id}"]')
+    open_page(page, doc_id)
     expect(page.locator('[data-role="doc-title"]')).to_have_text("SYN Image Round Trip", timeout=10000)
 
     body = page.locator('[data-role="doc-body"]')
@@ -580,3 +624,30 @@ def test_editing_a_doc_body_keeps_its_images(ui_f2: UiSession) -> None:
 
     fresh = _api_get_doc(session, doc_id)
     assert fresh["body"] == f"Shot: ![arrows]({PIXEL_PNG}) here. Then rest."
+
+
+def test_a_document_window_has_one_line_head_of_facts(ui_f2: UiSession) -> None:
+    """Round 2, frame f2b; round 5, m3–m5: the window's head is one line, the facts and ×. The document's own title stands
+    large under it and goes up into the head once scrolled away; its versions and its open comments are the head's
+    actions. The path and the old row of buttons are not in a window."""
+    session = ui_f2
+    page = session.page
+    long_body = "\n\n".join(f"SYN paragraph {n} of a long document." for n in range(80))
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        doc_id = _create_doc(conn, "syn-head/doc.md", title="SYN Head", body=long_body)
+        core_docs.save(conn, owner="t1", id=doc_id, expected_revision=1, body=long_body + "\n\nOne more line.")
+
+    page.reload()
+    _open_docs(session)
+    open_page(page, doc_id)
+    head = page.locator('.vt-window[data-window="doc"] [data-role="doc-facts"]')
+    expect(head).to_contain_text("edited")
+    expect(head.locator('[data-role="doc-versions"]')).to_have_text("2 versions")
+    expect(head.locator('[data-role="doc-head-title"]')).to_have_count(0)
+    expect(page.locator('[data-role="doc-window"] [data-role="doc-path"]')).to_have_count(0)
+    expect(page.locator('[data-role="doc-window"] [data-role="doc-history-trigger"]')).to_have_count(0)
+
+    page.locator('.vt-window[data-window="doc"] .vt-window__body').evaluate("el => { el.scrollTop = 600 }")
+    expect(head.locator('[data-role="doc-head-title"]')).to_have_text("SYN Head")
+    page.locator('.vt-window[data-window="doc"] .vt-window__body').evaluate("el => { el.scrollTop = 0 }")
+    expect(head.locator('[data-role="doc-head-title"]')).to_have_count(0)

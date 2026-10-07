@@ -341,12 +341,6 @@ export function fetchSpans(vertical: string, date: string, count: number, value:
   return request<BoardResponse>(`/api/spans${qs({ vertical, date, count, ...(value ? { value } : {}) })}`)
 }
 
-/** The day's carry-over into the "Replan carried-over plans" task (docs/design-handoff S4.P1): the server does it once
- *  a day, however often it is asked, and answers the task it wrote to. */
-export function runReplan(date: string): Promise<{ task_id: string | null }> {
-  return request<{ task_id: string | null }>(`/api/replan${qs({ date })}`, { method: 'POST' })
-}
-
 export function createGoal(payload: CreateGoalPayload): Promise<GoalCard> {
   return request<GoalCard>('/api/goals', { method: 'POST', body: JSON.stringify(payload) })
 }
@@ -524,6 +518,42 @@ export interface DocRevisionDetail {
   title: string | null
   body: string
   saved_at: string
+}
+
+/** `GET /api/undated` (`core/undated.py`): every open goal with no date, the ones under a goal included, newest first. */
+export interface InboxGoal {
+  id: string
+  title: string
+  parent: { id: string; title: string } | null
+  value_color: string | null
+  parked_from_vertical: string | null
+  created_at: string
+  body_chars: number
+  origin: string
+  private: boolean
+}
+
+export function fetchUndated(): Promise<{ goals: InboxGoal[] }> {
+  return request('/api/undated')
+}
+
+/** `GET /api/docs/desk` (`core/docs_desk.py`): stacks by goal under each value, the documents no goal holds first. */
+export interface DeskDoc {
+  id: string
+  path: string
+  title: string | null
+  /** The top of the body, enough for the document's page on the desk. */
+  excerpt: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+export interface DeskStack { goal_id: string; goal_title: string; docs: string[] }
+export interface DeskValue { id: string | null; title: string | null; color: string | null; stacks: DeskStack[] }
+export interface DocsDesk { docs: Record<string, DeskDoc>; no_goal: string[]; values: DeskValue[] }
+
+export function fetchDocsDesk(): Promise<DocsDesk> {
+  return request('/api/docs/desk')
 }
 
 export function fetchDocs(): Promise<{ docs: DocSummary[] }> {

@@ -75,7 +75,7 @@ def test_s62_remove_sample(ui_f1u: UiSession) -> None:
         # --- Inbox shows USERROW2, and only USERROW2 (F1u's sample data has no root Maybe row:
         # SAMPLE06 is a subgoal, MAYBE_PREDICATE requires parent_id IS NULL) --------------------------
         switch_view(session.page, "inbox")
-        session.page.wait_for_selector('[data-cap="inbox"]')
+        session.page.wait_for_selector('[data-cap="inbox"] [data-goal-id="USERROW2"]')
         assert session.page.locator('[data-goal-id]').count() == 1
         assert session.page.locator('[data-goal-id="USERROW2"]').count() == 1
 

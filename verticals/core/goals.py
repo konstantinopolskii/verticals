@@ -56,8 +56,9 @@ MAX_CHILDREN_DEPTH = 8  # levels below the created root — distinct from tree.M
 MAX_NODES_PER_CREATE = 200  # root + every descendant, one `create` call
 
 # `goal_origin`'s labels (001_init.sql, 016_replan.sql). Who is *allowed* to pass 'agent' is an MCP-layer
-# rule (S-53); this module accepts whatever a caller, including a trusted transport, names. 'app' is
-# the server's own writer, the carry-over task (core/replan.py).
+# rule (S-53); this module accepts whatever a caller, including a trusted transport, names. 'app' marks
+# the carry-over tasks the server wrote before the agent took Replan over (Inbox and Documents redesign);
+# nothing writes it now, and those tasks keep it.
 _ORIGINS: frozenset[str] = frozenset({"human", "agent", "import", "app"})
 
 # IR-05's retry budget — the alphabet/length live with `generate_id` in `field_rules.py`.

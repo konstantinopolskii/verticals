@@ -4,16 +4,22 @@
 import { computed, reactive } from 'vue'
 import { commandFilter } from './commandFilter'
 import { agentChat, balloons, openAsk } from './agentChat'
-import { frontWindow } from './windows'
+import { frontWindow, windows } from './windows'
+import { store } from '../store'
+import { goShown } from './go'
 
 export type CircleJob = 'board' | 'goal' | 'moving'
-export type CircleState = 'rest' | 'open' | 'typing' | 'working' | 'answer' | 'moving'
+export type CircleState = 'rest' | 'open' | 'typing' | 'working' | 'answer' | 'moving' | 'go'
 
 const CAPTIONS: Record<CircleJob, string> = {
   board: 'Find or ask',
   goal: 'Ask about this goal',
   moving: 'Find a goal',
 }
+/** In the Inbox the field is where you write (KK, 7 Oct 2026: "place for writing could be right inside the field and it
+ *  simply can invite us to do that"): it rests open with its invitation, and ↵ writes your words down (`lib/inbox.ts`).
+ *  Round 9: “"Write to inbox" in field actually.” */
+export const INBOX_CAPTION = 'Write to inbox'
 
 export const circle = reactive({
   job: 'board' as CircleJob,
@@ -22,8 +28,13 @@ export const circle = reactive({
   moving: false,
 })
 
+/** The field writes things down: the Inbox is open, with no window over it, no conversation and nothing being moved. */
+export const inboxWriting = computed(() => store.state.activeView === 'inbox' && !windows.list.length && !agentChat.open
+  && !circle.moving)
+
 /** Once an answer has gone up into the conversation, the field asks the agent (S1.P1.015). */
 export const circleCaption = computed(() => {
+  if (inboxWriting.value) return INBOX_CAPTION
   if (circle.job !== 'board') return CAPTIONS[circle.job]
   if (frontWindow.value?.kind === 'goal') return CAPTIONS.goal
   return agentChat.engaged ? 'Ask the agent' : CAPTIONS.board
@@ -52,7 +63,9 @@ export const circleState = computed<CircleState>(() => {
   if (circle.focused) return 'open'
   if (circleWords.value) return 'answer'
   if (agentChat.running) return 'working'
-  if (circle.pointed) return 'open'
+  // After an edit in an open document the circle asks "Ready?" (lib/go.ts); pointing at it doesn't open the field.
+  if (goShown.value) return 'go'
+  if (circle.pointed || inboxWriting.value) return 'open'
   return 'rest'
 })
 

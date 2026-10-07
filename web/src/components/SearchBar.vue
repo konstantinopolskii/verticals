@@ -1,11 +1,16 @@
 <script setup lang="ts">
 // The circle and the field (docs/design-handoff S1.P1, S1.P2): one black shape. At rest a circle with the mascot's line;
 // pointed at, focused or holding words, a field whose line is your cursor, then your caret. Enter sends the words
-// (`submit`); the board follows every letter through `commandFilter`.
+// (`submit`); the board follows every letter through `commandFilter`. Open, it is as wide as its caption, and while you
+// type it never gets narrower than that (Inbox and Documents redesign, rounds 9–10). A message of the agent's inside it
+// takes a message's corners, and the documents it brings stand on its left, the first one's page under a short title
+// (rounds 10–11; .local-design/inbox-and-docs/final, section 1).
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { store } from '../store'
 import { commandFilter } from '../lib/commandFilter'
-import { circle, circleCaption, circleState, circleWords } from '../lib/circle'
+import { circle, circleCaption, circleState, circleWords, inboxWriting } from '../lib/circle'
+import { sayGo } from '../lib/go'
+import { carry } from '../lib/inboxCarry'
 import { agentChat, decide, openAsk, stop } from '../lib/agentChat'
 import { plainWords } from '../lib/chatMarkdown'
 import { closeWindows, windows } from '../lib/windows'
@@ -16,6 +21,9 @@ import { launch } from '../lib/chatFlight'
 import { anyMenuOpen } from '../lib/cardLift'
 import { defineKnobs, knob } from '../lib/tuning'
 import CircleTags from './CircleTags.vue'
+import DocPage from './DocPage.vue'
+import { docLinks, withoutDocLines } from '../lib/docLinks'
+import { docCard } from '../lib/docCard'
 import MovingStack from './MovingStack.vue'
 import { backspace as pickBackspace, escape as movingEscape, tab as pickTab } from '../lib/moving'
 import { dots } from '../lib/spansDrag'
@@ -35,6 +43,14 @@ const PAD_RIGHT = 84
 const PAD_Y = 24
 const LINE = 36
 const CIRCLE = 84
+/* The open field's caption has 32 px on each side; "Ready?" has 36 (round 8's pill, at least the circle's 136). */
+const PAD_CAPTION = 32
+const PAD_ASK = 36
+/* A message bringing documents: the page 50 × 67 (three lines), 24 px in from the left, 16 px to the words; the words
+   236 px wide, a short title and two lines of the message; 32 px on the right and 12 above and below (round 11). */
+const NOTE_PAGE = 50
+const NOTE_PAGE_H = 67
+const NOTE_WORDS = 236
 
 const body = ref<HTMLElement | null>(null)
 const shape = ref<HTMLElement | null>(null)
@@ -84,20 +100,42 @@ function textWidth(value: string): number {
   return Math.max(0, ...value.split('\n').map((part) => measureCtx!.measureText(part).width))
 }
 
-const answerText = computed(() => (circleWords.value ? plainWords(circleWords.value.text) : ''))
+/* The documents the answer brings: the field shows the first one's page, a stack when there are more. */
+const answerDocs = computed(() => (circleWords.value?.kind === 'answer' ? docLinks(circleWords.value.text) : []))
+const behind = computed(() => (answerDocs.value.length > 1 ? 4 : 0))
+const noteTitle = computed(() => {
+  const docs = answerDocs.value
+  if (docs.length !== 1) return `${docs.length} documents`
+  const name = docCard(docs[0]!.id)?.title || docs[0]!.label || 'Document'
+  return name.split(' — ')[0]!.trim()
+})
+const noteDoc = computed(() => (answerDocs.value.length ? docCard(answerDocs.value[0]!.id) : null))
+const answerText = computed(() => {
+  if (!circleWords.value) return ''
+  return plainWords(answerDocs.value.length ? withoutDocLines(circleWords.value.text) : circleWords.value.text)
+})
 const leadText = computed(() => (circleWords.value?.kind === 'ask' && circleWords.value.lead ? plainWords(circleWords.value.lead) : ''))
 const stopping = computed(() => state.value === 'working' && circle.pointed)
 /* Holding a goal over the spans, the field is a pill with the mascot; let go over it, it widens to hold what stands above
    it (S5.P3.002, .007, .039). Let go anywhere else, it stays the pill while the goal lands and the board comes back. */
-const holding = computed(() => state.value === 'moving' && (store.state.drag.id !== null || dots.landing))
+const GO_WORD = 'Ready?'
+const holding = computed(() => carry.over || (state.value === 'moving' && (store.state.drag.id !== null || dots.landing)))
+
+/* Open, the field is as wide as its caption (round 9: "size of the field should align with the text"). */
+const openWidth = computed(() => Math.min(maxWidth.value, Math.ceil(PAD_CAPTION + textWidth(circleCaption.value) + PAD_CAPTION)))
 
 const width = computed(() => {
+  if (carry.over) return 120
+  if (state.value === 'answer' && answerDocs.value.length) return 24 + NOTE_PAGE + behind.value + 16 + NOTE_WORDS + 32
   if (state.value === 'answer') return Math.max(CIRCLE, Math.min((leadLines.value ? ANSWER_MEASURE : answerWidth.value) + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD))
   if (stopping.value) return 132
+  // "Ready?": the pointed field's pill as wide as its word, the word in its middle (round 8).
+  if (state.value === 'go') return Math.max(136, Math.ceil(PAD_ASK + textWidth(GO_WORD) + PAD_ASK))
+  // Typing, it grows around your words and never gets narrower than it was open, so the first key moves nothing.
   if (state.value === 'typing') {
-    return Math.min(maxWidth.value, Math.max(300, Math.ceil(PAD_LEFT + PAD_RIGHT + textWidth(text.value) + 5)))
+    return Math.min(maxWidth.value, Math.max(openWidth.value, Math.ceil(PAD_LEFT + PAD_RIGHT + textWidth(text.value) + 5)))
   }
-  if (state.value === 'open') return Math.min(300, maxWidth.value)
+  if (state.value === 'open') return openWidth.value
   if (holding.value) return 120
   if (state.value === 'moving') return Math.min(circle.pointed ? 434 : 300, maxWidth.value)
   return mascot.pong ? 132 : CIRCLE
@@ -105,6 +143,7 @@ const width = computed(() => {
 const shownLines = computed(() => Math.min(lines.value, knob('field.maxLines')))
 const height = computed(() => {
   if (state.value === 'typing') return PAD_Y * 2 + shownLines.value * LINE
+  if (state.value === 'answer' && answerDocs.value.length) return Math.max(CIRCLE, 12 + NOTE_PAGE_H + behind.value + 12)
   if (state.value === 'answer') {
     const ask = circleWords.value?.kind === 'ask' ? 44 + (leadLines.value ? leadLines.value * 22 + 8 : 0) : 0
     return Math.max(CIRCLE, PAD_Y * 2 + answerLines.value * 22 + ask)
@@ -117,8 +156,11 @@ const tagsShown = computed(() => (circle.pointed && wide.value) || circle.focuse
 
 /* Where the line stands: the mascot's at rest, your hand over the field, your caret once the field has it. */
 const lineMode = computed(() => {
-  if (state.value === 'answer') return 'hidden'
+  if (carry.over) return 'mascot'
+  if (state.value === 'answer' || state.value === 'go') return 'hidden'
   if (!wide.value) return 'mascot'
+  // Resting open in the Inbox, the field is an invitation to write, not the agent: no line until you write (lib/inbox.ts).
+  if (inboxWriting.value && state.value === 'open' && !circle.focused && !hand.value) return 'hidden'
   if (circle.focused) return selecting.value ? 'hidden' : 'caret'
   if (hand.value && !onTags.value) return 'hand'
   return state.value === 'typing' ? 'caret' : 'home'
@@ -235,7 +277,8 @@ function focusField(): void {
   if (!el) return
   // Typing, or a click on the field, brings the conversation back; over a window, always (S2.P1.011, .018).
   if (windows.list.length && agentChat.available) agentChat.engaged = true
-  if (agentChat.engaged && !agentChat.open) agentChat.open = true
+  // In the Inbox the field writes: an earlier conversation stays where it is until you ask (lib/inbox.ts).
+  if (agentChat.engaged && !agentChat.open && (store.state.activeView !== 'inbox' || windows.list.length)) agentChat.open = true
   el.focus({ preventScroll: true })
   const end = el.value.length
   el.setSelectionRange(end, end)
@@ -248,6 +291,11 @@ function clear(): void {
 function send(): void {
   const words = commandFilter.text.trim()
   if (!words) return
+  // In the Inbox they become the first card in Today, so no balloon takes them up (lib/inbox.ts).
+  if (inboxWriting.value) {
+    emit('submit', words)
+    return
+  }
   // Your words rise from where they stand into your balloon, and the field is the circle again (S2.P3.019).
   const box = input.value?.getBoundingClientRect()
   if (box) launch('sent', box.left, box.top + (LINE - 22) / 2)
@@ -336,7 +384,8 @@ function onWindowKeyDown(event: KeyboardEvent): void {
   focusField()
 }
 function onShapeClick(): void {
-  if (circleWords.value?.kind === 'answer') reply()
+  if (state.value === 'go') void sayGo()
+  else if (circleWords.value?.kind === 'answer') reply()
   else if (!circleWords.value) focusField()
 }
 function onResize(): void { room.width = innerWidth }
@@ -420,7 +469,7 @@ onBeforeUnmount(() => {
           type="button"
           class="circle-field__send"
           :class="{ 'is-shown': !!commandFilter.text }"
-          aria-label="Send to the agent"
+          :aria-label="inboxWriting ? 'Write it down' : 'Send to the agent'"
           :tabindex="commandFilter.text ? 0 : -1"
           @click.stop="send"
         >
@@ -428,14 +477,27 @@ onBeforeUnmount(() => {
             <path d="M12 21.5V3M12 3 5 10M12 3l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
-        <div v-if="circleWords" class="circle-field__answer" :class="`circle-field__answer--${circleWords.kind}`" data-role="circle-answer"
+        <span v-if="state === 'go'" class="circle-field__go" data-role="circle-go" role="button" aria-label="Ready? Hand your edits to the agent">{{ GO_WORD }}</span>
+        <div v-if="circleWords" class="circle-field__answer" :class="[`circle-field__answer--${circleWords.kind}`, { 'circle-field__answer--note': answerDocs.length }]" data-role="circle-answer"
           :aria-label="circleWords.kind === 'answer' ? `${answerText}. Press any key to reply` : undefined">
+          <template v-if="answerDocs.length">
+            <span class="circle-field__note-page" :style="{ paddingTop: `${behind}px`, paddingRight: `${behind}px` }" data-role="circle-note-page">
+              <i v-if="behind" class="circle-field__note-behind" aria-hidden="true"></i>
+              <DocPage v-if="noteDoc" :doc="noteDoc" :width="NOTE_PAGE" />
+            </span>
+            <div class="circle-field__note-words">
+              <p class="circle-field__note-title" data-role="circle-note-title">{{ noteTitle }}</p>
+              <p class="circle-field__note-text">{{ answerText }}<span class="circle-field__answer-caret" aria-hidden="true"></span></p>
+            </div>
+          </template>
+          <template v-else>
           <p v-if="leadText" class="circle-field__answer-lead">{{ leadText }}</p>
           <p class="circle-field__answer-words">{{ answerText }}<span v-if="circleWords.kind === 'answer'" class="circle-field__answer-caret" aria-hidden="true"></span></p>
           <div v-if="circleWords.kind === 'ask' && openAsk" class="circle-field__answer-choices">
             <button v-for="option in openAsk.options" :key="option.value" type="button" class="circle-field__answer-choice"
               @click.stop="decide(openAsk.requestId, option.value)">{{ option.label }}</button>
           </div>
+          </template>
         </div>
         <p ref="answerMeasure" class="circle-field__answer-measure" aria-hidden="true">{{ answerText }}</p>
         <p ref="leadMeasure" class="circle-field__answer-measure circle-field__answer-measure--lead" aria-hidden="true">{{ leadText }}</p>

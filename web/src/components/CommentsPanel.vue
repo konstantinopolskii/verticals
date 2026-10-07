@@ -39,6 +39,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { KCommentNew, KCommentStack, KCommentThread } from '@konstantinopolskii/vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store'
+import { windows } from '../lib/windows'
 import type { CommentThread } from '../lib/api'
 
 const rootEl = ref<HTMLElement | null>(null)
@@ -116,6 +117,7 @@ watch(
     v-if="store.state.comments.open"
     ref="rootEl"
     class="comments-panel"
+    :class="{ 'comments-panel--over-windows': windows.list.length > 0 }"
     data-role="comments-panel"
     aria-label="Comments"
   >
@@ -231,6 +233,9 @@ watch(
   box-shadow: -2px 0 8px rgb(0 0 0 / 8%);
   overflow-y: auto;
 }
+/* Opened from a window (a document from the desk, a goal from the Inbox; S3.P4): over the window and its veil (280,
+   WindowStack.vue's 285), still under the field (300). */
+.comments-panel--over-windows { z-index: 290; }
 .comments-panel__header {
   display: flex;
   align-items: center;

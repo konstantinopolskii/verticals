@@ -29,7 +29,7 @@ from playwright.sync_api import Page, expect
 
 from verticals.core import comments as core_comments, docs as core_docs, goals as core_goals
 from tests.ui.conftest import UiSession
-from tests.ui.views import switch_view
+from tests.ui.views import open_page, switch_view
 
 ANCHOR = date(2026, 8, 8)  # the pinned clock date (tests/ui/conftest.py PINNED_CLOCK_ISO)
 
@@ -79,11 +79,12 @@ def _open_goal(page: Page, goal_id: str) -> None:
 
 
 def _open_docs_and_doc(session: UiSession, doc_id: str) -> None:
+    """The document in Documents itself, by its address: a page opened from the desk is a window whose one-line head
+    has no Comments button (round 2, frame f2b); see the window case below."""
     page = session.page
-    switch_view(page, "docs")
-    page.wait_for_selector('[data-cap="docs"]', timeout=5000)
-    page.click(f'[data-doc-id="{doc_id}"]')
-    expect(page.locator('[data-role="doc-path"]')).to_be_visible(timeout=10000)
+    page.goto("about:blank")
+    page.goto(f"{session.base_url}/#doc/{doc_id}")
+    expect(page.locator('[data-cap="docs"] [data-role="doc-path"]')).to_be_visible(timeout=10000)
 
 
 def _assert_docked_overlay(page: Page, panel, host_selector: str) -> None:
@@ -418,3 +419,24 @@ def test_doc_comment_round_trip(ui_f2: UiSession) -> None:
     assert server["threads"][0]["doc_id"] == doc_id
     assert server["threads"][0]["anchor"] is None
     assert server["threads"][0]["messages"][0]["body"] == "SYN doc note"
+
+
+def test_a_document_window_counts_its_comments_in_its_head(ui_f2: UiSession) -> None:
+    """A page opened from the desk is a window whose one-line head says "1 comment" (round 2, frame f2b, with the goal
+    card's own "1 comment" fact, GoalFacts.vue); a click opens the comments over the window."""
+    session = ui_f2
+    page = session.page
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        doc_id = _create_doc(conn, "syn-comments/window.md", title="SYN Window Comments")
+        _seed_thread(conn, doc_id=doc_id, body="SYN seeded doc note")
+
+    page.reload()
+    switch_view(page, "docs")
+    open_page(page, doc_id)
+    count = page.locator('.vt-window[data-window="doc"] [data-role="doc-comments"]')
+    expect(count).to_have_text("1 comment", timeout=10000)
+    count.click()
+    panel = page.locator('[data-role="comments-panel"]')
+    expect(panel).to_be_visible(timeout=10000)
+    expect(panel.locator('.comment-msg')).to_have_text("SYN seeded doc note")
+    expect(count).to_have_attribute("aria-expanded", "true")

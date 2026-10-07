@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -21,6 +22,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SKILL = HERE.parents[1] / ".agents" / "skills" / "verticals-operator"
+MORNING_SKILL = HERE.parents[1] / ".agents" / "skills" / "verticals-morning-report"
 
 
 def load_prompt():
@@ -39,6 +41,37 @@ def load_prompt():
 
 
 PROMPT = load_prompt()
+
+
+def load_morning_prompt():
+    """The morning report's turn (web lib/morning.ts): its own rules, then the repository's morning-report skill with the
+    two references a run follows, read live as the operator skill is."""
+    parts = [(HERE / "prompt-morning.md").read_text().strip()]
+    skill = MORNING_SKILL / "SKILL.md"
+    if skill.exists():
+        text = skill.read_text()
+        parts.append(text.split("---", 2)[2].strip() if text.startswith("---") else text.strip())
+        for ref, title in (("source-reconciliation.md", "source reconciliation"), ("report-contract.md", "report contract")):
+            if (MORNING_SKILL / "references" / ref).exists():
+                parts.append(f"## Reference: {title}\n\n" + (MORNING_SKILL / "references" / ref).read_text().strip())
+    return "\n\n".join(parts) + "\n"
+
+
+MORNING_PROMPT = load_morning_prompt()
+# The Verticals writes the morning report makes on its own, unattended: its document, its task in Day and their link.
+MORNING_WRITES = ["create", "schedule", "doc_create", "doc_save", "doc_link"]
+# Outside Verticals, the morning report only reads: a tool of another connected server runs when its name starts with a
+# reading verb (google-calendar list-events, telethon fetch_history, coin search_base); any other is declined, so an
+# unattended turn never sends, marks, reacts, books or deletes anything.
+READ_VERBS = {"get", "list", "search", "fetch", "read", "retrieve", "find", "query", "lookup", "show", "describe",
+              "inspect", "whoami", "health", "status"}
+
+
+def reads_only(tool):
+    """True for a tool of another MCP server whose name starts with a reading verb."""
+    name = tool.split("__")[-1]
+    first = re.split(r"[-_]|(?<=[a-z])(?=[A-Z])", name)[0].lower()
+    return first in READ_VERBS
 MAX_EVENTS = 5000
 HANDOFF_CHARS = 12000
 # Parent-session variables must not leak into the agents (credentials excepted).
@@ -232,14 +265,18 @@ class ClaudeAgent:
         self.pending = {}
         effort = settings.get("effort")
         claude_settings = {"fastMode": bool(settings.get("fast")), "ultracode": effort == "ultracode"}
+        # The morning report's turn (web lib/morning.ts) also reaches the owner's own connected tools, read-only, and
+        # makes its document and task in Verticals without asking; every other turn has Verticals alone.
+        self.connected = settings.get("sources") == "connected"
+        allowed = READ_TOOLS + (MORNING_WRITES if self.connected else [])
         args = [which("claude"), "--print", "--verbose", "--include-partial-messages",
                 "--input-format", "stream-json", "--output-format", "stream-json",
                 "--permission-mode", settings.get("permission") or "auto",
                 "--permission-prompts", "host", "--permission-prompt-tool", "stdio",
-                "--strict-mcp-config", "--mcp-config", str(chat.claude_mcp),
+                *([] if self.connected else ["--strict-mcp-config"]), "--mcp-config", str(chat.claude_mcp),
                 "--settings", json.dumps(claude_settings),
-                "--tools", "", "--allowedTools", ",".join(f"mcp__verticals__{t}" for t in READ_TOOLS),
-                "--append-system-prompt", PROMPT,
+                "--tools", "", "--allowedTools", ",".join(f"mcp__verticals__{t}" for t in allowed),
+                "--append-system-prompt", PROMPT + ("\n" + MORNING_PROMPT if self.connected else ""),
                 "--resume" if resume_id else "--session-id", self.session_id]
         if settings.get("model") and settings["model"] != "default":
             args += ["--model", settings["model"]]
@@ -304,7 +341,7 @@ class ClaudeAgent:
             tool, tool_input = req.get("tool_name", ""), req.get("input", {})
             if not tool.startswith("mcp__verticals__"):
                 self.pending[rid] = tool_input
-                return self.decide(rid, "decline")
+                return self.decide(rid, "accept" if self.connected and reads_only(tool) else "decline")
             self.pending[rid] = tool_input
             s.ask(self, rid, f"Allow Claude to use {short(tool)}?",
                   "\n\n".join(filter(None, [req.get("decision_reason"), json.dumps(tool_input, indent=2, ensure_ascii=False)])),
@@ -966,6 +1003,13 @@ def format_context(ctx):
             lines.append(f"{about} Read it with the goal tool before answering.")
         if goal.get("title") == REPLAN_TITLE:
             lines.append(REPLAN_RULES)
+    replan = ctx.get("replan")
+    if isinstance(replan, dict):
+        # "Replan" clicked on the plans that carried over (Inbox and Documents redesign, round 8): nothing was made before it.
+        plans = [p for p in replan.get("plans") or [] if isinstance(p, dict) and isinstance(p.get("id"), str)][:60]
+        listed = "; ".join(f"\"{str(p.get('title') or '')[:200]}\" (id {p['id'][:40]})" for p in plans)
+        lines.append(f"The owner clicked Replan on {len(plans)} plans that carried over into "
+                     f"{str(replan.get('column') or 'this column')[:40]}: {listed}. " + REPLAN_ASK_RULES)
     move = ctx.get("move")
     if isinstance(move, dict):
         # Words sent while the owner moves a goal on the board (docs/design-handoff S5.P3.041).
@@ -980,14 +1024,28 @@ def format_context(ctx):
     return "\n".join(lines)
 
 
+# Replan on request (Inbox and Documents redesign, round 8; the app makes no task and no document by itself any more).
+REPLAN_ASK_RULES = (
+    "Make one document with doc_create, path replan/<today>.md, titled \"Replan — <d Month YYYY>\": a markdown table "
+    "Goal | Summary | Next step | Your comment, one row per plan, its goal linked as [title](#goal/<id>). Fill Summary "
+    "from each plan's own notes, and under its planned time in Next step put where it should go (Move to this week, Move "
+    "to next week, Move to the Inbox, Move to next month). Then answer in at most two short lines and end with the "
+    "document's link on its own line, as [title](#doc/<id>). When the owner later writes in Your comment and says they "
+    "are ready, save those words verbatim as a comment on that plan, apply it with schedule, reparent or update, clear "
+    "the cell and leave the receipt in Next step, such as \"Moved to next week, as you wrote.\" Move nothing until "
+    "the owner says they are ready. Edit only the cells you change."
+)
+
 # The app's sorting task (docs/design-handoff S4.P4.010, .011): how its table is worked. Its words are the agent's own.
+# Kept for the tasks made before Replan became a request (round 8); the app makes no new one.
 REPLAN_TITLE = "Replan carried-over plans"
 REPLAN_RULES = (
-    "This is the app's task for plans that carried over. Its notes hold a markdown table: Goal | Summary | Next step | "
-    "Your comment, one row per plan, linked. Fill Summary from each plan's own notes, and under its planned time in "
+    "This is the app's task for plans that carried over. Its notes link its document, and the document holds a markdown "
+    "table: Goal | Summary | Next step | Your comment, one row per plan, linked. Read the document with doc_get and write "
+    "it with doc_save. Fill Summary from each plan's own notes, and under its planned time in "
     "Next step put where it should go (Move to this week, Move to next week, Move to the Inbox, Move to next month). "
     "When the owner writes in Your comment, save those words verbatim as a comment on that plan, confirm with them, "
     "apply it with schedule, reparent or update, clear the cell and leave the receipt in Next step, such as "
     "\"Moved to next week, as you wrote.\" Move nothing until the owner says go. Skip a plan whose link no longer "
-    "opens a goal. Edit only the cells you change."
+    "opens a goal. Edit only the cells you change. When every row is done, mark this task done."
 )

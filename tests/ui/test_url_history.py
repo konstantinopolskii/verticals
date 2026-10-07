@@ -18,7 +18,7 @@ import httpx
 from playwright.sync_api import Page, expect
 
 from tests.ui.conftest import UiSession, activate_column
-from tests.ui.views import expect_view, switch_view
+from tests.ui.views import expect_view, open_page, switch_view, tick
 
 # conftest.py's PINNED_CLOCK_ISO date: the board `/` renders.
 ANCHOR_ISO = "2026-08-08"
@@ -144,32 +144,37 @@ def test_uh3_close_after_goal_to_goal_does_not_rewind_onto_the_first_goal(ui_f2:
 # --- UH-4 ---------------------------------------------------------------------------------------
 
 
-def test_uh4_inbox_goal_survives_a_round_trip_through_the_board(ui_f2: UiSession) -> None:
-    """`#goal/<id>` carries no view: `navigateToGoal` puts a Maybe goal back in Inbox by itself."""
+def test_uh4_inbox_goal_window_is_an_entry(ui_f2: UiSession) -> None:
+    """Since the Inbox and Documents redesign (round 7) a goal in the Inbox opens as a window over it (S3.P4). `#goal/<id>`
+    carries no view: for a goal with no date, `navigateToGoal` opens that same window over the Inbox, so Back and
+    Forward close and reopen it."""
     page = ui_f2.page
     g_id = _create_maybe(ui_f2, "SYN UH4 inbox target")
     page.reload()
+    window = page.locator(f'[data-role="goal-window"][data-goal-id-window="{g_id}"]')
 
     switch_view(page, "inbox")
     _nav_current(page, "inbox")
     assert _path_and_fragment(page) == ("/", "inbox")
 
-    page.locator(_title(g_id)).click()
-    expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
-    assert _path_and_fragment(page) == ("/", f"goal/{g_id}")
-
-    switch_view(page, "verticals")
-    _nav_current(page, "verticals")
-    assert _path_and_fragment(page) == ("/", "")
+    page.locator(f'[data-cap="inbox"] [data-goal-id="{g_id}"]').click()
+    expect(window).to_be_visible(timeout=10000)
+    expect(page).to_have_url(re.compile(rf"#goal/{g_id}$"))
 
     page.go_back()
+    expect(window).to_have_count(0)
     _nav_current(page, "inbox")
-    expect(page.locator(_open_host(g_id))).to_be_visible(timeout=10000)
+    assert _path_and_fragment(page) == ("/", "inbox")
+
+    page.go_forward()
+    expect(window).to_be_visible(timeout=10000)
+    _nav_current(page, "inbox")
     assert _path_and_fragment(page) == ("/", f"goal/{g_id}")
 
-    page.go_back()
+    tick(page)
+    page.locator('[data-role="window-close"]').click()
+    expect(window).to_have_count(0)
     _nav_current(page, "inbox")
-    expect(page.locator(_open_host(g_id))).to_have_count(0)
     assert _path_and_fragment(page) == ("/", "inbox")
 
 
@@ -200,7 +205,10 @@ def test_uh5_period_step_is_a_history_entry(ui_f2: UiSession) -> None:
 # --- UH-6 ---------------------------------------------------------------------------------------
 
 
-def test_uh6_docs_view_and_open_doc_are_entries(ui_f2: UiSession) -> None:
+def test_uh6_docs_view_is_an_entry_and_a_page_window_is_not(ui_f2: UiSession) -> None:
+    """Documents is an entry. Since the Inbox and Documents redesign (rounds 2 and 7) a page opened from the desk is a
+    window over it (S3.P4), and a window is never an address; `#doc/<id>` still opens a document in Documents itself
+    (UH-8, UH-9)."""
     page = ui_f2.page
     doc_id = _post(ui_f2, "/api/docs", {"path": "syn-uh6.md", "title": "SYN UH6 doc", "body": ""})
     page.reload()
@@ -209,23 +217,18 @@ def test_uh6_docs_view_and_open_doc_are_entries(ui_f2: UiSession) -> None:
     _nav_current(page, "docs")
     assert _path_and_fragment(page) == ("/", "docs")
 
-    page.locator(".docs-tree-folder__doc", has_text="SYN UH6 doc").click()
-    expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
-    assert _path_and_fragment(page) == ("/", f"doc/{doc_id}")
-
-    page.go_back()
-    expect(page.locator('[data-role="doc-detail"]')).to_have_count(0)
+    open_page(page, doc_id)
     assert _path_and_fragment(page) == ("/", "docs")
+    page.locator('.vt-window[data-window="doc"] [aria-label="Close"]').click()
+    expect(page.locator('[data-role="doc-window"]')).to_have_count(0)
 
     page.go_back()
     _nav_current(page, "verticals")
     assert _path_and_fragment(page) == ("/", "")
 
     page.go_forward()
-    page.go_forward()
     _nav_current(page, "docs")
-    expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
-    assert _path_and_fragment(page) == ("/", f"doc/{doc_id}")
+    assert _path_and_fragment(page) == ("/", "docs")
 
 
 # --- UH-7 ---------------------------------------------------------------------------------------
@@ -277,8 +280,9 @@ def test_uh8_doc_to_off_board_goal_is_one_entry_and_forward_reopens_it(ui_f2: Ui
     g_id, doc_id = _doc_linking_goal(ui_f2, "UH8")
     page.reload()
 
-    switch_view(page, "docs")
-    page.locator(".docs-tree-folder__doc", has_text="SYN UH8 doc").click()
+    # The document in Documents itself, by its address (a page from the desk is a window and no address, UH-6).
+    page.goto("about:blank")
+    page.goto(f"{ui_f2.base_url}/#doc/{doc_id}")
     expect(page.locator('[data-role="doc-detail"]')).to_be_visible(timeout=10000)
     length_doc = page.evaluate("history.length")
 
