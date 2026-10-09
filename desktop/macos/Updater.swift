@@ -460,9 +460,9 @@ func run(_ tool: String, _ args: String...) async -> Int32 {
 }
 
 // `Verticals --install-update <pid> <app> <state> relaunch|tray|stay`, started by a quitting Verticals.
-// Waits for that process and its PostgreSQL to stop, copies the database to backups/ (the last three
-// stay), swaps the staged app in with one atomic rename and opens it when asked. A failure keeps the
-// old app, is written to update.log and is shown in the title bar at the next launch.
+// Waits for that process and its PostgreSQL to stop, copies the database to backups/ (its last three
+// copies stay), swaps the staged app in with one atomic rename and opens it when asked. A failure
+// keeps the old app, is written to update.log and is shown in the title bar at the next launch.
 enum Installer {
     static func run(_ args: [String]) -> Never {
         guard args.count == 4, let pid = Int32(args[0]) else { exit(2) }
@@ -545,8 +545,11 @@ enum Installer {
                 finish(Notice(title: "The update didn't install",
                               detail: "Verticals couldn't copy its database before replacing itself. Check that the disk has free space; it tries again the next time you quit."))
             }
-            let old = ((try? files.contentsOfDirectory(atPath: backups.path)) ?? []).sorted().dropLast(3)
-            for name in old { try? files.removeItem(at: backups.appendingPathComponent(name)) }
+            // Only its own copies, <date>-<version>: anything else in backups/ (nightly dumps) sorts
+            // after them and would push the fresh copy out.
+            let copies = ((try? files.contentsOfDirectory(atPath: backups.path)) ?? [])
+                .filter { $0.range(of: #"^\d{8}-\d{6}-"#, options: .regularExpression) != nil }
+            for name in copies.sorted().dropLast(3) { try? files.removeItem(at: backups.appendingPathComponent(name)) }
             say("database copied to \(copy.path)")
         }
         // One atomic rename puts the update in place and the old app where the update was.
