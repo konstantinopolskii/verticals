@@ -491,6 +491,10 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   top: var(--kkov-collapsed-subtask-checkbox-top);
 }
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
+  .goal-card__children.subgoal-recursive-list .goal-actions__trigger {
+  top: calc(var(--kkov-collapsed-subtask-line-height) / 2 - 12px);
+}
+.pattern-vertical-board__column:not(.pattern-vertical-board__column--active)
   .goal-card__children.subgoal-recursive-list .goal-card__affordance-slot {
   width: var(--kkov-collapsed-subtask-checkbox-size);
   height: calc(var(--kkov-collapsed-subtask-checkbox-size) + 4px);
@@ -535,6 +539,9 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 }
 .pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-affordance {
   top: var(--kkov-expanded-subtask-checkbox-top);
+}
+.pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-actions__trigger {
+  top: calc(var(--kkov-expanded-subtask-line-height) / 2 - 12px);
 }
 .pattern-vertical-board__column--active .goal-card__children.subgoal-recursive-list .goal-card__affordance-slot {
   width: var(--kkov-expanded-subtask-checkbox-size);

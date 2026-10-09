@@ -39,9 +39,9 @@ export const GOAL_LAYOUT_SECTIONS: GoalLayoutSection[] = [
       slider('--kkov-collapsed-goal-checkbox-radius', 'Checkbox rounding', 3, 0, 20),
       slider('--kkov-collapsed-goal-checkbox-top', 'Checkbox vertical position', -1, -12, 12),
       slider('--kkov-collapsed-goal-checkbox-text-gap', 'Checkbox-to-text gap', 8, 0, 32),
-      slider('--kkov-collapsed-goal-padding-right', 'Right padding', 6, 0, 64),
+      slider('--kkov-collapsed-goal-padding-right', 'Right padding', 14, 0, 64),
       slider('--kkov-collapsed-goal-actions-icon-size', 'Dots icon size', 10, 8, 24),
-      slider('--kkov-collapsed-goal-actions-top', 'Dots vertical position', -5, -12, 12),
+      slider('--kkov-collapsed-goal-actions-top', 'Dots vertical position', -2, -12, 12),
     ],
   },
   {
@@ -57,7 +57,7 @@ export const GOAL_LAYOUT_SECTIONS: GoalLayoutSection[] = [
       slider('--kkov-expanded-goal-checkbox-text-gap', 'Checkbox-to-text gap', 12, 0, 32),
       slider('--kkov-expanded-goal-padding-right', 'Right padding', 19, 0, 80),
       slider('--kkov-expanded-goal-actions-icon-size', 'Dots icon size', 16, 8, 24),
-      slider('--kkov-expanded-goal-actions-top', 'Dots vertical position', 0, -12, 12),
+      slider('--kkov-expanded-goal-actions-top', 'Dots vertical position', 4, -12, 12),
     ],
   },
   {
