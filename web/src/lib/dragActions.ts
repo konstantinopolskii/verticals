@@ -26,10 +26,11 @@ import {
   setCombineMode,
   trackPointerMove,
   type DragState,
+  type DropTarget,
 } from './drag'
 import { createDragHover, type DragHoverController } from './dragHover'
 import { familyMovingNow } from './familyMotion'
-import { reorderPlacement, reparentPlacement } from './boardPlacement'
+import { reorderPlacement, reparentPlacement, valueColor } from './boardPlacement'
 import { messageForError } from './scheduleFeedback'
 import { playSound } from './sound'
 import { verticalRank, type VerticalScale } from './periods'
@@ -164,6 +165,26 @@ export function createDragActions(deps: DragActionDeps) {
       const target = state.drag.target
       if (hit) dragHover.onMove(state.drag.x, state.drag.y, target?.kind === 'combine' ? target.targetId : null)
     }
+  }
+
+  /** The colour the goal would take where `pointerUpDrag` hangs it, undefined while it would keep its parent. */
+  function colorAfterDrop(id: string, target: DropTarget): string | null | undefined {
+    const goal = deps.findGoalById(id)
+    const board = state.board
+    if (!goal || !target || !board) return undefined
+    const parent = deps.sameVerticalParentId(id)
+    const grandparent = () => (parent ? deps.findGoalById(parent)?.parent_id ?? null : null)
+    let parentId: string | null
+    if (target.kind === 'combine') parentId = target.targetId
+    else if ((goal.vertical ?? 'maybe') !== target.vertical || (goal.period_key ?? null) !== (target.periodKey ?? null)) {
+      const outgrows = parent && goal.vertical !== null && target.vertical !== 'maybe'
+        && verticalRank(target.vertical as VerticalScale) > verticalRank(goal.vertical as VerticalScale)
+      if (!outgrows) return undefined
+      parentId = grandparent()
+    } else if (target.parentId !== null && target.parentId !== parent) parentId = target.parentId
+    else if (parent && target.parentId === null) parentId = grandparent()
+    else return undefined
+    return valueColor(board, { parent_id: parentId, vertical: goal.vertical, color: goal.color }, goal.color)
   }
 
   /** Commits ordered slot. Same group reorders; another dated column schedules. A drop inside another card no longer
@@ -396,5 +417,6 @@ export function createDragActions(deps: DragActionDeps) {
     setDragCombineMode,
     autoScrollDrag,
     pointerUpDrag,
+    colorAfterDrop,
   }
 }

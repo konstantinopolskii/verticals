@@ -572,6 +572,7 @@ const {
   setDragCombineMode,
   autoScrollDrag,
   pointerUpDrag,
+  colorAfterDrop,
 } = createDragActions({
   // While spans are open the drag reads their goals beside the board's (docs/design-handoff S5.P1).
   state: { drag: state.drag, get board() { return withSpans(state.board) } },
@@ -721,6 +722,7 @@ export const store = {
   setDragCombineMode,
   autoScrollDrag,
   pointerUpDrag,
+  colorAfterDrop,
   removeGoal,
   updateGoal,
   toggleDetailChild,

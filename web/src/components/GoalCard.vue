@@ -18,7 +18,8 @@ import { highlightTitle, isContextGoal } from '../lib/commandFilter'
 import type { GoalCardData } from '../types'
 import type { RepeatRule } from '../lib/api'
 import { goalWashInk, NEUTRAL_LIGHT } from '../lib/goalColor'
-import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
+import { devPaletteFor } from '../lib/devPalette'
+import { goalHoverBackground } from '../lib/look'
 import { subtreeIds } from '../lib/boardIndex'
 import { levelTints } from '../lib/familyView'
 import { useCardFamily } from '../lib/cardFamily'
@@ -89,11 +90,7 @@ const cardStyle = computed(() => {
     : [props.color ? goalWashInk(props.color).washRgb.split(',').map(Number) : NEUTRAL_LIGHT, 1]
   const tints = levelTints(rgb, alpha, Number(devGoalLayout['--kkov-light-tint']), Number(devGoalLayout['--kkov-far-tint']))
   return {
-    '--goal-hover-background': palette?.card
-      ? rgbaFromHex(palette.card.color, palette.card.opacity)
-      : (props.color
-      ? `rgb(${goalWashInk(props.color).washRgb})`
-      : `rgb(${NEUTRAL_LIGHT.join(', ')})`),
+    '--goal-hover-background': goalHoverBackground(props.color),
     '--goal-faint-tint': String(tints.faint),
     '--goal-far-tint': String(tints.far),
   }
