@@ -153,7 +153,7 @@ const { runSearch, loadRecentSearch, filterByTag, clearSearch } = createSearchAc
  *  function: "any write that reloads afterward" needs no reload-site-local bump of its own. The
  *  response then only lands if the epoch this call captured is still current — an answer to a
  *  question a newer load or a newer local write has since superseded is discarded, not applied. */
-async function loadBoard(date: string): Promise<boolean> {
+async function loadBoard(date: string, onLanded?: () => void): Promise<boolean> {
   const epoch = bumpBoardEpoch()
   state.loading = true
   state.error = null
@@ -162,6 +162,7 @@ async function loadBoard(date: string): Promise<boolean> {
     if (currentBoardEpoch() !== epoch) return true
     state.board = board
     state.tagMeta = tags.tags
+    onLanded?.()
     schedulePrefetchBoardDetails()
     return true
   } catch (err) {
