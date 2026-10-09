@@ -17,7 +17,7 @@ import { store } from '../store'
 import { highlightTitle, isContextGoal } from '../lib/commandFilter'
 import type { GoalCardData } from '../types'
 import type { RepeatRule } from '../lib/api'
-import { goalWashInk } from '../lib/goalColor'
+import { goalWashInk, NEUTRAL_LIGHT } from '../lib/goalColor'
 import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
 import { subtreeIds } from '../lib/boardIndex'
 import { levelTints } from '../lib/familyView'
@@ -86,14 +86,14 @@ const cardStyle = computed(() => {
   // flow 4: the family's faint and farthest tints, found from this colour (lib/familyView.ts)
   const [rgb, alpha] = palette?.card
     ? [[1, 3, 5].map((i) => Number.parseInt(palette.card.color.slice(i, i + 2), 16)), palette.card.opacity]
-    : [props.color ? goalWashInk(props.color).washRgb.split(',').map(Number) : [215, 215, 215], 1]
+    : [props.color ? goalWashInk(props.color).washRgb.split(',').map(Number) : NEUTRAL_LIGHT, 1]
   const tints = levelTints(rgb, alpha, Number(devGoalLayout['--kkov-light-tint']), Number(devGoalLayout['--kkov-far-tint']))
   return {
     '--goal-hover-background': palette?.card
       ? rgbaFromHex(palette.card.color, palette.card.opacity)
       : (props.color
       ? `rgb(${goalWashInk(props.color).washRgb})`
-      : '#d7d7d7'),
+      : `rgb(${NEUTRAL_LIGHT.join(', ')})`),
     '--goal-faint-tint': String(tints.faint),
     '--goal-far-tint': String(tints.far),
   }

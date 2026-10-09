@@ -210,7 +210,7 @@ def test_dropped_card_keeps_value_colour(ui_f2: UiSession) -> None:
     card = page.locator(f'[data-goal-id="{first}"]')
     wash = card.evaluate("el => el.style.getPropertyValue('--goal-hover-background')")
     hovered = card.evaluate("el => getComputedStyle(el).backgroundColor")
-    assert wash != "#d7d7d7", wash
+    assert wash != "rgb(241, 241, 235)", wash
 
     page.mouse.down()
     page.mouse.move(x, y + 8, steps=2)

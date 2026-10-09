@@ -8,6 +8,7 @@ import { dots } from '../lib/spansDrag'
 import { spanGoal, spans } from '../lib/spans'
 import { findGoal } from '../lib/boardIndex'
 import { goalLight } from '../lib/look'
+import { NEUTRAL_LIGHT } from '../lib/goalColor'
 import { atRest } from '../lib/cardLift'
 
 /* Clone the rendered row itself. Copying computed styles before Vue applies the source-ghost
@@ -95,7 +96,7 @@ function cloneRenderedRow(id: string): HTMLElement | null {
    look and where they sit around the row. */
 function liftedWash(card: HTMLElement): string {
   const style = getComputedStyle(card)
-  const wash = style.getPropertyValue('--goal-hover-background').trim() || 'rgb(215, 215, 215)'
+  const wash = style.getPropertyValue('--goal-hover-background').trim() || `rgb(${NEUTRAL_LIGHT.join(', ')})`
   const tint = parseFloat(style.getPropertyValue('--goal-light-tint')) || 0.7
   const ground = style.getPropertyValue('--color-bg').trim() || '#fff'
   return `color-mix(in srgb, ${wash} ${Math.round(tint * 100)}%, ${ground})`

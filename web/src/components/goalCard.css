@@ -652,8 +652,8 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 }
 /* A selection in the title is a tint of the goal's colour, the text staying black (the kit draws a black block). */
 .goal-card__title-input::selection {
-  background: color-mix(in srgb, var(--goal-hover-background, rgb(215 215 215)), #000 12%);
-  color: color-mix(in srgb, var(--goal-hover-background, rgb(215 215 215)), #000 80%);
+  background: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), #000 12%);
+  color: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), #000 80%);
 }
 
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__text,

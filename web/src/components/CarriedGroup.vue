@@ -232,4 +232,6 @@ function cardProps(goal: GoalCardData) {
 /* A plan under the pointer takes the goal's hover tint on the box's own colour, the way a subtask does. An open plan
    keeps its whole colour (KK, 27 Sep 2026): dimming only its row made a seam against its list, reported 4 Oct. */
 .carried-group .goal-card:not(.goal-card--detail-open):hover > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
+/* A colourless plan steps down from the box as a colourless goal does from the page: its light is the box's own grey. */
+.carried-group .goal-card[data-colored='false'] { --goal-hover-background: rgb(231 231 225) !important; }
 </style>
