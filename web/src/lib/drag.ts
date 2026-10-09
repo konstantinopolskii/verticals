@@ -55,14 +55,8 @@ export interface DragState {
   height: number
   /** From the row's bottom to the bottom of its subtasks drawn under it: the family travels whole. */
   tailHeight: number
-  /** Live ROW box under the current drop target. Board.vue measures the rendered row at the
-   *  destination width. D245 (KK ruling 2026-08-18): the flying overlay itself no longer follows
-   *  these — re-sizing it against the hover target mid-flight read as the card corrupting
-   *  itself, so the overlay now holds `width`/`height` (its pickup size) for the whole gesture.
-   *  `previewHeight` still drives Column.vue's drop-indicator height (the destination geometry
-   *  legitimately belongs there); `previewWidth` is measured the same way but has no renderer
-   *  left to consume it — kept rather than threading its removal through `setDragPreviewSize`
-   *  for a value nothing currently needs pulled apart from its sibling. */
+  /** Live ROW box under the current drop target, the rendered row measured at the destination width. The flying
+   *  goal takes it before it lands (`DragOverlay.vue`), and Column.vue's drop indicator takes its height. */
   previewWidth: number
   previewHeight: number
   /** The vacated CARD's box — the placeholder's geometry, and a different number: the row sits
@@ -549,33 +543,12 @@ export function computeDropTarget(
 ): DropTarget {
   if (!findGoal(board, sourceId)) return null
 
-  // Into a goal is read off the row under the pointer, before the slot: the leading edge can already sit over the
-  // indicator while the pointer is in a card's middle.
-  //
-  // D236 (KK, 2026-08-15): combine no longer hides behind the Alt key. The pointer's position on
-  // the hit card disambiguates the two meanings a modifier used to: the middle band reads "into
-  // this parent", the outer bands keep their reorder-slot meaning. `combineMode` (Alt) still
-  // forces combine across the whole card, unchanged.
-  //
-  // D249 refinement: when the hit card is a SIBLING of the source in the same rendered group
-  // (same parent, both nested), the centre band narrows from 50% to 25% of the row's height (the
-  // outer reorder bands widen to 37.5% each side) — a few px of drift between two small subtask
-  // rows used to read as "nest under this sibling" far too easily now that reordering among them
-  // is a real, expected gesture. Every other hit keeps D236's original 50/25/25 split unchanged.
-  if (dragCombineTarget(board, sourceId, hit)) {
-    const rect = hit.underRect as DOMRect
-    const source = findGoal(board, sourceId)
-    const hitGoal = findGoal(board, hit.underId as string)
-    const isRenderedSibling = !!source && !!hitGoal
-      && source.parent_id !== null
-      && source.parent_id === hitGoal.parent_id
-    const bandFraction = isRenderedSibling ? 0.375 : 0.25
-    const inCentreBand = pointerY >= rect.top + rect.height * bandFraction
-      && pointerY <= rect.bottom - rect.height * bandFraction
-    if (combineMode || inCentreBand) {
-      return { kind: 'combine', targetId: hit.underId as string }
-    }
-  }
+  // Into a goal: the middle of its row under the pointer (D236), or under the flying card's leading edge. The edge
+  // moves the slot, so the row it reaches holds still until the edge passes its middle; the row the pointer heads for
+  // has usually been pushed away by the gap opening above it. Alt takes the whole row.
+  const into = intoGoal(board, sourceId, hit.underId, hit.underRect, pointerY, combineMode)
+    ?? intoGoal(board, sourceId, hit.cardId, hit.cardRect, edgeY, combineMode)
+  if (into) return { kind: 'combine', targetId: into }
 
   // The indicator under the leading edge keeps its slot.
   if (hit.overIndicator && currentSlot) return currentSlot
@@ -614,20 +587,22 @@ export function computeDropTarget(
   return null
 }
 
-function dragCombineTarget(
+/** The goal a drop at `y` on this row would go into: the middle half of the row, a quarter of it between two
+ *  subtasks of one parent, so a small drift among siblings stays a reorder (D249), or all of it with Alt. */
+function intoGoal(
   board: BoardResponse | null,
   sourceId: string,
-  hit: PointerHit,
-): boolean {
+  id: string | null,
+  rect: DOMRect | null,
+  y: number,
+  whole: boolean,
+): string | null {
   const source = findGoal(board, sourceId)
-  return !!(
-    source
-    && hit.underId
-    && hit.underRect
-    && hit.underId !== sourceId
-    && hit.underId !== source.parent_id
-    && findGoal(board, hit.underId)
-  )
+  const goal = id ? findGoal(board, id) : null
+  if (!source || !goal || !rect || goal.id === sourceId || goal.id === source.parent_id) return null
+  const siblings = source.parent_id !== null && source.parent_id === goal.parent_id
+  const band = whole ? 0 : siblings ? 0.375 : 0.25
+  return y >= rect.top + rect.height * band && y <= rect.bottom - rect.height * band ? goal.id : null
 }
 
 /** The ordered slot a CROSS-column drop asks for, in the destination column's own vocabulary.

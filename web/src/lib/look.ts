@@ -1,6 +1,7 @@
 // The look's values as hidden settings (R.073), and a goal's light (S0.P1.004–.009, .034).
 import { defineKnobs, type Knob } from './tuning'
-import { devPaletteFor } from './devPalette'
+import { devPaletteFor, rgbaFromHex } from './devPalette'
+import { goalWashAlpha, goalWashInk, NEUTRAL_LIGHT } from './goalColor'
 
 const ms = (key: string, label: string, value: number, max = 1000): Knob =>
   ({ key, label, value, min: 0, max, step: 10, unit: 'ms' })
@@ -78,4 +79,23 @@ export function goalLight(color: string | null | undefined): { '--vt-tint': stri
   if (!box) return null
   const tint = overWhite(rgb(box.color), box.opacity)
   return { '--vt-tint': tint.join(', '), '--vt-pale': overWhite(tint, 0.3).join(', ') }
+}
+
+/** The colour a goal's row lights in (`--goal-hover-background`). */
+export function goalHoverBackground(color: string | null | undefined): string {
+  const card = devPaletteFor(color)?.card
+  if (card) return rgbaFromHex(card.color, card.opacity)
+  return color ? `rgb(${goalWashInk(color).washRgb})` : `rgb(${NEUTRAL_LIGHT.join(', ')})`
+}
+
+/** A goal's checkbox square and its tick. A colourless square reads a shade darker than the add row's (D225). */
+export function goalSquare(color: string | null | undefined): { box: string; check: string } {
+  const palette = devPaletteFor(color)
+  const wash = goalWashInk(color)
+  return {
+    box: palette?.box ? rgbaFromHex(palette.box.color, palette.box.opacity) : color ? `rgb(${wash.washRgb})` : '#e5e5e5',
+    check: palette?.tick
+      ? rgbaFromHex(palette.tick.color, palette.tick.opacity)
+      : goalWashAlpha(color, 0.65) ?? `rgba(${wash.inkRgb}, 0.65)`,
+  }
 }

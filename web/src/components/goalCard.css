@@ -289,6 +289,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 .goal-card__row--combine-target-colored {
   background: transparent;
 }
+.goal-card > .goal-card__row.goal-card__row--combine-target-colored::before { opacity: var(--goal-light-tint); }
 .theme_dark .goal-card__row--combine-target {
   background: rgb(42, 42, 42);
 }

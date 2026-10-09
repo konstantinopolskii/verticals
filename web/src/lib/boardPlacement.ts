@@ -44,7 +44,7 @@ function restoreGoals(snapshots: GoalSnapshot[]): void {
 }
 
 /** A card shows its value's colour (D231), i.e. its parent's colour on the board. */
-function valueColor(
+export function valueColor(
   board: BoardResponse,
   goal: Pick<GoalCard, 'parent_id' | 'vertical' | 'color'>,
   fallback: string | null,

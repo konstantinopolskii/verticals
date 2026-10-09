@@ -7,9 +7,10 @@ import { SETTLE_EASING } from '../lib/drag'
 import { dots } from '../lib/spansDrag'
 import { spanGoal, spans } from '../lib/spans'
 import { findGoal } from '../lib/boardIndex'
-import { goalLight } from '../lib/look'
+import { goalHoverBackground, goalLight, goalSquare } from '../lib/look'
 import { NEUTRAL_LIGHT } from '../lib/goalColor'
 import { atRest } from '../lib/cardLift'
+import { reducedMotion } from '../lib/motion'
 
 /* Clone the rendered row itself. Copying computed styles before Vue applies the source-ghost
    class preserves every current control and line at the measured footprint without creating a
@@ -50,6 +51,9 @@ function cloneRenderedRow(id: string): HTMLElement | null {
     element.style.width = 'auto'
     element.style.height = 'auto'
   }
+  // The dots keep to the right edge as the row takes its slot's width.
+  const tools = clone.querySelector<HTMLElement>('.goal-card__tools')
+  if (tools) tools.style.left = 'auto'
   clone.style.opacity = '1'
   clone.classList.remove('goal-card__row--drag-source', 'goal-card__row--drop-candidate')
   /* The resting card is a padded box: background and radius live on the CARD, and the row sits
@@ -83,24 +87,67 @@ function cloneRenderedRow(id: string): HTMLElement | null {
   box.style.backgroundColor = fromLayer ? layer.backgroundColor : cardStyle.backgroundColor
   if (fromLayer) box.style.backgroundImage = layer.backgroundImage // a lifted card's wash is laid over its base
   // The goal in the hand is lit as a lifted one is on the board: its wash at the hover strength, over the board.
-  else if (cardStyle.backgroundColor === 'rgba(0, 0, 0, 0)') box.style.backgroundColor = liftedWash(card)
+  else if (cardStyle.backgroundColor === 'rgba(0, 0, 0, 0)') {
+    paintLight(box, card, cardStyle.getPropertyValue('--goal-hover-background').trim() || `rgb(${NEUTRAL_LIGHT.join(', ')})`)
+  }
   box.style.borderRadius = cardStyle.borderRadius
   box.style.overflow = 'hidden'
   box.style.pointerEvents = 'none'
   box.setAttribute('aria-hidden', 'true')
   box.appendChild(clone)
+  keepOwnColour(box, fromLayer)
   return box
+}
+
+/* The goal in the hand takes the colour a drop there would give it (`colorAfterDrop`), and its own back elsewhere. */
+function keepOwnColour(box: HTMLElement, full: boolean): void {
+  box.dataset.own = box.style.backgroundColor
+  box.dataset.ownImage = box.style.backgroundImage
+  box.dataset.ownLight = box.style.boxShadow
+  if (full) box.dataset.full = ''
+  box.style.transition = 'background-color 180ms ease, box-shadow 180ms ease'
+  const square = box.querySelector<HTMLElement>('[data-role="checkbox-box"]')
+  if (!square) return
+  square.dataset.own = square.style.backgroundColor
+  square.dataset.ownCheck = square.style.color
+  square.style.transition = 'background-color 180ms ease, color 180ms ease'
+}
+
+function paintHand(id: string, color: string | null | undefined): void {
+  const box = overlayHost.value?.firstElementChild
+  const card = document.querySelector<HTMLElement>(`[data-goal-id="${CSS.escape(id)}"]`)
+  if (!(box instanceof HTMLElement) || box.dataset.own === undefined || !card) return
+  const square = box.querySelector<HTMLElement>('[data-role="checkbox-box"]')
+  if (color === undefined) {
+    box.style.backgroundColor = box.dataset.own
+    box.style.backgroundImage = box.dataset.ownImage ?? ''
+    box.style.boxShadow = box.dataset.ownLight ?? ''
+    if (square) {
+      square.style.backgroundColor = square.dataset.own ?? ''
+      square.style.color = square.dataset.ownCheck ?? ''
+    }
+    return
+  }
+  paintLight(box, card, goalHoverBackground(color), box.dataset.full !== undefined)
+  if (!square) return
+  const { box: fill, check } = goalSquare(color)
+  square.style.backgroundColor = fill
+  square.style.color = check
+}
+
+/* A wash laid over the board's ground, at the hover strength unless full. As a layer, a see-through palette wash
+   stays solid over the rows it passes, and its colour can ease. */
+function paintLight(box: HTMLElement, card: HTMLElement, wash: string, full = false): void {
+  const style = getComputedStyle(card)
+  const tint = parseFloat(style.getPropertyValue('--goal-light-tint')) || 0.7
+  const light = full ? wash : `color-mix(in srgb, ${wash} ${Math.round(tint * 100)}%, transparent)`
+  box.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim() || '#fff'
+  box.style.backgroundImage = 'none'
+  box.style.boxShadow = `inset 0 0 0 100vmax ${light}`
 }
 
 /* A goal with subtasks drawn under it flies as the whole piece the board shows: its card and its list, copied as they
    look and where they sit around the row. */
-function liftedWash(card: HTMLElement): string {
-  const style = getComputedStyle(card)
-  const wash = style.getPropertyValue('--goal-hover-background').trim() || `rgb(${NEUTRAL_LIGHT.join(', ')})`
-  const tint = parseFloat(style.getPropertyValue('--goal-light-tint')) || 0.7
-  const ground = style.getPropertyValue('--color-bg').trim() || '#fff'
-  return `color-mix(in srgb, ${wash} ${Math.round(tint * 100)}%, ${ground})`
-}
 
 function frozenCopy(source: HTMLElement): HTMLElement {
   const clone = source.cloneNode(true) as HTMLElement
@@ -180,6 +227,15 @@ watch(
   { flush: 'sync' },
 )
 
+const handColor = computed(() => {
+  const { id, target } = store.state.drag
+  return id && !spans.vertical ? store.colorAfterDrop(id, target) : undefined
+})
+watch(handColor, (color) => {
+  const id = store.state.drag.id
+  if (id) paintHand(id, color)
+})
+
 const dragPreviewKey = computed(() => {
   const drag = store.state.drag
   if (!drag.id) return ''
@@ -234,6 +290,10 @@ watch(
 
 const overlayStyle = computed(() => {
   const d = store.state.drag
+  // The grab point is a share of the box, so it stays under the hand while the box changes size.
+  const fx = d.width ? d.offsetX / d.width : 0
+  const fy = d.height ? d.offsetY / d.height : 0
+  const grab = { translate: `${-fx * 100}% ${-fy * 100}%`, '--grab-x': `${fx * 100}%`, '--grab-y': `${fy * 100}%` }
   if (d.settling) {
     const { duration } = d.settling
     // Normally live preview already reached this box before release. Keeping size in the settle
@@ -241,8 +301,9 @@ const overlayStyle = computed(() => {
     const width = d.settling.width ?? d.width
     const height = d.settling.height ?? d.height
     return {
-      left: `${d.settling.left}px`,
-      top: `${d.settling.top}px`,
+      ...grab,
+      left: `${d.settling.left + fx * width}px`,
+      top: `${d.settling.top + fy * height}px`,
       width: `${width}px`,
       height: `${height}px`,
       transition: [
@@ -253,16 +314,15 @@ const overlayStyle = computed(() => {
       ].join(', '),
     }
   }
-  // D245 (KK ruling 2026-08-18): the flying card holds the PICKUP size (`width`/`height`) for the
-  // whole flight, not `previewWidth`/`previewHeight` — those track the live hover target's own
-  // geometry (still consumed by Column.vue's drop indicator below) and re-sizing the overlay
-  // against them mid-gesture read as the card corrupting itself. No width/height transition is
-  // needed any more: the box no longer changes size before release, only position.
+  // A goal takes the size of the slot under it before it lands; one flying with its subtasks keeps its own.
+  const sized = d.tailHeight === 0
   return {
-    left: `${d.x - d.offsetX}px`,
-    top: `${d.y - d.offsetY}px`,
-    width: `${d.width}px`,
-    height: `${d.height}px`,
+    ...grab,
+    left: `${d.x}px`,
+    top: `${d.y}px`,
+    width: `${sized ? d.previewWidth : d.width}px`,
+    height: `${sized ? d.previewHeight : d.height}px`,
+    transition: reducedMotion() ? 'none' : 'width 200ms var(--vt-ease-large), height 200ms var(--vt-ease-large)',
   }
 })
 </script>
@@ -276,7 +336,7 @@ const overlayStyle = computed(() => {
     :class="{ 'drag-overlay--melted': dots.melted, 'drag-overlay--lit': light }"
     data-role="drag-overlay"
     data-dnd-overlay
-    :style="[overlayStyle, light ?? {}, { '--grab-x': `${store.state.drag.offsetX}px`, '--grab-y': `${store.state.drag.offsetY}px` }]"
+    :style="[overlayStyle, light ?? {}]"
   />
 </template>
 
