@@ -141,7 +141,7 @@ defineExpose({ openEditor })
   background: transparent;
   box-shadow: none;
   color: inherit;
-  caret-color: #e3631b;
+  caret-color: currentColor;
   font-family: inherit;
   font-size: 15px;
   line-height: 22px;

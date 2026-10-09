@@ -258,9 +258,9 @@ defineExpose({ openMenu })
 .goal-card > .goal-card__row .goal-card__tools {
   position: absolute;
   top: 0;
-  /* The dots end 14 px from the colour's right edge, as the checkbox starts 14 px from its left (KK, 27 Sep 2026: the
-     right padding was too small). The row ends 6 px inside the card and the dots 3 px inside this button. */
-  right: 5px;
+  /* The dots end 14 px from the colour's right edge, as the checkbox starts 14 px from its left. The row ends 6 px
+     inside the colour, the button's centre 9 px inside the row. */
+  right: -3px;
   display: block;
   width: 24px;
   height: 24px;

@@ -196,6 +196,7 @@ function cardProps(goal: GoalCardData) {
 .carried-group > [data-section='carried'] { margin: 0 1px 0 -3px; }
 /* The cards stand on the ground itself: the kit paints a stack's cards, the first one too, in the page's colour. */
 .carried-group > [data-section='carried'] { --color-bg: transparent; --color-surface-overlay: transparent; }
+.carried-group__more .app-icon { position: relative; top: 2px; }
 .carried-group__chevron--open { transform: rotate(180deg); }
 .carried-group:not(.carried-group--open) .goal-card__row::before { opacity: 0 !important; }
 /* A plan open (KK 2026-10-02): the box is only its header, a line on top like a level stepped through, and the opened plan
