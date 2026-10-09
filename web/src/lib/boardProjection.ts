@@ -12,8 +12,10 @@ import { columnPeriodLabel, verticalHeadline } from './schedule'
 import type { BoardColumn, BoardResponse, GoalCard } from './api'
 import type { BoardColumnData, GoalCardData } from '../types'
 
-function completedLast(goals: GoalCard[]): GoalCard[] {
-  return [...goals].sort((left, right) => Number(left.done_at !== null) - Number(right.done_at !== null))
+/** Done goals last; one still settling (`completionMotion.ts`) keeps its place. */
+function completedLast(goals: GoalCard[], settling: ReadonlySet<string>): GoalCard[] {
+  const done = (goal: GoalCard) => goal.done_at !== null && !settling.has(goal.id)
+  return [...goals].sort((left, right) => Number(done(left)) - Number(done(right)))
 }
 
 function carriedOrder(left: GoalCard, right: GoalCard): number {
@@ -26,6 +28,7 @@ export function toCardData(
   projectTags: ReadonlySet<string> = new Set(),
   columnIds: ReadonlySet<string> = new Set(),
   columnCards: ReadonlyMap<string, GoalCard> = new Map(),
+  settling: ReadonlySet<string> = new Set(),
 ): GoalCardData {
   const kids = board.children[g.id] ?? []
   // R7: the wire lists every direct child. A child nests under this card EXACTLY when
@@ -52,7 +55,7 @@ export function toCardData(
   const visibleKids = childCards.filter(child => child.vertical !== null
     && child.vertical === g.vertical && columnIds.has(child.id)
     && !!child.ghost === !!g.ghost && !(child.ghost && child.done_at !== null))
-  const sameVerticalKids = g.ghost ? visibleKids.sort(carriedOrder) : completedLast(visibleKids)
+  const sameVerticalKids = g.ghost ? visibleKids.sort(carriedOrder) : completedLast(visibleKids, settling)
   // D231: `g.color` arrives DERIVED from the server (the value root's colour, or null for a
   // tree with no life-vertical root) — the old client-side `valueColorFor` walk is gone with it.
   return {
@@ -79,7 +82,7 @@ export function toCardData(
     // count for both levels. `?? kids.length` is the fallback for a response predating the
     // field, not a second source of truth.
     subgoalCount: board.child_counts?.[g.id] ?? kids.length,
-    children: sameVerticalKids.map((k) => toCardData(k, board, projectTags, columnIds, columnCards)),
+    children: sameVerticalKids.map((k) => toCardData(k, board, projectTags, columnIds, columnCards, settling)),
   }
 }
 
@@ -105,6 +108,7 @@ export function toColumnData(
   today: Date,
   projectTags: ReadonlySet<string> = new Set(),
   expandedVertical: string | null = null,
+  settling: ReadonlySet<string> = new Set(),
 ): BoardColumnData {
   const verticalKey = col.vertical ?? 'maybe'
   // Optimistic completion must remove a carried row before the next server refresh.
@@ -115,7 +119,7 @@ export function toColumnData(
     return !parent || parent.vertical !== goal.vertical || !!parent.ghost !== !!goal.ghost
   })
   const orderedRoots = [
-    ...completedLast(roots.filter(goal => !goal.ghost)),
+    ...completedLast(roots.filter(goal => !goal.ghost), settling),
     ...roots.filter(goal => goal.ghost).sort(carriedOrder),
   ]
   const addLabel: Record<string, string> = {
@@ -138,7 +142,7 @@ export function toColumnData(
     // gets no special width any more (KK ruling 2026-08-17).
     active: verticalKey !== 'maybe' && verticalKey === expandedVertical,
     addPlaceholder: addLabel[verticalKey] ?? 'Add…',
-    goals: orderedRoots.map(goal => toCardData(goal, board, projectTags, cardIds, columnCards)),
+    goals: orderedRoots.map(goal => toCardData(goal, board, projectTags, cardIds, columnCards, settling)),
     // `types.ts::BoardColumnData.periodKey`'s own doc comment: the same field `columnTitle` above
     // just read to build `title`, carried through unchanged for `dropOnColumn` below.
     periodKey: col.period_key,

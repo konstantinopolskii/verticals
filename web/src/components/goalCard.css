@@ -197,6 +197,13 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 .goal-card__children--open.goal-card__children--settling::before {
   background: linear-gradient(var(--goal-hover-background), var(--goal-hover-background)), var(--color-bg);
 }
+/* A goal gliding to its new place after a check passes over the rows it leaves behind (lib/completionMotion.ts). */
+.goal-card[data-gliding],
+.goal-card__children[data-gliding] {
+  position: relative;
+  z-index: 6;
+  background-color: var(--color-bg) !important;
+}
 /* On its way back the piece stays over its neighbours until it lands, under one that lifts meanwhile. */
 .goal-card.goal-card--settling,
 .goal-card__children--settling {

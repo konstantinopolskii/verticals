@@ -33,6 +33,7 @@ import { isoDate, localDate } from './lib/schedule'
 import { recaptureRowRects, scheduleOrdering, type DragState } from './lib/drag'
 import { createDragActions } from './lib/dragActions'
 import { toColumnData } from './lib/boardProjection'
+import { placeAfterCheck, settlingDone } from './lib/completionMotion'
 import { createDayRollover } from './lib/dayRollover'
 import { createSearchActions } from './lib/search'
 import { cascadeToastText, verticalMenuLabel, messageForError, placementParentVertical, placementScheduleError } from './lib/scheduleFeedback'
@@ -258,7 +259,7 @@ const projectedColumns: ComputedRef<BoardColumnData[]> = computed(() => {
   // board is currently ON (owner report 2026-08-10). `anchor_date` is always present on a loaded
   // board; the fallback only covers the type, never a real payload.
   const anchor = localDate(board.anchor_date ?? isoDate(today))
-  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags))
+  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags, null, settlingDone))
 })
 /** Which column is wide is laid over the projection, not built into it: widening a column keeps every card's data as it
  *  was, so the cards don't all draw themselves again (flow 4: the first opening's redrawing went from 20.7 to 13.2 ms in a
@@ -298,7 +299,7 @@ async function completeGoal(id: string, done: boolean): Promise<void> {
   completionVersions.set(id, version)
   const previous = goal.done_at
   const wasDone = previous !== null
-  goal.done_at = done ? new Date().toISOString() : null
+  placeAfterCheck(id, done, () => { goal.done_at = done ? new Date().toISOString() : null })
   // Ancestor progress counts done descendants; one completion changes each ancestor by one.
   const delta = (done ? 1 : 0) - (wasDone ? 1 : 0)
   bumpAncestorProgress(id, delta)
