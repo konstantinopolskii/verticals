@@ -102,9 +102,8 @@ const periodSwapId = ref(0)
 
 async function loadPeriod(anchor: string, direction: PeriodDirection) {
   periodDirection.value = direction
-  if (await store.loadBoard(anchor)) {
-    periodSwapId.value += 1
-  }
+  // In the board's own tick: a column must still hold its old period when the swap starts.
+  await store.loadBoard(anchor, () => { periodSwapId.value += 1 })
 }
 
 function navigatePeriod(vertical: string, direction: PeriodDirection) {

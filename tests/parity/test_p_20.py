@@ -230,7 +230,9 @@ def test_p_20_today_button_and_t_reset_every_vertical(ui_f2: UiSession) -> None:
 
 
 def test_p_20_swap_keeps_two_casts_and_moves_only_contents(ui_f2: UiSession) -> None:
-    """ASSERT A6: old/new period slides coexist, transform for 350ms ease, then clean up."""
+    """ASSERT A6: old/new period slides coexist, transform for 350ms ease, then clean up.
+
+    Only a column whose period changed slides: a day back within the week moves the Day column alone."""
     page = ui_f2.page
     page.locator(_p20_column("day")).hover()
     before = {h: _rect(page, _p20_column(h)) for h in (*P20_ADJUSTABLE, "life")}
@@ -238,8 +240,11 @@ def test_p_20_swap_keeps_two_casts_and_moves_only_contents(ui_f2: UiSession) -> 
     page.locator('[data-role="period-slide"][data-state="incoming"]').first.wait_for(
         state="attached", timeout=5_000
     )
-    assert page.locator('[data-role="period-slide"][data-state="outgoing"]').count() == 6
-    assert page.locator('[data-role="period-slide"][data-state="incoming"]').count() == 6
+    assert page.locator('[data-role="period-slide"][data-state="outgoing"]').count() == 1
+    assert page.locator('[data-role="period-slide"][data-state="incoming"]').count() == 1
+    day_slide = f'{_p20_column("day")} [data-role="period-slide"][data-state="{{}}"]'
+    assert page.locator(day_slide.format("outgoing")).get_attribute("data-period-key") == "2026-08-08"
+    assert page.locator(day_slide.format("incoming")).get_attribute("data-period-key") == "2026-08-07"
     assert page.locator(f'{_p20_column("life")} [data-role="period-slide"]').count() == 1
     assert page.locator('[data-role="column-strip"] [role="status"]').count() == 0
     animations = page.evaluate(
@@ -256,7 +261,7 @@ def test_p_20_swap_keeps_two_casts_and_moves_only_contents(ui_f2: UiSession) -> 
             return {duration,midpointProgress,frames};
           })"""
     )
-    assert len(animations) == 6
+    assert len(animations) == 1
     for animation in animations:
         assert animation["duration"] == 350
         assert abs(animation["midpointProgress"] - 0.8024) <= 0.01

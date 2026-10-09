@@ -192,6 +192,11 @@ watch(
       slides.value = [latest]
       return
     }
+    if (props.periodKey === latest.periodKey) {
+      latest = { ...latest, title: props.title, subLabel: props.subLabel, goals: [...props.goals] }
+      if (slides.value.length === 1) slides.value = [latest]
+      return
+    }
     const version = ++swapVersion
     swapAnimation?.cancel()
     const outgoing: PeriodSlide = { ...latest, id: ++slideId, state: 'outgoing' }
@@ -510,6 +515,9 @@ onBeforeUnmount(() => swapAnimation?.cancel())
 }
 .pattern-vertical-board.pattern-vertical-board.pattern-vertical-board--flat > .pattern-vertical-board__column:has(> .period-track--swapping) {
   clip-path: inset(0);
+}
+.pattern-vertical-board > .pattern-vertical-board__column:has(> .period-track--swapping) {
+  mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
 }
 .pattern-vertical-board--flat > .pattern-vertical-board__column:has(.goal-card--lifted) { z-index: 1; }
 .pattern-vertical-board--flat .period-track:not(.period-track--swapping) > .period-slide {
