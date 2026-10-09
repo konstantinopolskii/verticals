@@ -145,8 +145,9 @@ The database survives an update three ways:
   real data before a risky migration (Verticals quit, the folder is only read):
   `python3 desktop/macos/upgrade_check.py /Applications/Verticals.app desktop/dist/Verticals.app --state ~/Library/Application\ Support/Verticals`
 - The install waits for PostgreSQL to stop (up to a minute, otherwise it waits for the next quit),
-  then copies `postgres/` to `backups/<date>-<old version>/`; the last three stay. The new bundle
-  goes in with one atomic rename. Steps go to `update.log`.
+  then copies `postgres/` to `backups/<date>-<old version>/`; its last three copies stay, and
+  nothing else in `backups/` is touched. The new bundle goes in with one atomic rename. Steps go
+  to `update.log`.
 - Migrations run in one transaction (`verticals/db/runner.py`): a failing one changes nothing.
 
 To roll back, quit Verticals, move `postgres/` aside, copy a backup to `postgres/` and install the
