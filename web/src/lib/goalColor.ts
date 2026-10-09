@@ -7,6 +7,8 @@
 
 const NEUTRAL_WASH: readonly [number, number, number] = [242, 242, 242]
 const NEUTRAL_INK: readonly [number, number, number] = [73, 76, 84]
+/** A colourless goal's highlight: at the hover tint (.7) it is the carried box's warm grey, #f5f5f1. */
+export const NEUTRAL_LIGHT: readonly [number, number, number] = [241, 241, 235]
 
 export interface WashInk {
   /** "r, g, b" — plug into `rgb(${washRgb})`. */
