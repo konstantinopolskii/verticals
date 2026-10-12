@@ -56,10 +56,11 @@ from pathlib import Path
 
 from playwright.sync_api import Page, expect
 
+from tests.harness.web import WEB_DIR
 from tests.ui.conftest import REPO_ROOT, UiSession, activate_column
 from tests.ui.views import FIELD
 
-DIST = REPO_ROOT / "web" / "dist"
+DIST = WEB_DIR / "dist"
 
 # docs/E2E.md S-78, verbatim.
 EMOJI_RANGES: tuple[tuple[int, int], ...] = (

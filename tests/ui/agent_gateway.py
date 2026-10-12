@@ -41,7 +41,7 @@ def main() -> None:
     sys.path.insert(0, str(REPO / "desktop"))
     import launcher  # noqa: E402  (reads the ports above at import)
 
-    launcher.DIST = REPO / "web" / "dist"
+    launcher.DIST = REPO / os.environ.get("VERTICALS_WEB_DIR", "web") / "dist"  # tests/harness/web.py
     chat = launcher.Chat(state, mcp_url, token, api_url=f"http://127.0.0.1:{api_port}")
     # What the fake agent needs to play the morning report against the real server (tests/ui/fake_agent/fake_morning.py).
     (chat.workdir / "fake-agent.json").write_text(json.dumps({"api": f"http://127.0.0.1:{api_port}", "token": token}))

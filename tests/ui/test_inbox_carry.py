@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime, timezone
-from pathlib import Path
 
 import psycopg
 import pytest
 from playwright.sync_api import Page, expect
 
 from verticals.core import goals as core_goals, privacy as core_privacy
+from tests.harness.web import WEB_DIR
 from tests.ui.conftest import UiSession
 from tests.ui.test_agent_conversation import ui_agent  # noqa: F401  (the fixture)
 from tests.ui.test_moving import (  # noqa: F401  (ui_reduced_motion is the fixture)
@@ -34,7 +34,7 @@ SHAPE = ".circle-field__shape"
 HAND = '[data-role="inbox-carried"]'
 OLD_TILE = '[data-role="inbox-beside"], .inbox-beside'
 MAYBE_TASK = "SYNMAY01"  # F2's first Maybe candidate: an older task, a tile in Earlier's row
-SRC = Path(__file__).resolve().parents[2] / "web" / "src"
+SRC = WEB_DIR / "src"
 
 
 def _written(conn: psycopg.Connection, goal_id: str, ago: str) -> None:
@@ -521,5 +521,5 @@ def test_the_waiting_task_is_the_same_card_in_every_frame_while_the_field_widens
 def test_nothing_of_the_tile_beside_the_field_is_left() -> None:
     """The tile beside the field was a second way to wait; `lib/inboxCarry.ts` keeps only the drag."""
     left = [path.relative_to(SRC).as_posix() for path in sorted(SRC.rglob("*"))
-            if path.suffix in {".vue", ".ts", ".css"} and re.search(r"inbox-beside|carry\.beside", path.read_text(encoding="utf-8"))]
+            if path.suffix in {".vue", ".ts", ".tsx", ".css"} and re.search(r"inbox-beside|carry\.beside", path.read_text(encoding="utf-8"))]
     assert left == [], f"the tile beside the field is still in {left}"

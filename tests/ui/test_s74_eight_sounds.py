@@ -41,10 +41,10 @@ import psycopg
 from playwright.sync_api import Response
 
 from tests.harness.report import gate
+from tests.harness.web import WEB_DIR
 from tests.ui.conftest import UiSession, activate_column
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DIST = REPO_ROOT / "web" / "dist"
+DIST = WEB_DIR / "dist"
 
 # `RESEARCH.md` §3's observed list, verbatim — the eight asset stems S-74 asserts across nine
 # plays. Named here, not derived, because the gate reason has to name what is missing.

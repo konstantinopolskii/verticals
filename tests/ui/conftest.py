@@ -55,11 +55,12 @@ from playwright.sync_api import (
 )
 
 from tests.harness.report import artifact, scenario_id_of
+from tests.harness.static_server import serve
+from tests.harness.web import WEB_DIR, WEB_PREFIX
 from tests.ui.gesture_counter import GestureCounter
 from tests.ui.undo_helpers import sent_body
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WEB_DIR = REPO_ROOT / "web"
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
 F1_SQL = REPO_ROOT / "verticals" / "db" / "seed_sample.sql"
 F1U_SQL = FIXTURES_DIR / "f1u_user_rows.sql"
@@ -400,7 +401,7 @@ def web_dist() -> None:
     env = dict(os.environ)
     env["VITE_VERTICALS_TOKEN"] = TEST_TOKEN
     proc = subprocess.run(
-        ["npm", "--prefix", "web", "run", "build"],
+        ["npm", "--prefix", WEB_PREFIX, "run", "build"],
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,
@@ -423,15 +424,20 @@ def _static_server(api_base_url: str, tmp_path: Path) -> Iterator[str]:
     `/api` and `/healthz` proxy onto `api_base_url` via `VITE_API_PROXY_TARGET`
     (`web/vite.config.ts`'s `preview.proxy`). This is what makes the browser's requests
     same-origin (S-114/S-125's own CORS-closed assertion) without touching
-    `verticals/api/app.py`, which registers no `CORSMiddleware` on purpose."""
+    `verticals/api/app.py`, which registers no `CORSMiddleware` on purpose.
+    `VERTICALS_STATIC=python` serves the same way from the test process instead (tests/harness/static_server.py)."""
+    if os.environ.get("VERTICALS_STATIC") == "python":
+        with serve(WEB_DIR / "dist", api_base_url) as base_url:
+            yield base_url
+        return
     port = _free_port()
     log_path = tmp_path / "static.log"
     env = dict(os.environ)
     env["VITE_API_PROXY_TARGET"] = api_base_url
     with open(log_path, "w") as logfile:
         proc = subprocess.Popen(
-            ["npm", "run", "preview", "--", "--port", str(port), "--strictPort", "--host", "127.0.0.1"],
-            cwd=WEB_DIR,
+            ["npm", "--prefix", WEB_PREFIX, "run", "preview", "--", "--port", str(port), "--strictPort", "--host", "127.0.0.1"],
+            cwd=REPO_ROOT,
             env=env,
             stdout=logfile,
             stderr=subprocess.STDOUT,

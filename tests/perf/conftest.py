@@ -35,10 +35,10 @@ from tests.conftest import fresh_clone
 from tests.fixtures import gen_corpus as G
 from tests.harness import calibrate
 from tests.harness.report import gate
+from tests.harness.web import WEB_DIR, WEB_PREFIX
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = REPO_ROOT / "artifacts" / "perf"
-WEB_DIR = REPO_ROOT / "web"
 
 OWNER = "perf"
 SEED = 20260808
@@ -245,7 +245,7 @@ def web_dist_perf() -> None:
     env = dict(os.environ)
     env["VITE_VERTICALS_TOKEN"] = SERVER_TOKEN
     proc = subprocess.run(
-        ["npm", "--prefix", "web", "run", "build"],
+        ["npm", "--prefix", WEB_PREFIX, "run", "build"],
         cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=180,
     )
     if proc.returncode != 0:
@@ -305,8 +305,8 @@ def static_server_perf(api_base_url: str, log_dir: Path, *, timeout_s: float = 1
     env["VITE_API_PROXY_TARGET"] = api_base_url
     with open(log_path, "w") as logfile:
         proc = subprocess.Popen(
-            ["npm", "run", "preview", "--", "--port", str(port), "--strictPort", "--host", "127.0.0.1"],
-            cwd=WEB_DIR, env=env, stdout=logfile, stderr=subprocess.STDOUT, start_new_session=True,
+            ["npm", "--prefix", WEB_PREFIX, "run", "preview", "--", "--port", str(port), "--strictPort", "--host", "127.0.0.1"],
+            cwd=REPO_ROOT, env=env, stdout=logfile, stderr=subprocess.STDOUT, start_new_session=True,
         )
         base_url = f"http://127.0.0.1:{port}"
         try:
