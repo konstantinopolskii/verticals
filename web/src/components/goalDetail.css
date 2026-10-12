@@ -355,7 +355,7 @@
 /* docs/COMMENTS_SPEC.md WP-B: the "Comment" affordance a body text selection raises — fixed at the
    selection's own bounding box (`lib/commentAnchoring.ts::onBodyMouseUp`), so `position: fixed`
    with viewport coordinates, not a positioning context anywhere in this card's own layout. Same
-   shape `DocDetail.vue`'s own body reuses (that file's `<style>` does not repeat this rule — the
+   shape `DocDetail.vue`'s own body reuses (`docDetail.css` does not repeat this rule — the
    class name and the coordinates are the same regardless of which body raised it). */
 .goal-detail__comment-selection {
   position: fixed;

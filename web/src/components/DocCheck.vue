@@ -25,6 +25,7 @@ import { commandFilter } from '../lib/commandFilter'
 import { checkAgain, checkShown } from '../lib/checkAgain'
 import { docThreads, followFrontDoc, frontDocId, openThreads } from '../lib/docComments'
 import { altHeld, improveIt, improveShown, links, reportShown, sendShown } from '../lib/reportActions'
+import './docCheck.css'
 
 const count = computed(() => openThreads.value.length)
 const resolved = computed(() => docThreads.value.length - count.value)
@@ -128,69 +129,3 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-
-<style>
-/* The pair, centred over the circle (the sketch's), 12 px over the circle's top as the conversation stands, and as high
-   again as the field has grown and the tags have come in. The row lets the pointer through; its pills do not. */
-.doc-check {
-  position: fixed;
-  left: 50%;
-  bottom: calc(24px + 84px + 12px);
-  z-index: 300;
-  width: max-content;
-  max-width: calc(100vw - 24px);
-  transform: translate(-50%, calc(-1 * (var(--vt-field-height, 84px) - 84px + var(--vt-tags-lift, 0px))));
-  transition: transform var(--vt-dur-close) var(--vt-ease-large);
-  font-family: var(--font-body);
-  pointer-events: none;
-}
-.doc-check__row { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 8px; }
-/* The pill is the pill above the field the moving view already is: 36 px, 18 px corners, 15/20 at 500. */
-.doc-check__pill {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
-  height: 36px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 18px;
-  font: 500 15px/20px var(--font-body);
-  white-space: nowrap;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: transform var(--vt-dur-step) var(--vt-ease-large), background var(--vt-dur-fade) ease-out;
-}
-.doc-check__pill:active { transform: scale(.97); }
-.doc-check__pill:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
-/* The count is light, so Check again is the one thing that is heavy: white, with its own edge on the white foot (a hairline and
-   one soft pool in the shadows' own ink). */
-.doc-check__count {
-  background: #fff;
-  color: #000;
-  box-shadow: 0 0 0 .5px rgba(var(--vt-ink), .14), 0 8px 20px -10px rgba(var(--vt-ink), .35);
-}
-.doc-check__dot { flex: none; width: 10px; height: 10px; border-radius: 5px; background: var(--color-goal-yellow, #ecce32); }
-/* Only resolved comments: grey words and no dot (60% black, 5.7 to 1 on white). */
-.doc-check__count--resolved { color: rgb(0 0 0 / 60%); }
-.doc-check__again, .doc-check__send, .doc-check__improve { background: #000; color: #fff; }
-.doc-check__send { text-decoration: none; }
-@media (hover: hover) and (pointer: fine) {
-  .doc-check__count:hover, .doc-check__count[aria-expanded='true'] { background: #f5f5f7; }
-  .doc-check__again:hover, .doc-check__send:hover, .doc-check__improve:hover { background: #2b2b2b; }
-}
-/* A pill comes in from 6 px under its place, as the tags do, and the other makes room by gliding. */
-.doc-check-pill-enter-active { transition: opacity var(--vt-dur-open) var(--vt-ease-large), transform var(--vt-dur-open) var(--vt-ease-large); }
-.doc-check-pill-leave-active { position: absolute; transition: opacity var(--vt-dur-fade) ease-out; }
-.doc-check-pill-move { transition: transform var(--vt-dur-open) var(--vt-ease-large); }
-.doc-check-pill-enter-from { opacity: 0; transform: translateY(6px); }
-.doc-check-pill-leave-to { opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .doc-check { transition: none; }
-  .doc-check-pill-enter-active, .doc-check-pill-leave-active { transition: opacity var(--vt-crossfade) linear; }
-  .doc-check-pill-move { transition: none; }
-  .doc-check-pill-enter-from { transform: none; }
-  .doc-check__pill, .doc-check__pill:active { transition: background var(--vt-crossfade) linear; transform: none; }
-}
-</style>

@@ -9,11 +9,11 @@ TOKENS = {"style.css", "lib/motion.ts", "lib/look.ts"}
 PREDATE_THE_TOKENS = {
     "components/Column.vue",
     "components/GoalCard.vue",
-    "components/GoalCardTools.vue",
-    "components/InlineAdd.vue",
-    "components/SubgoalAddRow.vue",
     "components/goalCard.css",
+    "components/goalCardTools.css",
     "components/goalDetail.css",
+    "components/inlineAdd.css",
+    "components/subgoalAddRow.css",
     "lib/drag.ts",
     "lib/dragSettle.ts",  # the settle curve, split out of lib/drag.ts unchanged (S5.P1.038)
     "lib/familyMotion.ts",

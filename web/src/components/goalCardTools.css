@@ -1,0 +1,148 @@
+.goal-card > .goal-card__row .goal-card__tools {
+  position: absolute;
+  top: 0;
+  /* The dots end 14 px from the colour's right edge, as the checkbox starts 14 px from its left. The row ends 6 px
+     inside the colour, the button's centre 9 px inside the row. */
+  right: -3px;
+  display: block;
+  width: 24px;
+  height: 24px;
+  opacity: 1;
+  transition: opacity var(--motion-hover) cubic-bezier(.165, .84, .44, 1);
+}
+.goal-card:hover > .goal-card__row .goal-card__tools,
+.goal-card--menu-open > .goal-card__row .goal-card__tools,
+.goal-card--landed-hover > .goal-card__row .goal-card__tools,
+.goal-card__tools:focus-within { transition: none; }
+.goal-actions__trigger {
+  position: absolute;
+  z-index: 2;
+  top: -1px;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  opacity: 0;
+  user-select: none;
+  -webkit-touch-callout: none;
+  transition: opacity var(--motion-hover) cubic-bezier(.165, .84, .44, 1);
+}
+.goal-actions__trigger svg { display: block; fill: currentColor; }
+.goal-actions__trigger:focus { outline: none; }
+.goal-card:hover > .goal-card__row .goal-actions__trigger,
+.goal-card--menu-open > .goal-card__row .goal-actions__trigger,
+.goal-card--landed-hover > .goal-card__row .goal-actions__trigger,
+.goal-actions__trigger:focus-visible {
+  opacity: 1;
+  transition: none;
+}
+
+.goal-actions__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 300px;
+}
+/* A group of the menu: a small grey word over its items (S5.P5.003), and a line from the group before it, with the same 8 px
+   above and below as the lines inside a step (docs/design/goal-menu.md). */
+.goal-actions__section { display: flex; flex-direction: column; }
+.goal-actions__section + .goal-actions__section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, .08);
+}
+.goal-actions__heading { margin: 2px 14px 2px; color: rgb(45 48 54 / 52%); font: 400 13px/18px var(--font-body); }
+.goal-actions__item.goal-actions__item,
+.goal-actions__submenu.goal-actions__submenu button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  padding: 4px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  /* The menu's row style, 17 px at weight 500, as the week table's rows (docs/design-handoff S5.P5.016). */
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 24px;
+  text-align: left;
+  cursor: pointer;
+}
+.goal-actions__item:hover,
+.goal-actions__item:focus,
+.goal-actions__submenu button:hover,
+.goal-actions__submenu button:focus {
+  outline: none;
+  background-color: rgba(0, 0, 0, .05);
+}
+.goal-actions__item[aria-disabled="true"],
+.goal-actions__schedule button[aria-disabled="true"] { cursor: default; opacity: .5; }
+.goal-actions__item > svg,
+.goal-actions__item > [data-role="icon-spacer"] {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+.goal-actions__item > svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
+.goal-actions__item > [data-role="submenu-arrow"] { margin-left: auto; }
+/* One text edge (KK, 27 Sep 2026, the cleaned-up card's menu): words only, so every item starts on one line; the arrow
+   that opens a submenu stays at the right. */
+.goal-actions__menu .goal-actions__item > svg,
+.goal-actions__menu .goal-actions__item > [data-role="icon-spacer"] { display: none; }
+.goal-actions__tags-panel { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2); min-width: 180px; }
+/* An open card shows its dots all the time: they are the way to its rarer actions. */
+.goal-card--detail-open > .goal-card__row .goal-actions__trigger { opacity: 1; }
+/* Delete shows its red (docs/design/goal-menu.md). The surface's `.Menu-floating.popover-engine__surface .dropdown__item`
+   sets `color: inherit` on three classes, and painted over the single-class red for as long as this class has existed;
+   these four outweigh it. */
+.goal-actions__menu.popover-engine__surface .goal-actions__item.goal-actions__item--danger { color: #c93a5b; }
+.goal-actions__submenu > div { display: flex; }
+.goal-actions__submenu > div > button { white-space: nowrap; }
+.goal-actions__days { display: grid !important; grid-template-columns: repeat(7, 1fr); }
+/* Stepper rows: the pager arrows flank a label that stays a full-width menu item, so the row
+   reads as one line rather than three buttons. Mirrors SchedulePopover's own stepper shape. */
+.goal-actions__stepper {
+  display: flex;
+  align-items: center;
+}
+.goal-actions__stepper > .dropdown__item {
+  flex: 1 1 auto;
+  text-align: center;
+}
+.goal-actions__nav {
+  flex: 0 0 auto;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+/* The submenu's full-width item rule caught the arrows too: each "‹" took the whole row and pushed the year or month
+   and its "›" out of sight (KK's Reschedule screenshot, 27 Sep 2026). The arrows keep their own size; the label between
+   them is centred. */
+.goal-actions__submenu.goal-actions__submenu .goal-actions__nav {
+  width: auto;
+  padding: 4px 10px;
+  justify-content: center;
+}
+.goal-actions__submenu.goal-actions__submenu .goal-actions__stepper > .dropdown__item { justify-content: center; }
+.goal-actions__schedule-footer {
+  display: flex;
+  gap: var(--space-1);
+  border-top: 0.5px solid var(--color-border);
+}
+.goal-actions__schedule-footer > .dropdown__item {
+  flex: 1 1 0;
+  text-align: center;
+}
+.goal-actions__days button { justify-content: center; padding-inline: 6px; }

@@ -10,6 +10,7 @@ import { nextTick, watch, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store'
 import { internalLinkOf, renderBodyElement } from '../lib/bodyMarkdown'
+import './docsHistory.css'
 
 const bodyEl = ref<HTMLElement | null>(null)
 
@@ -108,99 +109,3 @@ function formatSavedAt(iso: string): string {
     </ul>
   </div>
 </template>
-
-<style>
-.docs-history {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  height: 100%;
-  padding: var(--space-4);
-  box-sizing: border-box;
-  overflow: auto;
-}
-.docs-history__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.docs-history__back {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0;
-}
-.docs-history__back:hover { color: var(--color-text); }
-.docs-history__close {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-.docs-history__close:hover { background: var(--color-surface-overlay); }
-.docs-history__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.docs-history__row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.docs-history__row:hover { background: var(--color-surface-overlay); }
-.docs-history__row-revision {
-  flex: 0 0 auto;
-  font-weight: 600;
-  font-size: 13px;
-}
-.docs-history__row-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.docs-history__row-meta {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.docs-history__revision-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.docs-history__restore {
-  border: 0;
-  border-radius: 6px;
-  padding: 6px 12px;
-  background: var(--color-surface-overlay);
-  color: var(--color-text);
-  font-size: 13px;
-  cursor: pointer;
-}
-.docs-history__restore:hover { background: rgba(226, 226, 226, 0.77); }
-.docs-history__revision-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-}
-</style>

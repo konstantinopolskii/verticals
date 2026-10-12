@@ -4,6 +4,7 @@ import AppIcon from './AppIcon.vue'
 import type { RepeatRule } from '../lib/api'
 import { store } from '../store'
 import PopoverEngine from './PopoverEngine.vue'
+import './repeatPopover.css'
 
 const props = defineProps<{
   id: string
@@ -221,20 +222,3 @@ function setEnd(event: Event) {
     </template>
   </PopoverEngine>
 </template>
-
-<style>
-.repeat-menu { padding-block: 8px; }
-.repeat-menu > hr { height: 1px; margin: 8px 0; border: 0; background: rgba(0, 0, 0, .08); }
-.repeat-menu__heading,
-.repeat-menu__copy { margin: 0; padding: 4px 14px; color: rgba(0, 0, 0, .5); font-size: 12px; line-height: 18px; }
-.repeat-menu__item.repeat-menu__item { display: flex; justify-content: space-between; width: 100%; padding: 4px 14px; }
-.repeat-menu ._active { background: rgba(0, 0, 0, .06); }
-.repeat-custom__segments { display: grid !important; grid-template-columns: 1fr 1fr; padding: 0 8px 8px; }
-.repeat-custom__segments button { justify-content: center; padding: 4px; border-bottom: 1px solid transparent; }
-.repeat-custom__segments button._active { border-bottom-color: currentColor; }
-.repeat-custom__list { display: block !important; }
-.repeat-custom__days { display: grid !important; grid-template-columns: repeat(7, 1fr); padding: 0 8px; }
-.repeat-custom__days .dropdown__item { justify-content: center; padding: 4px; }
-.repeat-end__field { display: grid; gap: 8px; padding: 12px 14px; font-size: 13px; }
-.repeat-end__field input { box-sizing: border-box; width: 100%; padding: 6px; border: 1px solid rgba(0, 0, 0, .2); border-radius: 4px; background: transparent; color: inherit; }
-</style>

@@ -28,6 +28,7 @@ import {
   normalizeBodyInput,
   resetBodyHistory,
 } from '../lib/bodyTextarea'
+import './goalDetail.css'
 
 const goal = computed(() => store.state.goalDetail)
 const loading = computed(() => store.state.goalDetailLoading)
@@ -575,7 +576,3 @@ function fitIntoView(): void {
     </div>
   </div>
 </template>
-
-<!-- Presentation lives in ./goalDetail.css (unscoped global classes, same rules byte-for-byte)
-     — extracted when this SFC crossed the 750-line module cap (ARCHITECTURE.md S-90a). -->
-<style src="./goalDetail.css"></style>

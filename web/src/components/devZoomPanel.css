@@ -1,0 +1,27 @@
+.dev-zoom {
+  position: fixed;
+  right: 340px;
+  bottom: 16px;
+  z-index: 300;
+  display: flex;
+  height: 32px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid rgb(45 48 54 / 18%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+.dev-zoom button {
+  min-width: 30px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: rgb(45 48 54 / 72%);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dev-zoom .dev-zoom__value { min-width: 48px; font-variant-numeric: tabular-nums; }
+.dev-zoom button:hover:not(:disabled) { background: rgb(45 48 54 / 7%); }
+.dev-zoom button:disabled { color: rgb(45 48 54 / 28%); cursor: default; }

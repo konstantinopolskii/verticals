@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import './devZoomPanel.css'
 
 // The desktop app's page zoom (desktop/macos/Verticals.swift); a browser has its own ⌘+ and shows no buttons.
 type ZoomWindow = Window & {
@@ -31,33 +32,3 @@ function step(direction: 1 | -1): void {
     <button type="button" aria-label="Zoom in" :disabled="zoom >= STEPS[STEPS.length - 1]" @click="step(1)">+</button>
   </div>
 </template>
-
-<style>
-.dev-zoom {
-  position: fixed;
-  right: 340px;
-  bottom: 16px;
-  z-index: 300;
-  display: flex;
-  height: 32px;
-  box-sizing: border-box;
-  overflow: hidden;
-  border: 1px solid rgb(45 48 54 / 18%);
-  border-radius: 6px;
-  background: rgb(255 255 255 / 92%);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
-}
-.dev-zoom button {
-  min-width: 30px;
-  padding: 0 8px;
-  border: 0;
-  background: transparent;
-  color: rgb(45 48 54 / 72%);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.dev-zoom .dev-zoom__value { min-width: 48px; font-variant-numeric: tabular-nums; }
-.dev-zoom button:hover:not(:disabled) { background: rgb(45 48 54 / 7%); }
-.dev-zoom button:disabled { color: rgb(45 48 54 / 28%); cursor: default; }
-</style>

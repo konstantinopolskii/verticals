@@ -1,0 +1,43 @@
+.dev-icon-panel__trigger {
+  position: fixed;
+  right: 136px;
+  bottom: 16px;
+  z-index: 300;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgb(45 48 54 / 18%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 92%);
+  color: rgb(45 48 54 / 72%);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+.dev-icon-panel__trigger:hover,
+.dev-icon-panel__actions button:hover,
+.dev-icon-panel__close:hover { background: rgb(45 48 54 / 7%); }
+.dev-icon-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 56px;
+  z-index: 301;
+  width: 330px;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid rgb(45 48 54 / 14%);
+  border-radius: 8px;
+  background: #fff;
+  color: rgb(45 48 54);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 16%);
+}
+.dev-icon-panel__header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.dev-icon-panel__header strong { font-size: 14px; font-weight: 600; }
+.dev-icon-panel__header p { margin: 3px 0 0; color: rgb(45 48 54 / 52%); font-size: 11px; }
+.dev-icon-panel__close { display: grid; width: 20px; height: 20px; place-items: center; padding: 0; border: 0; background: transparent; color: rgb(45 48 54 / 55%); cursor: pointer; }
+.dev-icon-panel__row { display: grid; grid-template-columns: 1fr 130px 52px; align-items: center; gap: 8px; min-height: 34px; border-top: 1px solid rgb(45 48 54 / 8%); }
+.dev-icon-panel__row label { font-size: 12px; }
+.dev-icon-panel__row input[type='range'] { width: 130px; accent-color: rgb(45 48 54 / 70%); }
+.dev-icon-panel__row output { color: rgb(45 48 54 / 62%); font-size: 11px; text-align: right; }
+.dev-icon-panel__actions { margin-top: 12px; }
+.dev-icon-panel__actions button { width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: transparent; color: rgb(45 48 54 / 66%); font: inherit; font-size: 11px; cursor: pointer; }

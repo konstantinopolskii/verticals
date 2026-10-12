@@ -1,0 +1,46 @@
+/* Over the pair, 8 px clear of it, on its middle (the circle's: one axis for all of it, and on a phone the sheet cannot leave
+   the screen): a white sheet at the card's depth (the hairline and the near pool of `vt-shadow--small`; the far halo would
+   grey the text behind it), 360 px wide or the screen less 12 px each side, its rows 14/20 and 13/18, the way the Documents
+   desk sets a name and its line. It scrolls inside when there are many. */
+.doc-list {
+  position: absolute;
+  left: calc(50% - min(180px, (100vw - 24px) / 2));
+  bottom: calc(100% + 8px);
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(420px, 50vh);
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 14px;
+  background: #fff;
+  color: #000;
+  box-shadow: var(--vt-shadow-hair), var(--vt-near-small) rgba(var(--vt-ink), var(--vt-shadow-grey-near));
+  font: 400 14px/20px var(--font-body);
+  animation: doc-list-in var(--vt-dur-open) var(--vt-ease-large) backwards;
+  transform-origin: 50% 100%;
+  pointer-events: auto;
+}
+@keyframes doc-list-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .doc-list { animation: doc-list-fade var(--vt-crossfade) linear backwards; } }
+@keyframes doc-list-fade { from { opacity: 0; } }
+.doc-list__row {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) { .doc-list__row:hover { background: rgb(0 0 0 / 5%); } }
+.doc-list__row:focus-visible { outline: 2px solid #000; outline-offset: -2px; }
+.doc-list__words { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.doc-list__said { overflow: hidden; color: rgb(0 0 0 / 55%); font: 400 13px/18px var(--font-body); text-overflow: ellipsis; white-space: nowrap; }
+.doc-list__said b { color: rgb(0 0 0 / 80%); font-weight: 500; }
+.doc-list__head { margin: 8px 10px 2px; color: rgb(0 0 0 / 60%); font: 500 11px/16px var(--font-body); }
+.doc-list__row--resolved .doc-list__words { color: rgb(0 0 0 / 55%); font-weight: 400; }

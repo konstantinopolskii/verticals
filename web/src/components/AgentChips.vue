@@ -5,6 +5,7 @@
 import DocChip from './DocChip.vue'
 import GoalChip from './GoalChip.vue'
 import type { ChipLink } from '../lib/chipLinks'
+import './agentChips.css'
 
 defineProps<{ links: ChipLink[] }>()
 </script>
@@ -17,7 +18,3 @@ defineProps<{ links: ChipLink[] }>()
     </template>
   </div>
 </template>
-
-<style>
-.agent-chips { display: flex; flex-direction: column; gap: 12px; }
-</style>

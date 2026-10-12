@@ -21,6 +21,7 @@ import { docShelves, earlier, inbox, inboxView, loadInbox, recentDocs, shelves, 
 import { desk, loadDesk } from '../lib/docsDesk'
 import { cardOf, loadSources, noteOf, sources } from '../lib/sources'
 import { carry } from '../lib/inboxCarry'
+import './inboxView.css'
 
 /* A row holds the newest; "Show all" holds everything. */
 const ROW = 24
@@ -112,51 +113,3 @@ watch(() => store.state.board, () => { void loadInbox(); void loadSources() })
     </Teleport>
   </div>
 </template>
-
-<style>
-/* The desk: the window's grey ground, content 46 px in; a task and a document are a quarter of it wide (`--unit`). */
-.inbox-desk {
-  box-sizing: border-box; height: 100%; min-width: 0; overflow-y: auto; padding: 0 46px 168px; scroll-padding-top: 96px;
-  background: #f5f5f7; color: #000;
-}
-.inbox-desk > * { transition: opacity 120ms ease; }
-.inbox-desk--writing > * { opacity: .28; }
-/* Today: the middle two quarters, the board's wide column; twice the usual space before Earlier (KK, round 11). */
-.inbox-desk__today { display: flex; flex-direction: column; align-items: stretch; gap: 10px; box-sizing: border-box;
-  width: calc(50% - 8px); min-width: min(100%, 520px); margin: 6px auto 0; padding-bottom: 88px; }
-/* "N more": the carried box's own line, under the words. */
-.inbox-desk__more { display: inline-flex; align-self: flex-start; align-items: center; gap: 4px; margin: -2px 0 0 34px; padding: 0; border: 0;
-  background: none; font: 400 15px/20px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 52%); cursor: pointer; }
-.inbox-desk__more:hover { color: #000; }
-.inbox-desk__section { margin-top: 8px; }
-.inbox-desk__section + .inbox-desk__section { margin-top: 18px; }
-.inbox-desk__head { display: flex; align-items: baseline; gap: 8px; height: 20px; margin: 0; white-space: nowrap;
-  font: 500 15px/20px var(--font-body, Commissioner, system-ui, sans-serif); }
-.inbox-desk__count { color: rgb(45 48 54 / 52%); font-weight: 400; }
-/* "Show all" at the section's right end, in black (KK, round 8: "Show all" not blue). */
-.inbox-desk__all { margin-left: auto; padding: 0; border: 0; background: none; color: #000; cursor: pointer;
-  font: 400 15px/20px var(--font-body, Commissioner, system-ui, sans-serif); }
-.inbox-desk__all:hover { color: rgb(0 0 0 / 60%); }
-/* A row you swipe: it runs to the window's edges, its scroll bar hidden, room above and below for a lifted card. */
-.inbox-desk__row { display: flex; gap: 16px; margin: 0 -46px; padding: 12px 46px 26px; overflow-x: auto; overflow-y: hidden;
-  overscroll-behavior-x: contain; scrollbar-width: none; scroll-padding-inline: 46px; }
-.inbox-desk__row::-webkit-scrollbar { display: none; }
-.inbox-desk__row > * { flex: none; width: calc((100% - 48px) / 4); height: 92px; }
-.inbox-desk__shelf { display: flex; align-items: baseline; gap: 8px; margin: 20px 0 0; font: 500 13px/18px var(--font-body, Commissioner, system-ui, sans-serif); }
-.inbox-desk__head + .inbox-desk__shelf { margin-top: 14px; }
-.inbox-desk__shelf span { color: rgb(45 48 54 / 52%); font-weight: 400; }
-.inbox-desk__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 16px; padding: 10px 0 6px; }
-.inbox-desk__grid > * { height: 92px; }
-@media (max-width: 1000px) {
-  .inbox-desk__row > * { width: calc((100% - 32px) / 3); }
-  .inbox-desk__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (max-width: 720px) {
-  .inbox-desk__row > * { width: calc((100% - 16px) / 2); }
-  .inbox-desk__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-/* The task in the hand, at the tile's size; let go over the field it waits there as a card (MovingStack.vue). */
-.inbox-carried { position: fixed; z-index: 290; pointer-events: none; transform: rotate(-1deg) scale(1.02); }  /* under the field (300), which takes it */
-.inbox-carried .inbox-tile { background: #fff; box-shadow: 0 0 0 .5px rgb(16 18 32 / 6%), 0 24px 60px -10px rgb(16 18 32 / 30%); }
-.inbox-desk__empty { margin: 6px 0 0; font: 400 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 52%); }
-</style>

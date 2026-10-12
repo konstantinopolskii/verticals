@@ -1,0 +1,58 @@
+/* White, --column-line (28 px: the kind row's 4 px and its 24) under the column's top, over everything the column scrolls:
+   the family's copies in a move (10) and a lifted goal (6). It is the slide's first child, in flow, and sticks to the top of
+   the scrollport when the slide scrolls. Under the desktop app's title bar it starts at the window's top and keeps the bar's
+   height more, as the column's own name does (--board-under-bar, App.vue), so nothing scrolls into the bar's room. The fade
+   is 14 px under it, white to nothing, as much as the column has scrolled (--line-fade, 0 to 1); it takes no pointer, so a
+   goal showing through it can be reached. The line's own height takes every click: a goal under it is out of sight. */
+.column-line {
+  position: sticky;
+  z-index: 11;
+  top: 0;
+  height: calc(var(--board-under-bar, 0px) + var(--column-line));
+  background: var(--color-bg);
+  cursor: pointer;
+}
+.column-line::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 14px;
+  background: linear-gradient(to bottom, var(--color-bg), color-mix(in srgb, var(--color-bg) 0%, transparent));
+  opacity: var(--line-fade, 0);
+  pointer-events: none;
+}
+/* The words stand where the header's kind row does, in its type (the caption, 15/24 in the board's grey), and end where it
+   ends: 40 px from the column's right edge, the 48 its row keeps free less the 8 it may take (`--column-spill`,
+   ColumnHeader.vue), which is where the bars begin. A name is the same caption in the board's ink and bold. The period
+   fades in as the kind fades out. */
+.column-line__words {
+  position: absolute;
+  top: calc(var(--board-under-bar, 0px) + 4px);
+  left: 14px;
+  right: 40px;
+  display: grid;
+  height: 24px;
+}
+.column-line__kind,
+.column-line__name {
+  grid-area: 1 / 1;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity var(--motion-title) var(--vt-ease-small);
+}
+.column-line__kind { color: rgb(45 48 54 / 52%); font-weight: var(--fw-regular); }
+.column-line__name { color: var(--color-text); font-weight: var(--fw-bold); opacity: 0; }
+.column-line[data-state='period'] .column-line__kind { opacity: 0; }
+.column-line[data-state='period'] .column-line__name { opacity: 1; }
+/* A search that finds nothing turns the board off, the column's words with it (FindingSections.vue). */
+.pattern-vertical-board--nothing-found .column-line__words {
+  opacity: var(--goal-off-opacity);
+  filter: grayscale(var(--goal-off-grey));
+}

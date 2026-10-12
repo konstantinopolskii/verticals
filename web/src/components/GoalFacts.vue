@@ -11,6 +11,7 @@ import { store } from '../store'
 import { agentChat as agentChatState } from '../lib/agentChat'
 import { plannedPeriodLabel } from '../lib/schedule'
 import { MONTH_NAMES, type VerticalScale } from '../lib/periods'
+import './goalFacts.css'
 
 const props = defineProps<{ id: string }>()
 
@@ -104,38 +105,3 @@ function onSchedule(scale: VerticalScale, periodKey: string): void {
     </template>
   </p>
 </template>
-
-<style>
-/* 13/20 grey, the size of every other secondary line on the board; the one action is black. Items never break inside,
-   and the line wraps between them. */
-.goal-facts {
-  margin: 2px 0 0;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 400;
-  color: rgba(0, 0, 0, .5);
-  cursor: default;
-}
-.goal-facts__item,
-.goal-facts .shot-size-fields__summary {
-  display: inline;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.goal-facts__item:hover,
-.goal-facts .shot-size-fields__summary:hover { color: #000; }
-.goal-facts__item:focus-visible,
-.goal-facts .shot-size-fields__summary:focus-visible { outline: 2px solid var(--color-border-strong); outline-offset: 2px; }
-.goal-facts__item--act { color: #000; font-weight: 500; }
-.goal-facts__item--act:hover { text-decoration: underline; text-underline-offset: 2.25px; text-decoration-color: rgba(0, 0, 0, .2); }
-.goal-facts__sep { padding: 0 4px; color: rgba(0, 0, 0, .28); }
-.goal-facts > .schedule-popover-anchor,
-.goal-facts .dropdown,
-.goal-facts > .shot-size-fields { display: inline; }
-.goal-facts > .shot-size-fields { flex: none; min-width: 0; color: inherit; font-size: inherit; line-height: inherit; }
-</style>

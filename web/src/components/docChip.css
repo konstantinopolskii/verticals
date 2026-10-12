@@ -1,0 +1,24 @@
+.doc-chip { box-sizing: border-box; display: flex; align-items: flex-start; gap: 14px; min-width: 0; margin: 0; padding: 12px 16px 12px 12px;
+  border: 0; border-radius: 12px; background: transparent; color: #000; text-align: left; font: inherit; cursor: default;
+  box-shadow: inset 0 0 0 1px rgb(45 48 54 / 5%);
+  transition: background-color 200ms ease, box-shadow 200ms ease, transform 200ms var(--vt-ease-large); }
+.doc-chip__page { flex: none; display: block; width: 50px; height: 67px; }
+.doc-chip__page > .doc-page { border-radius: 3px; box-shadow: 0 0 0 .5px rgb(16 18 32 / 12%); }
+.doc-chip__text { display: block; flex: 1; min-width: 0; }
+.doc-chip__name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  font: 500 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); overflow-wrap: anywhere; }
+.doc-chip__when { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font: 400 13px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 60%); }
+/* A source that stopped answering: the one coloured line in the Inbox (the app's one red, the danger item's). */
+.doc-chip__when.doc-chip__when--red { color: #c93a5b; }
+/* Under the pointer it turns white and comes alive at once; it settles back in 200 ms. */
+@media (hover: hover) and (pointer: fine) {
+  .doc-chip:not(.doc-chip--dark):hover { background: #fff; transform: translateY(-1px); transition-duration: 0s;
+    box-shadow: 0 0 0 .5px rgb(16 18 32 / 5%), 0 1px 3px rgb(16 18 32 / 4%), 0 8px 22px -12px rgb(16 18 32 / 14%); }
+}
+.doc-chip:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
+/* In a message: on the balloon's black, no ground of its own, the words white. */
+.doc-chip--dark { padding: 0; box-shadow: none; color: #fff; cursor: pointer; }
+.doc-chip--dark .doc-chip__page > .doc-page { box-shadow: none; }
+.doc-chip--dark .doc-chip__when { color: rgb(255 255 255 / 50%); }
+@media (prefers-reduced-motion: reduce) { .doc-chip { transition: none; } }

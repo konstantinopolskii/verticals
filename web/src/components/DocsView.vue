@@ -13,6 +13,7 @@ import DocDetail from './DocDetail.vue'
 import DocsDesk from './DocsDesk.vue'
 import DocsHistory from './DocsHistory.vue'
 import { store } from '../store'
+import './docsView.css'
 </script>
 
 <template>
@@ -34,18 +35,3 @@ import { store } from '../store'
     <DocsDesk v-else />
   </div>
 </template>
-
-<style>
-.docs-view { display: flex; height: 100%; min-width: 0; overflow: hidden; }
-.docs-view > .docs-desk { flex: 1 1 auto; }
-/* A column: the back link is its first row, and the document, its history or "Loading…" takes the rest. */
-.docs-view__panel { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; height: 100%; overflow: hidden; }
-.docs-view__loading { padding: var(--space-2); }
-/* Back to the desk from a document opened by its address or a link. A row of the panel, not laid over it: the document's
-   head (its path, Comments, History, Delete, ×) and the history's toolbar start in that same corner, and a link out of the
-   flow was drawn on top of them. Where it always stood: 16 px in, 12 px down, its chevron on the content's 20 px edge. */
-.docs-view__back { flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; height: 28px; margin: 12px 0 0 16px;
-  padding: 0 10px 0 4px; border: 0; border-radius: 8px; background: transparent; color: rgb(45 48 54 / 60%);
-  font: 500 13px/20px var(--font-body, Commissioner, system-ui, sans-serif); cursor: pointer; }
-.docs-view__back:hover { background: rgb(45 48 54 / 7%); color: #000; }
-</style>

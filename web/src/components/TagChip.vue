@@ -12,6 +12,7 @@
    `data-tag` carries the same bare value for tests, since `KChip`'s own `value` prop is consumed
    internally and is not reflected onto the DOM. */
 import { KChip } from '@konstantinopolskii/vue'
+import './tagChip.css'
 
 withDefaults(defineProps<{ tag: string; pressed?: boolean }>(), { pressed: false })
 const emit = defineEmits<{ select: [tag: string] }>()
@@ -22,13 +23,3 @@ const emit = defineEmits<{ select: [tag: string] }>()
     {{ tag }}
   </KChip>
 </template>
-
-<style>
-/* docs/UI_REFERENCE.md §3's own rule, carried over verbatim (class name is new — this is not
-   `.GoalRow-tag`, their class, but the same CSS mechanism). */
-.tag-chip.tag-chip:before {
-  content: '#';
-  font-weight: 900;
-  margin-right: 1px;
-}
-</style>

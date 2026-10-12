@@ -38,6 +38,7 @@ import { startSessionWatch } from './lib/taskSessions'
 import { takeSelection } from './lib/pageSelection'
 import { makeReport } from './lib/report'
 import { pictures, reporting } from './lib/reportPictures'
+import './app.css'
 
 /* The shell, not `Board.vue`, owns the day-rollover watcher: it is mounted for the whole life of
    the tab, while `Board` unmounts every time Inbox is active — a planner left on Inbox overnight
@@ -334,35 +335,3 @@ onUnmounted(() => {
     <DevZoomPanel />
   </template>
 </template>
-
-<style>
-/* --titlebar-height: the desktop app's transparent title bar (desktop/macos/Verticals.swift). */
-:root { --app-bar-height: 0px; --titlebar-height: 0px; --radius: 12px; }
-.app-shell { display: block; height: 100%; overflow: hidden; background: #fff; }
-/* Under the desktop app's title bar the column strip runs on to the window's top: what sits in a column keeps below
-   the bar by --board-under-bar, and what scrolls up passes under it and fades. In a browser the bar's height is 0;
-   with the sample notice above it the strip stays where it is. */
-.app-content > .pattern-vertical-board:first-child {
-  --board-under-bar: var(--titlebar-height);
-  margin-top: calc(-1 * var(--board-under-bar)); height: calc(100% + var(--board-under-bar));
-}
-.period-slide { padding-top: var(--board-under-bar, 0px); }
-.period-slide > .pattern-vertical-board__header.pattern-vertical-board__header { top: var(--board-under-bar, 0px); }
-.board-top-fade { position: fixed; inset: 0 0 auto; height: var(--titlebar-height); z-index: 299; pointer-events: none; background: linear-gradient(to top, rgba(255,255,255,0) 0, #fff 16px, #fff 100%); }
-.app-content { box-sizing: border-box; height: 100%; min-width: 0; padding-top: var(--titlebar-height); overflow: hidden; position: relative;
-  transition: filter var(--vt-dur-sent) var(--vt-ease-large); }
-/* Out of focus (S2.P6): the board blurred until no word reads, under a light veil; only while the conversation or a
-   window is open. Its layer stays composited while it is, so WebKit doesn't stall (unknowns.md section 4). */
-.app-content--out-of-focus { filter: blur(var(--vt-focus-blur)) saturate(var(--vt-focus-saturate)); will-change: filter; pointer-events: none; }
-.app-veil { position: fixed; inset: 0; z-index: 280; background: var(--vt-focus-veil); opacity: 0; visibility: hidden;
-  transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s linear var(--vt-dur-sent); }
-.app-veil.is-shown { opacity: 1; visibility: visible; transition: opacity var(--vt-dur-sent) var(--vt-ease-large), visibility 0s; }
-/* A window takes the board out of focus in 400 ms, a message in 280 (S2.P6.010). */
-.app-content--window, .app-veil--window, .app-veil--window.is-shown { transition-duration: var(--vt-dur-window-focus); }
-@media (prefers-reduced-motion: reduce) {
-  .app-content, .app-veil, .app-veil.is-shown, .app-content--window, .app-veil--window, .app-veil--window.is-shown {
-    transition-duration: var(--vt-crossfade);
-  }
-}
-.search-goal-surface { box-sizing: border-box; max-width: 720px; height: 100%; margin: 0 auto; padding: 32px 16px 80px; overflow-y: auto; }
-</style>

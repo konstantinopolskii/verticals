@@ -7,6 +7,7 @@ import { goalLight } from '../lib/look'
 import { findGoal } from '../lib/boardIndex'
 import { spanGoal, VIEW_NAMES, type SpanScale } from '../lib/spans'
 import { dots } from '../lib/spansDrag'
+import './columnDots.css'
 
 const props = defineProps<{ vertical: SpanScale }>()
 const held = computed(() => dots.held === props.vertical)
@@ -34,44 +35,3 @@ const colours = computed(() => {
     <i class="column-dots__dot"></i><i class="column-dots__dot column-dots__dot--middle"></i><i class="column-dots__dot"></i>
   </div>
 </template>
-
-<style>
-/* 5 px dots in a 25 px row ending at the column's right padding, on the name's line; held, 9 px, 6 px apart, in the
-   goal's colours with a soft glow (S5.P2.006, .009, .014). They stand over the line pinned at the column's top
-   (z-index 11, ColumnLine.vue), where the period bars stand when nothing is dragged. */
-.column-dots {
-  position: absolute;
-  z-index: 12;
-  top: 6px;
-  right: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  width: 25px;
-  height: 20px;
-  animation: column-dots-in 120ms ease-out;
-}
-.column-dots__dot {
-  flex: none;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #d3d4d7;
-  transition: width 200ms var(--vt-ease-large), height 200ms var(--vt-ease-large), background-color 200ms var(--vt-ease-large),
-    box-shadow 200ms var(--vt-ease-large);
-}
-.column-dots__dot--middle { background: #2d3036; }
-.column-dots--held { gap: 6px; }
-.column-dots--held .column-dots__dot {
-  width: 9px;
-  height: 9px;
-  background: var(--dot-light, #c9ea9a);
-  box-shadow: 0 0 8px var(--dot-light, #c9ea9a);
-}
-.column-dots--held .column-dots__dot--middle { background: var(--dot-full, #92ce14); }
-@keyframes column-dots-in { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  .column-dots__dot { transition: none; }
-}
-</style>

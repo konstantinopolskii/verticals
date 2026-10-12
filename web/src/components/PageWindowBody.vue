@@ -4,6 +4,7 @@
 import { onMounted, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { framable } from '../lib/pages'
+import './pageWindowBody.css'
 
 const props = defineProps<{ url: string }>()
 const state = ref<'checking' | 'framed' | 'refused'>('checking')
@@ -26,12 +27,3 @@ watch(() => props.url, check)
     <p v-else class="page-window__checking">Opening…</p>
   </div>
 </template>
-
-<style>
-.page-window { height: min(686px, calc(80vh - 52px)); }
-.page-window__frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
-.page-window__refused, .page-window__checking { display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-  margin: 0; padding: 24px; color: rgb(0 0 0 / 55%); font: 400 16px/24px var(--font-body); }
-.page-window__refused p { margin: 0; color: #000; }
-.page-window__refused a { display: inline-flex; align-items: center; gap: 2px; color: #000; font-weight: 500; }
-</style>

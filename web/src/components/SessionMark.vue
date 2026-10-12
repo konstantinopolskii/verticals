@@ -6,6 +6,7 @@
 import { computed } from 'vue'
 import { agentChat, agentOf, assetUrl, currentThread } from '../lib/agentChat'
 import { agentName, ago, taskSessions } from '../lib/taskSessions'
+import './sessionMark.css'
 
 const props = defineProps<{ goalId: string }>()
 
@@ -39,35 +40,3 @@ const label = computed(() => {
     <img v-else class="session-mark__agent" :src="assetUrl(agentOf(outside!.provider).image)" alt="">
   </span>
 </template>
-
-<style>
-/* Where the dots are (GoalCardTools.vue), and in their place until the card is pointed at, its menu is open or it is the open
-   goal, whose dots stay. The title leaves it room, so no word runs under it. */
-.goal-card > .goal-card__row > .session-mark {
-  position: absolute;
-  top: 0;
-  right: -3px;
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity var(--vt-dur-fade) ease-out;
-}
-.goal-card.goal-card > .goal-card__row:has(> .session-mark) > .goal-card__text { padding-right: 30px; }
-.goal-card:is(.goal-card--menu-open, .goal-card--landed-hover) > .goal-card__row > .session-mark,
-.goal-card > .goal-card__row:has(.goal-actions__trigger:focus-visible) > .session-mark { opacity: 0; transition: none; }
-@media (hover: hover) and (pointer: fine) {
-  .goal-card:hover > .goal-card__row > .session-mark { opacity: 0; transition: none; }
-}
-/* The open card's dots stay, so the mark stands beside them. */
-.goal-card.goal-card--detail-open > .goal-card__row > .session-mark { right: 21px; opacity: 1; }
-/* The circle, small: the same black disc and white line, the line turning half a turn every 1.6 s as the field's does (circleField.css). */
-.session-mark__disc { position: relative; display: block; width: 20px; height: 20px; border-radius: 50%; background: #000; }
-.session-mark .circle-field__line { width: 2px; height: 9px; margin: -4.5px 0 0 -1px; border-radius: 1px; }
-.session-mark__agent { display: block; width: 16px; height: 16px; }
-@media (prefers-reduced-motion: reduce) {
-  .session-mark .circle-field__pivot.is-turning { animation: none; }
-}
-</style>

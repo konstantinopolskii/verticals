@@ -9,6 +9,7 @@ import { findGoals, type GoalCard } from '../lib/api'
 import { findGoal } from '../lib/boardIndex'
 import { VERTICAL_SCALES, MONTH_NAMES, verticalRank, type VerticalScale } from '../lib/periods'
 import { isoDate, localDate, periodKeyFor } from '../lib/schedule'
+import './moveStep.css'
 
 export type MoveStepName = 'date' | 'week' | 'month' | 'quarter' | 'year' | 'calendar' | 'under'
 
@@ -252,88 +253,3 @@ watch(() => props.step, focusFirst)
     </template>
   </div>
 </template>
-
-<style>
-.move-step { display: flex; flex-direction: column; min-width: 300px; max-height: min(600px, 75vh); }
-.move-step > hr { height: 1px; margin: 8px 0; border: 0; background: rgba(0, 0, 0, .08); }
-.move-step__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 14px 6px 10px; }
-.move-step__back { display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; color: #000; cursor: pointer; }
-.move-step__title { font: 700 17px/24px var(--font-body); }
-.move-step__month { display: inline-flex; align-items: center; gap: 4px; color: #000; font: 500 15px/20px var(--font-body); }
-.move-step__arrow { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; background: none; cursor: pointer; }
-/* Week as a table: how far away small and grey at the left edge, "This" and "Next" from it and the numbers right-aligned
-   in 15 px; the day's digits right-aligned so they end 88 px in, the month from 95 px (S5.P5.015, .016). */
-.move-step__row {
-  display: grid;
-  grid-template-columns: 58px 1fr;
-  align-items: baseline;
-  width: 100%;
-  padding: 4px 14px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  color: #000;
-  text-align: left;
-  font: 500 17px/24px var(--font-body);
-  cursor: pointer;
-}
-.move-step__row--table { grid-template-columns: 15px 58px 1fr; column-gap: 0; padding-left: 15px; }
-.move-step__row--table .move-step__how { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.move-step__row--table .move-step__how--word { text-align: left; }
-.move-step__row--table .move-step__name { padding-left: 7px; }
-.move-step__row--month { margin-top: 8px; }
-.move-step__row:hover, .move-step__row:focus-visible, .move-step__goal:hover, .move-step__goal:focus-visible { background: rgba(0, 0, 0, .05); outline: none; }
-.move-step__row--own { background: #eef7dc; }
-.move-step__how { color: rgb(45 48 54 / 52%); font-size: 13px; }
-.move-step__day { text-align: right; font-variant-numeric: tabular-nums; }
-.move-step__calendar { display: grid; grid-template-columns: repeat(7, 36px); gap: 4px 6px; padding: 4px 14px 10px; }
-.move-step__weekday { color: rgb(45 48 54 / 52%); font: 400 13px/20px var(--font-body); text-align: center; }
-.move-step__date {
-  width: 36px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  color: #000;
-  font: 500 17px/32px var(--font-body);
-  cursor: pointer;
-}
-.move-step__date.is-past { color: rgb(45 48 54 / 40%); }
-.move-step__date.is-own { background: #e6f6c8; }
-.move-step__date.is-today { background: #1d1d1f; color: #fff; }
-.move-step__date:hover { background: rgba(0, 0, 0, .06); }
-.move-step__search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 2px 8px 6px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: #f1f1f3;
-  color: rgb(45 48 54 / 60%);
-}
-.move-step__search > .app-icon, .move-step__search > svg { flex: none; width: 16px; height: 16px; }
-.move-step__search input { flex: 1; min-width: 0; border: 0; background: none; color: #000; font: 400 17px/24px var(--font-body); outline: none; }
-.move-step__clear { display: grid; place-items: center; padding: 0; border: 0; background: none; color: rgb(45 48 54 / 45%); cursor: pointer; }
-.move-step__label { margin: 4px 14px 2px; color: rgb(45 48 54 / 52%); font: 400 13px/18px var(--font-body); }
-.move-step__list { display: flex; flex-direction: column; overflow-y: auto; }
-.move-step__goal {
-  display: grid;
-  grid-template-columns: 14px 1fr auto;
-  align-items: start;
-  gap: 10px;
-  width: 100%;
-  padding: 5px 14px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  color: #000;
-  text-align: left;
-  font: 400 15px/20px var(--font-body);
-  cursor: pointer;
-}
-.move-step__goal--now { background: #eef7dc; margin: 0 6px; width: auto; cursor: default; }
-.move-step__square { width: 10px; height: 10px; margin-top: 5px; border-radius: 2px; }
-.move-step__vertical { color: rgb(45 48 54 / 52%); font-size: 13px; }
-</style>

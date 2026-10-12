@@ -4,6 +4,7 @@
 // becomes Redo. An answer that changed nothing on the board has none; one that could not be taken back any more has none.
 import { computed } from 'vue'
 import { answerUndo, putBack, takeBack } from '../lib/answerUndo'
+import './answerUndo.css'
 
 /* `stays`: the pill is on the answer's message, which stays in front of the person while the answer is taken back, so the notice
    that says what happened has no button of its own. The field's pill goes under the notice, which then is the button. */
@@ -27,9 +28,3 @@ function press(): void {
     @click.stop="press"
   >{{ undone ? 'Redo' : 'Undo' }}</button>
 </template>
-
-<style>
-/* The pill is the notice's own (`.field-notice__action`); this only places it under the answer's words. */
-.answer-undo { display: block; margin-top: 12px; }
-.answer-undo:disabled { opacity: .6; cursor: default; }
-</style>

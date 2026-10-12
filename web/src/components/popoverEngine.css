@@ -1,0 +1,127 @@
+.Menu-floating.popover-engine__surface.dropdown__popover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 200px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  overflow: auto;
+  z-index: 5000;
+  visibility: hidden;
+  /* Light, like the board it opens over (KK, 27 Sep 2026, the cleaned-up card's menu: "light, one text edge, nothing
+     the card already shows"). It was black with light ink, a copy of the reference's look. */
+  background: #fff;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: var(--vt-shadow-small);
+  color: #000;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  animation: popover-engine-enter 120ms ease-out forwards;
+}
+
+.Menu-floating.popover-engine__surface.dropdown__popover[data-dark-body='true'] {
+  border-radius: 10px;
+}
+
+.Menu-floating.popover-engine__surface .dropdown__item {
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Form controls do NOT inherit `color` from an ancestor — the UA sheet gives every `input` and
+   `textarea` its own black text — so a field dropped into the surface when it was dark rendered
+   black-on-#1b1b1b and read as an empty box. That is exactly what the tags panel looked like
+   (owner, 2026-08-10: "кнопка тега кривая и у неё нихуя внутри нету"): the input, its value and
+   its placeholder were all there, all invisible. Fixed once here rather than per consumer —
+   every popover that ever holds a field inherits the surface's own colour from now on. */
+.Menu-floating.popover-engine__surface input,
+.Menu-floating.popover-engine__surface textarea {
+  color: inherit;
+  background: transparent;
+  caret-color: currentColor;
+}
+.Menu-floating.popover-engine__surface input::placeholder,
+.Menu-floating.popover-engine__surface textarea::placeholder {
+  color: rgb(0 0 0 / 40%);
+}
+
+/* Same trap one component up: the kit's `.chip` pins its ink, hairline and hover wash to page
+   tokens (`--color-text` #000, `--color-border-strong` and `--color-surface-overlay` both black
+   at low alpha) tuned for the white page. On this surface the tags panel's chip rendered black
+   on #1b1b1b: the tag and its remove icon were there, unreadable (owner, 2026-09-15). The chip
+   takes the surface's ink instead; the hairline keeps the kit's 20% of ink, the hover reuses
+   `.dropdown__item`'s wash. */
+.Menu-floating.popover-engine__surface .chip {
+  color: inherit;
+  border-color: rgb(0 0 0 / 16%);
+}
+.Menu-floating.popover-engine__surface .chip:hover {
+  background: rgb(0 0 0 / 5%);
+}
+.Menu-floating.popover-engine__surface .chip:focus-visible {
+  outline-color: currentColor;
+}
+
+.Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):hover,
+.Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):focus,
+.Menu-floating.popover-engine__surface .dropdown__item:not(:disabled):focus-visible {
+  background: rgb(0 0 0 / 5%);
+}
+
+/* A refused action must LOOK refused. The hover rule above had no `:disabled` guard and nothing
+   else styled the state, so the Repeat item on a goal with subgoals — which the app correctly
+   refuses — highlighted exactly like a live one and its only signal was a native `title` tooltip:
+   one cue per state, and this state had none (D91, found live 2026-08-11). 25% of the surface's
+   own ink, the treatment `.period-nav__today:disabled` already set as this app's convention;
+   `currentColor` carries it to the item's icon too. */
+.Menu-floating.popover-engine__surface .dropdown__item:disabled {
+  color: rgb(0 0 0 / 35%);
+  background: transparent;
+  cursor: default;
+}
+
+.Menu-target {
+  cursor: pointer;
+}
+
+.popover-engine__surface[data-inline-parent-hidden='true'] {
+  visibility: hidden !important;
+}
+
+.popover-engine__back {
+  flex: 0 0 auto;
+}
+
+body.popover-engine-open .WithTooltip-popover,
+body.popover-engine-open .tooltip__bubble,
+body.popover-engine-open [role='tooltip'] {
+  display: none !important;
+}
+
+body.popover-safe-pointer-block .app-shell {
+  pointer-events: none;
+}
+
+body.popover-safe-pointer-block .Menu-floating {
+  pointer-events: auto;
+}
+
+@keyframes popover-engine-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .Menu-floating.popover-engine__surface.dropdown__popover {
+    animation: none;
+  }
+}

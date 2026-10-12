@@ -33,6 +33,7 @@ import {
   IconX,
   IconCircleXFilled,
 } from '@tabler/icons-vue'
+import './appIcon.css'
 
 const REGISTRY = {
   'arrow-left': IconArrowLeft,
@@ -101,20 +102,3 @@ const tuningClass = computed(() => {
     :role="props.label ? 'img' : undefined"
   />
 </template>
-
-<style>
-.app-icon { display: block; flex: 0 0 auto; }
-.app-icon.app-icon--base,
-.app-icon.app-icon--arrows,
-.app-icon.app-icon--search,
-.app-icon.app-icon--menu { max-width: none !important; }
-.app-icon.app-icon--base { width: var(--app-icon-size-base, 16px) !important; height: var(--app-icon-size-base, 16px) !important; }
-.app-icon.app-icon--arrows { width: var(--app-icon-size-arrows, 14px) !important; height: var(--app-icon-size-arrows, 14px) !important; }
-.app-icon.app-icon--search { width: var(--app-icon-size-search, 24px) !important; height: var(--app-icon-size-search, 24px) !important; }
-.app-icon.app-icon--menu {
-  width: var(--app-icon-size-menu, 16px) !important;
-  height: var(--app-icon-size-menu, 16px) !important;
-  fill: none !important;
-  stroke-width: var(--app-icon-stroke-menu, 2.2) !important;
-}
-</style>

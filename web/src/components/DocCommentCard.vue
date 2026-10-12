@@ -15,6 +15,7 @@ import { HIGHLIGHT_CLASS } from '../lib/commentAnchor'
 import { DRAFT_ID } from '../lib/commentAnchoring'
 import { placeOverWords } from '../lib/cardPlace'
 import type { CommentThread } from '../lib/api'
+import './docCommentCard.css'
 
 const props = defineProps<{
   /** The document's own box, which the card is placed in. */
@@ -242,102 +243,3 @@ watch(thread, (now, was) => { if (was && !now && !composing.value) store.closeCa
     </div>
   </section>
 </template>
-
-<style>
-/* The card: a white sheet at the popover's depth (the hairline and the near pool of `vt-shadow--small`, as the agent's menu has
-   them), 14 px corners, 340 px wide, 14/20 words. Not the far halo: that cloud, 120 px wide, greys the text the card stands on.
-   It is placed by script, in the document's box; hidden until it has its place. */
-.doc-card {
-  position: absolute;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  box-sizing: border-box;
-  width: 340px;
-  max-width: calc(100% - 16px);
-  max-height: min(420px, 60vh);
-  padding: 12px;
-  border-radius: 14px;
-  background: #fff;
-  color: #000;
-  box-shadow: var(--vt-shadow-hair), var(--vt-near-small) rgba(var(--vt-ink), var(--vt-shadow-grey-near));
-  font: 400 14px/20px var(--font-body);
-  visibility: hidden;
-  transform-origin: 24px 0;
-}
-.doc-card.is-above { transform-origin: 24px 100%; }
-/* It grows from its words: 4 px and a hair of size, in the window's own 140 ms. Reduced motion fades it. */
-.doc-card.is-placed { visibility: visible; animation: doc-card-in var(--vt-dur-open) var(--vt-ease-large) backwards; }
-@keyframes doc-card-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
-.doc-card.is-above.is-placed { animation-name: doc-card-in-above; }
-@keyframes doc-card-in-above { from { opacity: 0; transform: translateY(4px) scale(.98); } }
-@media (prefers-reduced-motion: reduce) {
-  .doc-card.is-placed, .doc-card.is-above.is-placed { animation: doc-card-fade var(--vt-crossfade) linear backwards; }
-}
-@keyframes doc-card-fade { from { opacity: 0; } }
-.doc-card__thread { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.doc-card__quote { margin: 0; padding-right: 76px; font-weight: 500; overflow-wrap: anywhere; }
-.doc-card__note { display: block; color: rgb(0 0 0 / 60%); font: 400 12px/16px var(--font-body); }
-/* The first thing said leaves room at the top right for Resolve. */
-.doc-card__msg--first { padding-right: 76px; }
-.doc-card__who { display: block; color: rgb(0 0 0 / 60%); font: 500 11px/16px var(--font-body); }
-.doc-card__said { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-.doc-card__resolve {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  height: 24px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: rgb(0 0 0 / 60%);
-  font: 500 12px/16px var(--font-body);
-  cursor: pointer;
-}
-.doc-card__resolve:focus-visible { outline: 2px solid #000; outline-offset: 1px; }
-@media (hover: hover) and (pointer: fine) { .doc-card__resolve:hover { background: rgb(0 0 0 / 5%); color: #000; } }
-.doc-card__field { position: relative; flex: none; }
-.doc-card__input {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 32px;
-  margin: 0;
-  padding: 6px 36px 6px 10px;
-  border: 0;
-  border-radius: 10px;
-  background: rgb(0 0 0 / 4%);
-  color: #000;
-  font: inherit;
-  overflow: hidden;
-  resize: none;
-  outline: none;
-  transition: background var(--vt-dur-fade) ease-out;
-}
-.doc-card__input::placeholder { color: rgb(0 0 0 / 40%); }
-.doc-card__input:focus { background: rgb(0 0 0 / 6%); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 55%); }
-/* The field's own send arrow, small: it comes in once there are words to send. */
-.doc-card__send {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 12px;
-  background: #000;
-  color: #fff;
-  opacity: 0;
-  pointer-events: none;
-  cursor: pointer;
-  transition: opacity var(--vt-dur-fade) ease-out;
-}
-.doc-card__send.is-shown { opacity: 1; pointer-events: auto; }
-.doc-card__send:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
-@media (hover: hover) and (pointer: fine) { .doc-card__send.is-shown:hover { background: #2b2b2b; } }
-</style>

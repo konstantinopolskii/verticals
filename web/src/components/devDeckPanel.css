@@ -1,0 +1,47 @@
+.dev-deck-panel__trigger {
+  position: fixed;
+  right: 76px;
+  bottom: 16px;
+  z-index: 300;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgb(45 48 54 / 18%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 92%);
+  color: rgb(45 48 54 / 72%);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+.dev-deck-panel__trigger:hover,
+.dev-deck-panel__actions button:hover,
+.dev-deck-panel__close:hover { background: rgb(45 48 54 / 7%); }
+.dev-deck-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 56px;
+  z-index: 301;
+  width: 330px;
+  max-height: min(700px, calc(100vh - 80px));
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid rgb(45 48 54 / 14%);
+  border-radius: 8px;
+  background: #fff;
+  color: rgb(45 48 54);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 16%);
+}
+.dev-deck-panel__header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.dev-deck-panel__header strong { font-size: 14px; font-weight: 600; }
+.dev-deck-panel__header p { margin: 3px 0 0; color: rgb(45 48 54 / 52%); font-size: 11px; }
+.dev-deck-panel__toggle { display: flex; align-items: center; gap: 7px; min-height: 32px; border-top: 1px solid rgb(45 48 54 / 8%); color: rgb(45 48 54 / 72%); font-size: 12px; }
+.dev-deck-panel__toggle input { margin: 0; accent-color: rgb(45 48 54 / 70%); }
+.dev-deck-panel__close { border: 0; background: transparent; color: rgb(45 48 54 / 55%); font-size: 20px; line-height: 18px; cursor: pointer; }
+.dev-deck-panel__row { display: grid; grid-template-columns: 1fr 130px 52px; align-items: center; gap: 8px; min-height: 32px; border-top: 1px solid rgb(45 48 54 / 8%); }
+.dev-deck-panel__row label { font-size: 12px; }
+.dev-deck-panel__row input[type='range'] { width: 130px; accent-color: rgb(45 48 54 / 70%); }
+.dev-deck-panel__row output { color: rgb(45 48 54 / 62%); font-size: 11px; text-align: right; }
+.dev-deck-panel__actions { margin-top: 12px; }
+.dev-deck-panel__actions button { width: 100%; padding: 6px 8px; border: 0; border-radius: 5px; background: transparent; color: rgb(45 48 54 / 66%); font: inherit; font-size: 11px; cursor: pointer; }

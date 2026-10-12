@@ -1,0 +1,57 @@
+.agent-tag-wrap { position: relative; }
+.agent-tag { gap: 2px; }
+.agent-tag__mark { width: 16px; height: 16px; filter: brightness(0) invert(1); }
+.agent-picker {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--vt-tag-size, 28px) + 8px);
+  z-index: 10;
+  box-sizing: border-box;
+  width: min(760px, calc(100vw - 32px));
+  padding: 8px;
+  border-radius: 14px;
+  background: #fff;
+  color: #000;
+  font: 400 13px/18px var(--font-body);
+}
+.agent-picker__new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: 500 14px/20px var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.agent-picker__new:hover { background: rgb(0 0 0 / 5%); }
+.agent-picker__columns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; max-height: 360px; overflow: auto; }
+.agent-picker h2 { margin: 8px 10px 4px; color: rgb(0 0 0 / 45%); font: 500 11px/16px var(--font-body); }
+.agent-picker__choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-picker__choice img { width: 16px; height: 16px; }
+.agent-picker__choice small { display: block; color: rgb(0 0 0 / 45%); font-size: 11px; }
+.agent-picker__choice:hover:not(:disabled) { background: rgb(0 0 0 / 5%); }
+.agent-picker__choice[aria-pressed='true'] { font-weight: 600; }
+.agent-picker__choice:disabled { opacity: .45; cursor: default; }
+.agent-picker__usage, .agent-picker__status { margin: 2px 10px 6px; color: rgb(0 0 0 / 50%); font-size: 11px; }
+.agent-picker__usage p { margin: 0; }
+.agent-picker__quota { position: relative; display: flex; justify-content: space-between; padding-bottom: 5px; }
+.agent-picker__quota i { position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 1px; background: #000; }
+.agent-picker__footer { margin: 6px 10px 2px; color: rgb(0 0 0 / 55%); font-size: 12px; }

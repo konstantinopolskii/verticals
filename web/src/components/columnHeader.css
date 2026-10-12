@@ -1,0 +1,58 @@
+/* The kind sits above the column's name, the period (docs/design/column-names.md). Keep both rows inside the compact
+   header; the name remains single-line and ellipsized so narrow columns do not push the board out of alignment.
+
+   The form that fits is chosen against the room of the row (`lib/fitName.ts`). A name whose shortest form is still a
+   little wider than that, "Apr–May" at 134.8 px in a room of 134, or a kind line like "Week · May ’27", may take up to
+   `--column-spill` of the 12 px of padding to its right (and of the kind row's 36) before it is cut with "…". */
+.column-header.column-header {
+  --column-spill: 8px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 24px 40px;
+  gap: 0;
+  align-content: start;
+  overflow: hidden;
+}
+.column-header__period-row,
+.column-header__title-row {
+  grid-column: 1;
+}
+.column-header__period-row {
+  grid-row: 1;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-right: 36px;
+  overflow: hidden;
+}
+.column-header__sub-label {
+  margin: 0 calc(-1 * var(--column-spill)) 0 0;
+  overflow: hidden;
+  color: rgb(45 48 54 / 52%);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.column-header__title-row {
+  grid-row: 2;
+  display: block;
+  width: 100%;
+  position: relative;
+  top: -6px;
+}
+.column-header__title-row > .t-title {
+  display: block;
+  width: calc(100% + var(--column-spill));
+  min-width: 0;
+  line-height: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+}
+.column-header__end {
+  margin-left: 10px;
+  color: #b3b4b7;
+  font-size: 17px;
+  font-weight: 700;
+}

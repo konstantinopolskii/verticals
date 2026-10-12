@@ -1,0 +1,24 @@
+/* DocChip.vue's numbers in a message (`doc-chip--dark`), so the two kinds of chip are one form: the row, its gap, its
+   columns (50 px, then the title at 64), its two lines of type and its greys, on the balloon's black with no ground of its
+   own. */
+.goal-chip { box-sizing: border-box; display: flex; align-items: flex-start; gap: 14px; min-width: 0; margin: 0; padding: 0;
+  border: 0; border-radius: 12px; background: transparent; color: #fff; text-align: left; font: inherit; cursor: pointer; }
+/* The column a document's first page has (`doc-chip__page`, 50 px), and in the middle of it the board's square, 16 px with
+   the corners the Inbox's tiles give it, level with the title's first line (22 px: 3 px above and below). */
+.goal-chip__page { flex: none; display: flex; justify-content: center; width: 50px; }
+.goal-chip__mark { flex: none; display: block; width: 16px; height: 16px; margin-top: 3px; }
+.goal-chip__mark > .checkbox__box { width: 16px; height: 16px; min-width: 16px; min-height: 16px; border-radius: 4px; }
+.goal-chip__mark > .goal-affordance__square.is-done { color: var(--goal-affordance-check-color); }
+.goal-chip__mark > .goal-affordance__square.is-done::after { opacity: 1; }
+.goal-chip__text { display: block; flex: 1; min-width: 0; }
+.goal-chip__name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  font: 500 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); overflow-wrap: anywhere; }
+.goal-chip__when { display: block; min-height: 22px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font: 400 13px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(255 255 255 / 50%); }
+/* Privacy mode: the title goes transparent over a bar, as the board and the Inbox hide a title (goalCard.css, InboxTile.vue),
+   the bar as wide as the words, with their 2 px corners. Their #e4e4e4 is a quiet slot because it sits on white; moved onto a
+   message's black it would be the loudest mark there, so the bar is retuned for the dark: white at 18%, quieter than any text.
+   Where and when stay: they name nothing. */
+.goal-chip--private .goal-chip__name { width: fit-content; max-width: 100%; color: transparent; background-color: rgb(255 255 255 / 18%); border-radius: 2px; }
+.goal-chip:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
+.goal-chip[aria-disabled='true'] { cursor: default; }

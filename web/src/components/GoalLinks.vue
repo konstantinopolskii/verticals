@@ -9,6 +9,7 @@ import AppIcon from './AppIcon.vue'
 import { agentChat, agentOf, assetUrl } from '../lib/agentChat'
 import { agentName, ago, openSession, sessionsOf, sessionWhen, taskSessions, type TaskSession } from '../lib/taskSessions'
 import { openWindow } from '../lib/windows'
+import './goalLinks.css'
 
 export interface LinkedDoc { key: string; path: string; title: string; updated: string | null; open: () => void; from?: string }
 
@@ -105,34 +106,3 @@ function when(at: number): string {
     </button>
   </div>
 </template>
-
-<style>
-.goal-links { order: 4; align-self: stretch; margin: 12px 0 0; }
-.goal-links__list { margin: 0; padding: 0; list-style: none; }
-/* A session's row has the way to open it where it lives after it, a button of its own: a button holds no other button. */
-.goal-links__item { display: flex; align-items: center; gap: 8px; }
-.goal-links__item > .goal-links__row { flex: 0 1 auto; min-width: 0; }
-.goal-links__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  padding: 2px 0;
-  border: 0;
-  background: none;
-  color: #000;
-  font: 400 13px/20px var(--font-body);
-  text-align: left;
-  cursor: pointer;
-}
-.goal-links__row--inherited { color: rgb(0 0 0 / 50%); }
-.goal-links__mark { flex: none; width: 14px; height: 14px; color: rgb(0 0 0 / 55%); }
-.goal-links__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline;
-  text-decoration-thickness: 1px; text-underline-offset: .15em; text-decoration-color: rgb(0 0 0 / 20%); }
-.goal-links__note, .goal-links__date { flex: none; color: rgb(0 0 0 / 45%); }
-.goal-links__open { display: grid; flex: none; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; background: none;
-  color: rgb(0 0 0 / 45%); cursor: pointer; }
-@media (hover: hover) and (pointer: fine) { .goal-links__open:hover { color: #000; } }
-.goal-links__more { padding: 2px 0 0 22px; border: 0; background: none; color: rgb(0 0 0 / 45%); font: 400 13px/20px var(--font-body);
-  cursor: pointer; }
-</style>

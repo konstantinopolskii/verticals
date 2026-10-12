@@ -1,0 +1,102 @@
+.agent-conversation {
+  position: fixed;
+  z-index: 290;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: min(562px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+/* While the agent works its step bubble stands where its next balloon will (S2.P3.005): the column makes room. */
+.agent-conversation--working { --vt-conversation-lift: 46px; }
+/* The conversation rises with the tags, not ahead of them (SearchBar.vue sets the lift). */
+@property --vt-tags-lift { syntax: '<length>'; inherits: true; initial-value: 0px; }
+:root { transition: --vt-tags-lift var(--vt-dur-open) var(--vt-ease-large); }
+.agent-conversation__column {
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  padding: calc(32px + var(--titlebar-height)) 0 calc(24px + var(--vt-field-height, 84px) + 12px + max(var(--vt-conversation-lift, 0px), var(--vt-tags-lift, 0px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+.agent-conversation__column::-webkit-scrollbar { display: none; }
+.agent-conversation__talk { display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; min-height: 100%; }
+.agent-balloon {
+  flex: none;
+  box-sizing: border-box;
+  border-radius: var(--vt-radius-balloon);
+  color: #fff;
+  font: 400 15px/22px var(--font-body);
+  overflow-wrap: anywhere;
+  user-select: text;
+  transform-origin: 50% 100%;
+  transition: opacity var(--gone-ms, 200ms) ease, filter var(--gone-ms, 200ms) ease, transform var(--gone-ms, 200ms) ease;
+}
+.agent-balloon--you { align-self: flex-end; max-width: 400px; padding: 12px 20px 13px; background: #2b2b2b; --turn: 1; --toward: -1; }
+.agent-balloon--agent { align-self: flex-start; width: fit-content; max-width: 420px; padding: 14px 22px 15px; background: #000; --turn: -1; --toward: 1; }
+.agent-balloon[data-side='top'] {
+  opacity: 0;
+  filter: blur(var(--gone-blur, 6px));
+  transform: rotate(calc(var(--turn) * var(--gone-turn, 2deg))) scale(var(--gone-scale, .78));
+}
+.agent-balloon[data-side='bottom'] {
+  opacity: 0;
+  filter: blur(var(--gone-blur, 6px));
+  transform: translate(calc(var(--toward) * var(--gone-x, 22px)), var(--gone-y, 14px)) rotate(calc(var(--turn) * var(--gone-turn, 2deg)))
+    scale(var(--gone-scale, .78));
+}
+.agent-balloon--error { color: rgb(255 255 255 / 72%); }
+.agent-balloon__plain { white-space: pre-wrap; }
+.agent-balloon__markdown p, .agent-balloon__markdown ul, .agent-balloon__markdown ol, .agent-balloon__markdown pre,
+.agent-balloon__markdown blockquote, .agent-balloon__markdown .chat-table { margin: 0 0 12px; }
+.agent-balloon__markdown > :last-child { margin-bottom: 0; }
+.agent-balloon__markdown ul, .agent-balloon__markdown ol { padding-left: 20px; }
+.agent-balloon__markdown strong { font-weight: 600; }
+.agent-balloon__markdown a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .15em;
+  text-decoration-color: rgb(255 255 255 / 40%); cursor: pointer; }
+.agent-balloon__markdown code { font-size: 13px; }
+.agent-balloon__markdown pre { overflow-x: auto; }
+.agent-balloon__markdown blockquote { padding-left: 12px; border-left: 2px solid rgb(255 255 255 / 30%); }
+.agent-balloon__markdown .chat-table { overflow-x: auto; }
+.agent-balloon__markdown table { border-collapse: collapse; font-size: 13px; line-height: 18px; }
+.agent-balloon__markdown th, .agent-balloon__markdown td { padding: 4px 12px 4px 0; text-align: left; vertical-align: top; }
+.agent-balloon__markdown th { font-weight: 600; }
+.agent-balloon__ask-title { margin: 0 0 10px; font-weight: 600; }
+/* What it will change stands right under the question, in the balloon's own type: the two are one block, the buttons the next. */
+.agent-balloon__ask-title--changes { margin-bottom: 0; }
+.agent-balloon__ask-changes { margin: 0 0 10px; }
+.agent-balloon__ask-sep { color: rgb(255 255 255 / 40%); }
+.agent-balloon__markdown + .agent-balloon__ask { margin-top: 12px; }
+/* What the message made or changed, one chip under another, after its words. */
+.agent-balloon__markdown + .agent-balloon__chips { margin-top: 14px; }
+.agent-balloon__chips + .agent-balloon__ask { margin-top: 12px; }
+.agent-balloon__choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.agent-balloon__choice {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  color: #000;
+  font: 500 14px/20px var(--font-body);
+  cursor: pointer;
+}
+.agent-balloon__choice:disabled { opacity: .4; cursor: default; }
+.agent-balloon__choice.is-chosen { opacity: 1; }
+.agent-balloon__choice:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.agent-conversation-enter-active { transition: clip-path var(--vt-dur-rise) var(--vt-ease-large), opacity var(--vt-dur-rise) linear; }
+.agent-conversation-leave-active { transition: clip-path var(--vt-dur-fade) var(--vt-ease-large), opacity var(--vt-dur-fade) linear; }
+.agent-conversation-enter-from, .agent-conversation-leave-to { clip-path: inset(100% 0 0 0); opacity: 0; }
+/* Over a window the column rises 80 ms after the window steps back (S2.P1.016). */
+.agent-conversation--over-window.agent-conversation-enter-active { transition-delay: 80ms; }
+@media (prefers-reduced-motion: reduce) {
+  :root { transition: none; }
+  .agent-conversation-enter-active, .agent-conversation-leave-active { transition: opacity var(--vt-crossfade) linear; }
+  .agent-conversation-enter-from, .agent-conversation-leave-to { clip-path: none; }
+  .agent-balloon[data-side='top'], .agent-balloon[data-side='bottom'] { filter: none; transform: none; }
+  .agent-balloon { transition: opacity var(--vt-crossfade) linear; }
+}

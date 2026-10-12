@@ -8,6 +8,7 @@
 // and no label, and nothing it does touches the board.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { reducedMotion } from '../lib/motion'
+import './carriedMascot.css'
 
 const props = defineProps<{ on: boolean; words: string | null; circle: boolean }>()
 
@@ -103,61 +104,3 @@ function poke(): void {
     </div>
   </div>
 </template>
-
-<style>
-/* The room the filter leaves in the box is clear; the mascot's circle is almost invisible there (KK: "even a bit more lighter"). */
-.carried-gap { --carried-ghost: rgb(45 48 54 / 20%); flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; }
-.carried-gap__mascot {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 4px 8px;
-  opacity: 0;
-  transform: translateY(4px) scale(.94);
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
-  /* out at once: the box fades a copy of it out where it stood (lib/carriedMotion.ts), while its room may already be
-     closing for the plans that come back */
-  transition: none;
-}
-/* In with the plans that arrive, as the plans that leave go (lib/carriedMotion.ts fades it in from 50 ms; the box keeps
-   its height, so nothing settles first). */
-.carried-gap--on .carried-gap__mascot {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-  transition: opacity 180ms cubic-bezier(.2, 0, 0, 1), transform 240ms var(--vt-ease-large);
-}
-/* Words alone, in a room too low for the circle: they need no air above and below. */
-.carried-gap--words .carried-gap__mascot { padding-block: 0; }
-.carried-gap__orb {
-  position: relative;
-  flex: none;
-  box-sizing: border-box;
-  width: 29px;
-  height: 29px;
-  border: 1.4px dashed var(--carried-ghost);
-  border-radius: 50%;
-  transform-origin: 50% 100%;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.carried-gap__orb > i {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 1.8px;
-  height: 10.8px;
-  margin: -5.4px 0 0 -.9px;
-  border-radius: 1px;
-  background: var(--carried-ghost);
-  transition: transform 140ms cubic-bezier(.2, 0, 0, 1);
-}
-/* The words say what is happening, so they read like the box's other words (the count, "See all"); the circle stays faint. */
-.carried-gap__words { max-width: 100%; margin: 0; color: rgb(45 48 54 / 52%); font: 400 12px/16px var(--font-body); text-align: center; text-wrap: balance; }
-.pattern-vertical-board__column--active .carried-gap__words { font-size: 15px; line-height: 20px; }
-</style>

@@ -1,0 +1,49 @@
+.spans-board {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--color-bg);
+}
+/* Empty periods are common here: their add row stands on the page, not on the kit's first-card fill. */
+.spans-board .column-add-row { background: transparent; }
+.spans-board__view { position: absolute; inset: var(--titlebar-height) 0 0; overflow: clip; }
+.spans-board__row.spans-board__row { position: absolute; top: 0; bottom: 0; height: auto; overflow: visible; flex-wrap: nowrap; }
+.spans-board .spans-board__row.spans-board__row > .pattern-vertical-board__column,
+.spans-board__blank { flex: 0 0 var(--span-width); width: var(--span-width); min-width: 0; max-width: none; }
+/* The last span shows only its edge: an empty strip, so this one never sticks to the window's edge (drawn). */
+.spans-board__row > .pattern-vertical-board__column > * { transition: opacity 200ms var(--vt-ease-large); }
+.spans-board__row > [data-span-edge="before"] > * { opacity: 0; }
+.spans-board__ghosts { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+/* Month floats over the spans: 400 px, 2 px from the window's top, side and bottom edges, a window's corners
+   (S5.P1.016-.018, S0.P1.010). */
+.spans-board__float.spans-board__float {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--titlebar-height) + 2px);
+  right: 2px;
+  bottom: 2px;
+  width: 400px;
+  height: auto;
+  box-sizing: border-box;
+  overflow: clip;
+  border-radius: 24px;
+  background: #fff;
+}
+.spans-board--float-left .spans-board__float.spans-board__float { right: auto; left: 2px; }
+/* The wide column's design over the whole window, its padding doubled: the column stands 14 px in from each side, so the
+   header, the dots and the goals' squares' line are 28 px in (S5.P1.017, .018). The board's own rule for the wide column
+   would cap it at 280 px in here. */
+.spans-board .spans-board__float.spans-board__float > .pattern-vertical-board__column.pattern-vertical-board__column--active {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  margin-inline: 14px;
+}
+/* 2 px down with the window: its header shares the weeks' baselines. */
+.spans-board__float .column-header,
+.spans-board__float .column-dots { translate: 0 -2px; }
+/* The start day as the board's dates, its end one weight lighter (S5.P1.054, .014). */
+.spans-board__row .column-header__title-row > .t-title { font-weight: 800; letter-spacing: -.01em; }
+@media (prefers-reduced-motion: reduce) {
+  .spans-board__row > .pattern-vertical-board__column > * { transition: none; }
+}

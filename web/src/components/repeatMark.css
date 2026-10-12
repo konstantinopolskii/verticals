@@ -1,0 +1,17 @@
+.goal-card__title-text--repeat {
+  position: relative;
+  padding-right: 24px;
+}
+.goal-card__repeat {
+  position: absolute;
+  right: 0;
+  bottom: calc(.46em - 8px);
+  width: 15px;
+  height: 14px;
+  fill: none;
+  stroke: rgba(45, 48, 54, .3);
+  stroke-width: 2.2;
+}
+.goal-card--detail-open .goal-card__repeat {
+  visibility: hidden;
+}

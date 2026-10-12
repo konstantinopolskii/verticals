@@ -8,6 +8,7 @@ import { KButton } from '@konstantinopolskii/vue'
 import { agentChat } from '../lib/agentChat'
 import { approve, detailOf, fixSource, loadSources, noteOf, sourceOf } from '../lib/sources'
 import { store } from '../store'
+import './sourceStrip.css'
 
 const props = defineProps<{ id: string }>()
 const source = computed(() => sourceOf(props.id))
@@ -45,17 +46,3 @@ watch(() => store.state.board, () => void loadSources())
     <KButton v-else-if="canFix" primary data-role="source-fix" @click="fixSource(source)">Fix</KButton>
   </div>
 </template>
-
-<style>
-/* At the document's own margin, over its title; a hairline under it groups the three lines with the button. */
-.source-strip { display: flex; align-items: flex-start; gap: 16px; margin: 6px 24px 8px; padding: 0 0 16px; border-bottom: 1px solid rgb(45 48 54 / 8%); }
-.source-strip__text { flex: 1; min-width: 0; }
-.source-strip__text p { margin: 0; overflow-wrap: anywhere; }
-.source-strip__state { font: 500 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: #000; }
-.source-strip__state.source-strip__state--red { color: #c93a5b; }
-.source-strip__detail { font: 400 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: #000; }
-.source-strip__check, .source-strip__problem { margin-top: 2px; font: 400 13px/20px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 60%); }
-.source-strip__problem.source-strip__problem { color: #c93a5b; }
-/* The one thing to do is the kit's primary button (black, white label), by its text's width: the kit's is full width. */
-.source-strip .button.button { flex: none; width: auto; padding: var(--space-2) var(--space-4); }
-</style>

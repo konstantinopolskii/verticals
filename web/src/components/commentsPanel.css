@@ -1,0 +1,131 @@
+/* Global, matching every other product-side component's own convention (new classes only).
+   WP-B2 (KK ruling 2026-08-25, D255): a real viewport-docked sidebar overlay, not a block laid
+   out inside whatever surface opened it — `position: fixed` against the viewport, not the card/
+   doc pane, so it reads as "the sidebar" regardless of which one is open. Same fixed-panel idiom
+   the dev panels already use (`DevColorPanel.vue` etc.: `position: fixed`, explicit background,
+   a soft shadow to read as raised over the content it overlaps) rather than inventing a new one.
+   `--inspector-w` is the kit's own token for exactly this width class (declared, unconsumed by
+   kit CSS — vars.css's own comment says so — so this is its first consumer, on the product side,
+   same as `--ease-quart` one token over). No backdrop, no scrim, no trapped focus: the board stays
+   visible and clickable everywhere the panel does not physically cover (D248 — this is a docked
+   panel, not a modal). `z-index: 250` sits below the command bar (300) and above the dev-only debug
+   panels (300/301 — those are developer tooling, not product chrome, and are expected to still
+   win on top when both are visible) but below the popover/menu layer (5000, `PopoverEngine.vue`)
+   so an in-panel control never fights a tag/schedule popover for the top slot. */
+.comments-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: var(--app-bar-height, 0px);
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: var(--inspector-w);
+  max-width: 100vw;
+  box-sizing: border-box;
+  padding: calc(var(--space-4) + var(--titlebar-height)) var(--space-5) var(--space-4) var(--space-4);
+  border-left: 0.5px solid var(--color-border-strong);
+  background: #ffffff;
+  box-shadow: -2px 0 8px rgb(0 0 0 / 8%);
+  overflow-y: auto;
+}
+/* Opened from a window (a document from the desk, a goal from the Inbox; S3.P4): over the window and its veil (280,
+   WindowStack.vue's 285), still under the field (300). */
+.comments-panel--over-windows { z-index: 290; }
+.comments-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.comments-panel__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.comments-panel__close:hover { background: var(--color-surface-overlay); color: var(--color-text); }
+
+.comments-panel__anchor-preview {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--color-surface-overlay);
+}
+.comments-panel__anchor-quote {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comments-panel__anchor-clear {
+  flex: 0 0 auto;
+  display: flex;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.comments-panel__stack { gap: var(--space-2); }
+.comments-panel__state { padding: var(--space-2) var(--card-inset-x, 12px); }
+
+.comments-panel__thread-row { display: flex; flex-direction: column; }
+.comments-panel__thread-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--card-inset-x, 12px);
+}
+.comments-panel__resolve {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  color: var(--color-text-muted);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+.comments-panel__resolve:hover { color: var(--color-text); }
+.comments-panel__reply { margin: 0 var(--card-inset-x, 12px) var(--space-2); }
+
+/* Agent-authored messages, visibly distinct — the kit sets `data-author-role="agent"`
+   (KCommentThread's own render) but ships no styling for it (that attribute exists only to gate
+   the kit's own Approve kebab item); this is the whole cue, applied here rather than upstream
+   since it is this product's own voice choice, not a kit default. One cue (the label + rule),
+   consistent with "one cue per state." */
+.comment-msg[data-author-role='agent'] {
+  border-left: 2px solid var(--color-border-strong);
+  padding-left: calc(var(--card-inset-x, 12px) - 2px);
+}
+.comment-msg[data-author-role='agent']::before {
+  content: 'Agent';
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* A highlighted anchor quote in the goal/doc body (`commentAnchor.ts::applyAnchorHighlights`). Not
+   scoped to this component's own DOM (this file is already global, like every other
+   component stylesheet in this tree) — the mark itself lives inside GoalDetail.vue's/DocDetail.vue's body,
+   never inside this panel, so the rule has to reach there regardless of which file declares it. */
+mark.comment-highlight {
+  background: color-mix(in srgb, var(--color-goal-yellow, #ecce32) 35%, transparent);
+  color: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+}
+mark.comment-highlight:hover {
+  background: color-mix(in srgb, var(--color-goal-yellow, #ecce32) 55%, transparent);
+}

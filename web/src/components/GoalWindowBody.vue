@@ -6,6 +6,7 @@ import GoalCard from './GoalCard.vue'
 import { store } from '../store'
 import { closeWindow, windows } from '../lib/windows'
 import type { GoalCardData } from '../types'
+import './goalWindowBody.css'
 
 const props = defineProps<{ id: string; front: boolean }>()
 const hostKey = computed(() => `window:root:0:${props.id}`)
@@ -60,13 +61,3 @@ const steps = computed<GoalCardData[]>(() => (detail.value?.children ?? []).map(
     <p v-else class="goal-window__loading">Loading…</p>
   </div>
 </template>
-
-<style>
-.goal-window { padding: 12px 40px 20px 12px; }
-/* The window is the opened card: its colour runs to the window's edges, so the card draws no wash of its own here
-   (docs/design-handoff S3.P2.004, .005, S0.P1.F01). A goal with no colour stands on light grey, as S4.P4.F02 draws. */
-.vt-window[data-window='goal']:not(.vt-shadow--lit) { background: #f3f3f4; }
-.goal-window { --color-bg: transparent; --color-surface-overlay: transparent; }
-.goal-window > .goal-card > .goal-card__row::before { opacity: 0 !important; }
-.goal-window__loading { margin: 0; padding: 24px; color: rgb(0 0 0 / 45%); font: 400 14px/20px var(--font-body); }
-</style>

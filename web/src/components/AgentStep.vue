@@ -4,6 +4,7 @@
 // used to stand in a bubble above the circle. A phrase stays at least 150 ms, so a fast turn never flickers.
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { agentChat } from '../lib/agentChat'
+import './agentStep.css'
 
 const props = defineProps<{ shown: boolean }>()
 
@@ -34,33 +35,3 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
     </span>
   </Transition>
 </template>
-
-<style>
-/* From 78 px, the circle's half and the room the turning line needs, to 52 px from the right end, where the stop square
-   stands once the hand is on the field. A name too long for the room ends in an ellipsis. */
-.circle-field__step {
-  position: absolute;
-  left: 78px;
-  right: 52px;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  color: #fff;
-  font: 400 15px/22px var(--font-body);
-  white-space: nowrap;
-  pointer-events: none;
-}
-.circle-field__step-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-/* The words come in once the black has begun to widen, and go before it narrows. */
-.agent-step-enter-active { transition: opacity var(--vt-dur-fade) ease-out 140ms; }
-.agent-step-leave-active { transition: opacity 75ms linear; }
-.agent-step-enter-from, .agent-step-leave-to { opacity: 0; }
-.agent-step-words-enter-active, .agent-step-words-leave-active { transition: opacity 75ms linear; }
-.agent-step-words-enter-from, .agent-step-words-leave-to { opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .agent-step-enter-active { transition: opacity var(--vt-crossfade) linear; }
-  .agent-step-words-enter-active, .agent-step-words-leave-active { transition: none; }
-}
-</style>

@@ -1,0 +1,101 @@
+.doc-detail {
+  /* The comment's card is placed in it, so it goes by with the text (DocCommentCard.vue). */
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  min-width: 0;
+  /* Bottom clears `.app-nav` (App.vue): fixed 16px from the bottom, 32px tall. */
+  padding: var(--space-4) var(--space-5) var(--space-15);
+  box-sizing: border-box;
+  overflow: auto;
+}
+.doc-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.doc-detail__path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.doc-detail__path-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-strong);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.doc-detail__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+.doc-detail__action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.doc-detail__action:hover { background: var(--color-surface-overlay); color: var(--color-text); }
+.doc-detail__title.doc-detail__title {
+  margin: 0;
+  padding: 0;
+  cursor: text;
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.doc-detail__title-input {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+}
+.doc-detail__body {
+  min-height: 200px;
+  flex: 1 0 auto;
+}
+.doc-detail__links {
+  padding-top: var(--space-2);
+  border-top: 0.5px solid var(--color-border-strong);
+}
+
+/* Comments on their words (docs/design/doc-comments-inline.md). An open comment's words are tinted in the colour the pill
+   above the field wears for them; while its card is open they are tinted more. A resolved comment keeps its mark, so the
+   list can still go to its words, but they read as plain text. */
+.doc-detail__body mark.comment-highlight[data-resolved] { background: transparent; cursor: inherit; }
+.doc-detail__body mark.comment-highlight.is-active { background: color-mix(in srgb, var(--color-goal-yellow, #ecce32) 55%, transparent); }
+.doc-detail__body mark.comment-highlight[data-resolved].is-active { background: color-mix(in srgb, var(--color-goal-yellow, #ecce32) 30%, transparent); }
+/* What an agent rewrote: the colour of a goal's green, as the comments' is its yellow. It comes in over a moment, so the
+   change is seen, and stays until you write in the document. */
+.doc-detail__body mark.doc-rewritten {
+  background: color-mix(in srgb, var(--color-goal-green, #92ce14) 32%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  animation: doc-rewritten-in var(--vt-dur-board) var(--vt-ease-large) backwards;
+}
+@keyframes doc-rewritten-in { from { background-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .doc-detail__body mark.doc-rewritten { animation: none; } }
+/* In a window the text scrolls in the window's body, so the card goes by with the text and past the end of the document's
+   box (DocWindowBody.vue). */
+.doc-window .doc-detail { overflow: visible; }

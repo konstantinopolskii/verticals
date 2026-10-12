@@ -8,6 +8,7 @@ import {
   saveDevPalette,
   type DevPaletteRole,
 } from '../lib/devPalette'
+import './devColorPanel.css'
 
 const open = ref(false)
 const copied = ref(false)
@@ -102,61 +103,3 @@ async function copyColors(): Promise<void> {
     </div>
   </aside>
 </template>
-
-<style>
-.dev-color-panel__trigger {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 300;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid rgb(45 48 54 / 18%);
-  border-radius: 6px;
-  background: rgb(255 255 255 / 92%);
-  color: rgb(45 48 54 / 72%);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
-}
-.dev-color-panel__trigger:hover,
-.dev-color-panel__reset:hover,
-.dev-color-panel__close:hover { background: rgb(45 48 54 / 7%); }
-.dev-color-panel {
-  position: fixed;
-  right: 16px;
-  bottom: 56px;
-  z-index: 301;
-  width: 370px;
-  max-height: min(620px, calc(100vh - 80px));
-  box-sizing: border-box;
-  overflow: auto;
-  padding: 14px;
-  border: 1px solid rgb(45 48 54 / 14%);
-  border-radius: 8px;
-  background: #fff;
-  color: rgb(45 48 54);
-  box-shadow: 0 8px 30px rgb(0 0 0 / 16%);
-}
-.dev-color-panel__header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
-.dev-color-panel__header strong { font-size: 14px; font-weight: 600; }
-.dev-color-panel__header p { margin: 3px 0 0; color: rgb(45 48 54 / 52%); font-size: 11px; }
-.dev-color-panel__close { border: 0; background: transparent; color: rgb(45 48 54 / 55%); font-size: 20px; line-height: 18px; cursor: pointer; }
-.dev-color-panel__legend { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 64px); gap: 8px; margin-bottom: 4px; color: rgb(45 48 54 / 45%); font-size: 10px; text-align: center; }
-.dev-color-panel__row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 64px); align-items: center; gap: 8px; min-height: 48px; border-top: 1px solid rgb(45 48 54 / 8%); }
-.dev-color-panel__name { display: flex; align-items: center; gap: 7px; font-size: 12px; }
-.dev-color-panel__name i { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 1px 1px rgb(0 0 0 / 16%); }
-.dev-color-panel__picker { display: flex; width: 64px; height: 40px; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
-.dev-color-panel__picker input[type="color"] { width: 24px; height: 22px; padding: 0; border: 0; background: transparent; cursor: pointer; }
-.dev-color-panel__opacity-field { display: flex; align-items: center; gap: 2px; }
-.dev-color-panel__opacity-field input { width: 42px; height: 18px; box-sizing: border-box; padding: 1px 3px; border: 1px solid rgb(45 48 54 / 16%); border-radius: 3px; background: #fff; color: rgb(45 48 54); font: inherit; font-size: 10px; text-align: right; }
-.dev-color-panel__opacity-field small { color: rgb(45 48 54 / 48%); font-size: 10px; }
-.dev-color-panel__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
-.dev-color-panel__copy,
-.dev-color-panel__reset { width: 100%; margin-top: 12px; padding: 6px 8px; border: 0; border-radius: 5px; background: transparent; color: rgb(45 48 54 / 66%); font: inherit; font-size: 11px; cursor: pointer; }
-.dev-color-panel__actions .dev-color-panel__copy,
-.dev-color-panel__actions .dev-color-panel__reset { margin-top: 0; }
-.dev-color-panel__copy:hover { background: rgb(45 48 54 / 7%); }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-</style>

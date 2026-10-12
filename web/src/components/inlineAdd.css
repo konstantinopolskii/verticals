@@ -1,0 +1,70 @@
+.column-add-row {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  /* The card shell has a six-pixel outer pad, then its text starts 16px into the body. Keep the
+     add affordance aligned to that same content edge rather than to the shell boundary. */
+  padding: 6px var(--space-4);
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: rgb(45 48 54 / 52%);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+  transition: background-color var(--motion-hover) cubic-bezier(.165, .84, .44, 1);
+}
+.column-add-row {
+  align-items: flex-start;
+  cursor: pointer;
+}
+.column-add-row:hover {
+  background: rgb(45 48 54 / 6%);
+  color: rgb(45 48 54 / 72%);
+  outline: none;
+}
+.column-add-row:active {
+  background: rgb(45 48 54 / 11%);
+  color: rgb(45 48 54 / 88%);
+  outline: none;
+}
+.column-add-row:focus-visible {
+  background: rgb(45 48 54 / 6%);
+  color: rgb(45 48 54 / 72%);
+  outline: 2px solid var(--color-border-strong);
+  outline-offset: 1px;
+}
+.column-add-row__checkbox {
+  flex: 0 0 16px;
+  position: relative;
+  top: 4px;
+  left: -2px;
+  pointer-events: none;
+}
+.column-add-row__checkbox .checkbox__box {
+  border: 0;
+  /* D225: swapped with the no-colour goal box — the add placeholder sits lighter (242) than
+     committed colourless items (#e5e5e5). */
+  background: rgb(242 242 242);
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 12%);
+}
+.column-add-row__text {
+  min-width: 0;
+  padding: 0 6px 0 6px;
+  word-break: break-word;
+}
+.column-add-editor {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0 6px 0 6px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}

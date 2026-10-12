@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppIcon from './AppIcon.vue'
+import './repeatMark.css'
 
 /* The recurrence mark glued to the last word of a card's title. Measured on the reference
    (P-29, 2026-08-10): 15 x 14 px, 8 px gap, `rgba(45,48,54,.3)`.
@@ -17,23 +18,3 @@ import AppIcon from './AppIcon.vue'
     label="Repeating goal"
   />
 </template>
-
-<style>
-.goal-card__title-text--repeat {
-  position: relative;
-  padding-right: 24px;
-}
-.goal-card__repeat {
-  position: absolute;
-  right: 0;
-  bottom: calc(.46em - 8px);
-  width: 15px;
-  height: 14px;
-  fill: none;
-  stroke: rgba(45, 48, 54, .3);
-  stroke-width: 2.2;
-}
-.goal-card--detail-open .goal-card__repeat {
-  visibility: hidden;
-}
-</style>

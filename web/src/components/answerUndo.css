@@ -1,0 +1,3 @@
+/* The pill is the notice's own (`.field-notice__action`); this only places it under the answer's words. */
+.answer-undo { display: block; margin-top: 12px; }
+.answer-undo:disabled { opacity: .6; cursor: default; }

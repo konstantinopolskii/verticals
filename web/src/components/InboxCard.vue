@@ -13,6 +13,7 @@ import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
 import { isPrivate } from '../lib/privacy'
 import { openWindow } from '../lib/windows'
 import { pressCard, wasCarried } from '../lib/inboxCarry'
+import './inboxCard.css'
 
 const props = defineProps<{ item: InboxGoal; finding?: boolean }>()
 
@@ -56,29 +57,3 @@ function open(event: MouseEvent): void {
     </div>
   </article>
 </template>
-
-<style>
-.inbox-card { position: relative; box-sizing: border-box; margin: 0 -14px 0 -12px; padding: 10px 14px 12px 12px; border-radius: 12px;
-  background: transparent; color: #000; cursor: default; outline: none;
-  transition: background-color 200ms ease, box-shadow 200ms ease, transform 200ms var(--vt-ease-large); }
-/* Under the pointer it turns white and comes alive at once; it settles back in 200 ms (round 9). */
-@media (hover: hover) and (pointer: fine) {
-  .inbox-card:hover { background: #fff; transform: translateY(-1px); transition-duration: 0s;
-    box-shadow: 0 0 0 .5px rgb(16 18 32 / 5%), 0 1px 3px rgb(16 18 32 / 4%), 0 8px 22px -12px rgb(16 18 32 / 14%); }
-}
-.inbox-card:focus-visible { background: #fff; box-shadow: 0 0 0 2px #007aff; }
-/* The goal above, at a step's size, its words on the task's own edge. */
-.inbox-card__goal { display: flex; align-items: flex-start; gap: 12px; margin: 4px 0 4px 6px; font: 500 15px/19px var(--font-body, Commissioner, system-ui, sans-serif); }
-.inbox-card__goal--finding { color: rgb(45 48 54 / 45%); }
-.inbox-card__mark { flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 3px; transition: background-color 160ms ease; }
-.inbox-card__row { display: flex; align-items: flex-start; gap: 12px; }
-.inbox-card__square { flex: none; display: block; width: 22px; height: 32px; }
-.inbox-card__square .goal-affordance, .inbox-card__square .goal-affordance .checkbox__box {
-  width: 22px; height: 22px; min-width: 22px; min-height: 22px; border-radius: 6px; }
-.inbox-card__square .goal-affordance { position: relative; top: 5px; vertical-align: top; }
-.inbox-card__words { margin: 0; min-width: 0; font: 500 24px/32px var(--font-body, Commissioner, system-ui, sans-serif); overflow-wrap: break-word; }
-.inbox-card--private .inbox-card__words, .inbox-card--private .inbox-card__goal span {
-  color: transparent; background: #e4e4e4; border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
-}
-@media (prefers-reduced-motion: reduce) { .inbox-card { transition: none; } .inbox-card:hover { transform: none; } }
-</style>

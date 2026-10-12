@@ -1,0 +1,19 @@
+.doc-page { position: relative; overflow: hidden; border-radius: 5px; background: #fff; text-align: left;
+  box-shadow: 0 0 0 .5px rgba(16, 18, 32, .07), 0 1px 3px rgba(16, 18, 32, .06), 0 10px 24px -10px rgba(16, 18, 32, .2); }
+.doc-page__in { position: absolute; left: 0; top: 0; width: 720px; height: 960px; transform-origin: 0 0; pointer-events: none; }
+.doc-page__bar { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 24px; font: 400 13px/20px var(--font-body, Commissioner, system-ui, sans-serif);
+  color: rgba(0, 0, 0, .5); }
+.doc-page__bar .app-icon { color: rgba(0, 0, 0, .38); }
+.doc-page__text { padding: 0 48px; font: 400 16px/24px var(--font-body, Commissioner, system-ui, sans-serif); color: #000; }
+.doc-page__text h1 { margin: 20px 0 16px; font: 700 28px/34px var(--font-body, Commissioner, system-ui, sans-serif); }
+.doc-page__text h2, .doc-page__text h3, .doc-page__text h4 { margin: 22px 0 8px; font: 600 18px/26px var(--font-body, Commissioner, system-ui, sans-serif); }
+.doc-page__text p { margin: 0 0 12px; }
+.doc-page__text ul, .doc-page__text ol { margin: 0 0 12px; padding-left: 22px; }
+.doc-page__text table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 13px; line-height: 18px; }
+.doc-page__text th, .doc-page__text td { padding: 6px 8px; border-bottom: 1px solid rgba(45, 48, 54, .12); text-align: left; vertical-align: top; }
+.doc-page__text img { display: none; }
+/* Set narrow, the page keeps a readable title (round 5's `.wpage`): no head, the title first, its facts under it, the
+   text's margins shrunk. */
+.doc-page__in--narrow .doc-page__text { padding: 22px 24px; }
+.doc-page__in--narrow .doc-page__text h1 { margin: 0 0 4px; }
+.doc-page__facts.doc-page__facts { margin: 0 0 14px; font: 400 13px/20px var(--font-body, Commissioner, system-ui, sans-serif); color: rgba(0, 0, 0, .5); }

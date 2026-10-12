@@ -29,6 +29,7 @@ import { devGoalLayout } from '../lib/devGoalLayout'
 import { isPrivate } from '../lib/privacy'
 import { reducedMotion } from '../lib/motion'
 import '../kit-ext/carryover-ghost/carryover-ghost.css'
+import './goalCard.css'
 
 const props = withDefaults(
   defineProps<{
@@ -692,7 +693,3 @@ function onRowKeydown(event: KeyboardEvent) {
   </div>
   </Transition>
 </template>
-
-<!-- Unscoped on purpose (matches every other component here); rules live in `goalCard.css`
-     since the S-90a split — moved byte-for-byte, zero selector or value changes. -->
-<style src="./goalCard.css"></style>

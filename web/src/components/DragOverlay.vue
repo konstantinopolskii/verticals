@@ -11,6 +11,7 @@ import { goalHoverBackground, goalLight, goalSquare } from '../lib/look'
 import { NEUTRAL_LIGHT } from '../lib/goalColor'
 import { atRest } from '../lib/cardLift'
 import { reducedMotion } from '../lib/motion'
+import './dragOverlay.css'
 
 /* Clone the rendered row itself. Copying computed styles before Vue applies the source-ghost
    class preserves every current control and line at the measured footprint without creating a
@@ -339,21 +340,3 @@ const overlayStyle = computed(() => {
     :style="[overlayStyle, light ?? {}]"
   />
 </template>
-
-<style>
-/* Resting on a column's dots the goal melts into them, and grows back out under the hand once the spans have come
-   (docs/design-handoff S5.P2.013, .015). */
-.pattern-vertical-board__drag-overlay > * {
-  transform-origin: var(--grab-x) var(--grab-y);
-  transition: transform 200ms var(--vt-ease-large), filter 200ms var(--vt-ease-large), opacity 200ms var(--vt-ease-large);
-}
-.drag-overlay--melted > * { transform: scale(.55); filter: blur(3px); opacity: 0; }
-.drag-overlay--lit > * {
-  background-color: rgb(var(--vt-pale)) !important;
-  box-shadow: 0 0 0 1px rgba(var(--vt-tint), .07), 0 8px 20px -4px rgba(var(--vt-tint), .15), 0 52px 128px -12px rgba(var(--vt-tint), .35);
-}
-@media (prefers-reduced-motion: reduce) {
-  .pattern-vertical-board__drag-overlay > * { transition: opacity 120ms linear; }
-  .drag-overlay--melted > * { transform: none; filter: none; }
-}
-</style>
