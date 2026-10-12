@@ -17,7 +17,7 @@ from playwright.sync_api import Page, expect
 from verticals.core import comments as core_comments, docs as core_docs, goals as core_goals
 
 from tests.ui.conftest import UiSession
-from tests.ui.test_s69_nothing_is_red import _decode_png
+from tests.harness.png import decode_png
 from tests.ui.views import open_page, show_tags, switch_view, tick
 
 OWNER_WINDOW = {"width": 1470, "height": 923}
@@ -55,9 +55,9 @@ def _near(value: float, expected: float, tolerance: float = 0.01) -> bool:
 
 
 def _pixels(page: Page, x: float, y: float, width: float, height: float) -> list[tuple[int, int, int]]:
-    """The colours of a clip of the screen, as the page draws it (decoded without a library: `_decode_png`)."""
+    """The colours of a clip of the screen, as the page draws it (decoded without a library: `tests/harness/png.py`)."""
     png = page.screenshot(clip={"x": round(x), "y": round(y), "width": round(width), "height": round(height)})
-    w, h, channels, raw = _decode_png(png)
+    w, h, channels, raw = decode_png(png)
     return [(raw[i], raw[i + 1], raw[i + 2]) for i in range(0, w * h * channels, channels)]
 
 
