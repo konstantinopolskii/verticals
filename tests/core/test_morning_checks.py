@@ -294,3 +294,19 @@ def test_another_owners_report_is_not_reachable(db: psycopg.Connection) -> None:
     with pytest.raises(NotFound):
         morning_checks.apply(db, owner="SYN-checks-other", path=PATH, asked=PASSES, now=NOW)
     assert report.check_state(day.body()) == "pending"
+
+
+def test_with_no_sources_a_report_has_no_sources_section_and_the_sources_check_passes(db: psycopg.Connection) -> None:
+    """Nothing to read means nothing to list: the report says so in one line at the top and has no Sources table, and the floor
+    holds nothing against it. The app's own Connections is not a source, so it does not count as one here either."""
+    owner = "SYN-checks-none"
+    core_sources.ensure_connections(db, owner=owner)
+    task = morning.begin(db, owner=owner, day=MONDAY).task_id
+    launch = make_task(db, owner, "Launch is planned")
+    body = report_body([goal_row(launch, "Launch is planned")], sources="",
+                       unread=["No sources yet. The agent reaches chat and mail. Tell it what to read each morning, in one sentence."])
+    assert "## Sources" not in body
+    make_report(db, owner, MONDAY, body, task=task)
+    applied = morning_checks.apply(db, owner=owner, path=PATH, asked=PASSES, now=NOW)
+    assert (applied.outcomes["sources"].result, applied.outcomes["inputs"].result, applied.outcomes["continuity"].result) == (PASS, PASS, PASS)
+    assert applied.failed == ()

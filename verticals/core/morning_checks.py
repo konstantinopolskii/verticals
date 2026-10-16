@@ -6,7 +6,8 @@ the red block, and puts the server's own floor under the checks the server can d
 "pass" never outvotes a count that does not add up:
 
   * **Every source read:** each source has its row in the last section, and a source that is red or waiting for the owner's
-    Approve is named in the red block at the top.
+    Approve is named in the red block at the top. With no sources at all (the app's own Connections is not one) the report has
+    no Sources section, and nothing is held against it for that.
   * **Every message placed:** in each row, what was read is what was placed, to the last message.
   * **Continues the last report:** each window starts no later than the last report's window for that source ended, and no window
     ends before it starts.
@@ -84,8 +85,10 @@ def floor(conn: psycopg.Connection, *, owner: str, doc: core_docs.Doc, day: date
 
     sections = report.parse_sources(body)
     sources = windows.real_sources(conn, owner=owner)
-    for text in sections.problems:
-        problem("sources", text)
+    # With no sources there is nothing to list, and the report says so in one line at the top instead of a Sources section.
+    if sources:
+        for text in sections.problems:
+            problem("sources", text)
     top = " ".join(report.unread(body) or []).lower()
 
     # Every source read: a row for each, and the red ones at the top.

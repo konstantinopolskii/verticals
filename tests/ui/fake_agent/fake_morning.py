@@ -71,6 +71,18 @@ def moment(text, zone):
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=ZoneInfo(zone))
 
 
+def servers_of(detail):
+    """The servers named by the Connections check's line ("all 3 answer: chat, mail, calendar")."""
+    head = detail.split(";")[0]
+    return [name.strip() for name in head.partition(": ")[2].split(",") if name.strip()] if ": " in head else []
+
+
+def no_sources_line(servers):
+    named = servers[0] if len(servers) == 1 else ", ".join(servers[:-1]) + " and " + servers[-1] if servers else ""
+    return (f"No sources yet. The agent reaches {named}. Tell it what to read each morning, in one sentence." if named
+            else "No sources yet. Tell the agent what to read each morning, in one sentence.")
+
+
 def items_between(scenario, title, start, end, zone):
     return [item for item in scenario.get("raw", {}).get(title, []) if start <= moment(item["at"], zone) <= end]
 
@@ -85,8 +97,13 @@ def write_report(scenario, api, words, ctx, tool, *, defects=True):
     task = re.search(r"\(id (\w+)\)", words).group(1)
     zone, now = ctx["tz"], moment(ctx["now"], ctx["tz"])
     tool("sources")
-    sources = [s for s in api.call("GET", f"/api/sources?day={day}")["sources"] if s["path"] != "sources/connections.md"]
-    unread = scenario.get("unread", [])
+    listed = api.call("GET", f"/api/sources?day={day}")["sources"]
+    sources = [s for s in listed if s["path"] != "sources/connections.md"]
+    unread = list(scenario.get("unread", []))
+    if not sources:
+        # Nothing to read: the one line the contract asks for, naming the servers the app's Connections check found answering.
+        connections = next((s for s in listed if s["path"] == "sources/connections.md"), None)
+        unread.append(no_sources_line(servers_of(connections["detail"] if connections else "")))
     lines, rows = [], []
     for source in sources:
         title = source["title"]
@@ -130,7 +147,8 @@ def write_report(scenario, api, words, ctx, tool, *, defects=True):
                      + "\n".join(table))
     if closed:
         parts.append("## Closed since the last report\n\n" + "\n".join(closed))
-    parts.append(f"## Sources\n\nTimes in {zone}.\n\n" + "\n".join(head + rows))
+    if sources:
+        parts.append(f"## Sources\n\nTimes in {zone}.\n\n" + "\n".join(head + rows))
     body = "\n\n".join(parts) + "\n"
     year, month, dom = (int(n) for n in day.split("-"))
     title = f"Morning report — {dom} {MONTHS[month - 1]} {year}"

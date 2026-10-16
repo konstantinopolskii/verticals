@@ -278,7 +278,6 @@ def test_a_check_is_due_when_its_time_comes_and_one_pass_takes_it(db: psycopg.Co
 def test_the_row_of_tiles_puts_what_needs_a_look_first(db: psycopg.Connection) -> None:
     red = _source(db, "zeta", NAME)
     _source(db, "yankee", CMD, approved=False)
-    _source(db, "xray", None)
     stale = _source(db, "whisky", NAME)
     _source(db, "victor", NAME)
     fine = _source(db, "alpha", NAME)
@@ -290,7 +289,6 @@ def test_the_row_of_tiles_puts_what_needs_a_look_first(db: psycopg.Connection) -
     assert order == [
         ("sources/zeta.md", RED, None),
         ("sources/yankee.md", GREY, core.WAITING),
-        ("sources/xray.md", GREY, core.NO_CHECK),
         ("sources/whisky.md", GREY, core.STALE_ANSWER),
         ("sources/victor.md", GREY, core.NEW),
         ("sources/alpha.md", OK, None),
@@ -320,6 +318,19 @@ def test_deleting_the_document_takes_its_answers(db: psycopg.Connection) -> None
 def test_a_document_outside_sources_is_not_a_source(db: psycopg.Connection) -> None:
     core_docs.create(db, owner=OWNER, path="reports/morning/2026-10-11.md", title="Report", body="```check\n{}\n```")
     assert core.sources(db, owner=OWNER) == []
+
+
+def test_a_document_under_sources_without_a_check_is_a_plain_document_not_a_source(db: psycopg.Connection) -> None:
+    """A transcript saved under the folder before sources existed, or any note put there: with no check block it is not listed,
+    not checked and not in the row, so it never stands in red for want of a check. By its id it is still found, so the agent's
+    tool can give it a check and make it one."""
+    plain = core_docs.create(db, owner=OWNER, path="sources/elena/transcript.md", title="A transcript", body="No check here.").doc
+    disk = _source(db, "disk", NAME)
+    assert [s.id for s in core.sources(db, owner=OWNER)] == [disk.id]
+    assert [v.id for v in core.views(db, owner=OWNER, now=T0)] == [disk.id]
+    found = core.find(db, owner=OWNER, ref=plain.id)
+    assert (found.missing, found.check) == (True, None)
+    assert core.judge(found, T0) == (GREY, core.NO_CHECK)
 
 
 def test_the_connections_document_is_made_once_and_left_alone_after(db: psycopg.Connection) -> None:

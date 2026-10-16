@@ -8,7 +8,7 @@ import { SourceStrip } from './SourceStrip'
 import { ApiError, getDoc, type DocDetail as DocWire } from '../lib/api'
 import { windows } from '../lib/windows'
 import { shortDay, stackGoalOf } from '../lib/docsDesk'
-import { isSourcePath } from '../lib/sources'
+import { isSource } from '../lib/sources'
 import { bindRef, fallthrough } from '../bind'
 import { tracked } from '../tracked'
 import { useSetup } from '../setup'
@@ -95,7 +95,7 @@ export const DocWindowBody = tracked(function DocWindowBody({ id, part, ...attrs
   const doc = s.doc.value
   return (
     <div {...fallthrough({ ref: bindRef(s.root), className: 'doc-window', 'data-role': 'doc-window' }, attrs)}>
-      {doc && isSourcePath(doc.path) ? <SourceStrip id={doc.id} /> : null}
+      {doc && isSource(doc.id) ? <SourceStrip id={doc.id} /> : null}
       {doc ? (
         <DocDetail key={doc.id} doc={doc} inWindow />
       ) : s.gone.value ? (

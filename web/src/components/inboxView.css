@@ -42,4 +42,5 @@
 /* The task in the hand, at the tile's size; let go over the field it waits there as a card (MovingStack.tsx). */
 .inbox-carried { position: fixed; z-index: 290; pointer-events: none; transform: rotate(-1deg) scale(1.02); }  /* under the field (300), which takes it */
 .inbox-carried .inbox-tile { background: #fff; box-shadow: 0 0 0 .5px rgb(16 18 32 / 6%), 0 24px 60px -10px rgb(16 18 32 / 30%); }
+.inbox-desk__none { margin: 0 0 10px; }
 .inbox-desk__empty { margin: 6px 0 0; font: 400 15px/22px var(--font-body, Commissioner, system-ui, sans-serif); color: rgb(45 48 54 / 52%); }

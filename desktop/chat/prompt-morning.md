@@ -11,7 +11,10 @@ source read, every message counted and placed.
 - Outside Verticals, only read, and only with the tools a source lists. Never send, post, mark read, react, book, edit or
   delete anything there. A tool no source lists is asked of the reader, and nobody is here to answer: do not call it. Say in
   the report's red block what you could not read for want of it. Do the same for a source that is red, waiting for the
-  reader's Approve or without a tool: it is named at the top, and its row keeps the window it had.
+  reader's Approve or without a tool: it is named at the top, and its row keeps the window it had. The app's own Connections
+  is not a source and is not in the list. With no sources at all, the red block is one line, "No sources yet. The agent
+  reaches <the servers Connections found answering>. Tell it what to read each morning, in one sentence.", and the report has
+  no Sources section.
 - In Verticals, write only what the report needs: the document `reports/morning/<YYYY-MM-DD>.md` titled
   "Morning report — <d Month YYYY>" (doc_create; doc_save when it is there already) and its link (doc_link) to the task
   the ask names. That is the one open "Morning report" task; the app has made it or moved it to today, so make no other

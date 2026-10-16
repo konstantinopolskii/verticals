@@ -115,7 +115,9 @@ TOOLS: tuple[types.Tool, ...] = (
     types.Tool(
         name="sources",
         description=(
-            "Every source the morning report reads, each a document under sources/ with its state. status is ok, red or grey. "
+            "Every source the morning report reads, each a document under sources/ with a check block, with its state. A document "
+            "there without a check is a plain document and is not listed; the app's own Connections check is not listed either. "
+            "status is ok, red or grey. "
             "A first failure still reads ok: `failures` is 1, `detail` holds the failure, and the app looks again at "
             "`next_check_at` before anyone is told. Red means a second failure at least five minutes later; `since` is when "
             "it started. Grey is never red: `why` says waiting (a check the owner has not approved), new (not "
@@ -172,7 +174,9 @@ def handle_sources(conn: psycopg.Connection, owner: str, args: dict[str, Any]) -
         if one.id in cutoffs:
             one = replace(one, cutoff=cutoffs[one.id])
         return ok(f"{one.path!r} [{one.id}]: {one.status}" + (f" ({one.why})" if one.why else ""), {"source": one.as_dict()})
-    found = core.views(conn, owner=owner, now=now, excerpt=False, cutoffs=cutoffs)
+    # The app's own Connections is nothing to read: the morning's list leaves it out, as the report's floor does
+    # (`core/morning_windows.py::real_sources`). By its path it is still there to look at.
+    found = [v for v in core.views(conn, owner=owner, now=now, excerpt=False, cutoffs=cutoffs) if v.path != core.CONNECTIONS_PATH]
     red = sum(1 for v in found if v.status == core.RED)
     return ok(f"{len(found)} source(s), {red} red", {"sources": [v.as_dict() for v in found]})
 

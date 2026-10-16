@@ -10,7 +10,7 @@
 // Fix is the smallest first look: one click opens a conversation about the source with the failure in its first sentence.
 // The agent never comes by itself; an automatic first look would send this same message from the one place the app
 // already starts a turn on its own (lib/morning.ts), once per incident (`SourceView.since` names it).
-import { reactive } from '../reactivity'
+import { computed, reactive } from '../reactivity'
 import { agentChat, newThread, send } from './agentChat'
 import { ApiError, approveSource, fetchSources, type DeskDoc, type SourceView } from './api'
 import { shortDay } from './docsDesk'
@@ -37,6 +37,31 @@ export async function loadSources(): Promise<void> {
 }
 
 export const sourceOf = (id: string): SourceView | null => sources.list.find((s) => s.id === id) ?? null
+
+/** A source is a document under `sources/` with a check (`core/sources.py::sources`): the list is the judge, not the path.
+ *  A document there with no check is a plain document, and stands in Documents. */
+export const isSource = (id: string): boolean => sourceOf(id) !== null
+
+/** The app's own check of the agent's servers (`kind` connections) is nothing to read: not a source the report counts. */
+export const realSources = computed(() => sources.list.filter((s) => s.kind !== 'connections'))
+
+/** The servers the Connections check found answering, from its one line ("all 3 answer: chat, mail, calendar"). */
+export function serversOf(connections: SourceView | null): string[] {
+  const head = (connections?.detail ?? '').split(';')[0] ?? ''
+  const at = head.indexOf(': ')
+  return at < 0 ? [] : head.slice(at + 2).split(',').map((name) => name.trim()).filter(Boolean)
+}
+
+const named = (names: string[]): string => (names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`)
+
+/** The one line the row says while there is no source yet: where sources come from, and what to do. The morning report says
+ *  the same line in its red block. */
+export function noSourcesLine(): string {
+  const servers = serversOf(sources.list.find((s) => s.kind === 'connections') ?? null)
+  return servers.length
+    ? `No sources yet. The agent reaches ${named(servers)}. Tell it what to read each morning, in one sentence.`
+    : 'No sources yet. Tell the agent what to read each morning, in one sentence.'
+}
 
 const two = (n: number) => String(n).padStart(2, '0')
 

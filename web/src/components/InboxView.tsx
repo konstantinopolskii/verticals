@@ -13,7 +13,7 @@ import { commandFilter } from '../lib/commandFilter'
 import { inboxWriting } from '../lib/circle'
 import { docShelves, earlier, inbox, inboxView, loadInbox, recentDocs, shelves, today, TODAY_SHOWN } from '../lib/inbox'
 import { desk, loadDesk } from '../lib/docsDesk'
-import { cardOf, loadSources, noteOf, sources } from '../lib/sources'
+import { cardOf, loadSources, noSourcesLine, noteOf, realSources, sources } from '../lib/sources'
 import { carry } from '../lib/inboxCarry'
 import { Teleport } from '../Teleport'
 import { cx, fallthrough, sx } from '../bind'
@@ -101,25 +101,30 @@ export const InboxView = tracked(function InboxView(attrs: Record<string, unknow
         </section>
       ) : null}
 
-      {sources.list.length ? (
+      {sources.loaded ? (
         <section className="inbox-desk__section" data-role="inbox-sources">
           <h2 className="inbox-desk__head">
-            Sources<span className="inbox-desk__count">{sources.list.length}</span>
+            Sources{realSources.value.length ? <span className="inbox-desk__count">{realSources.value.length}</span> : null}
             {sources.list.length > 4 ? (
               <button type="button" className="inbox-desk__all" data-role="inbox-sources-all" onClick={() => { inboxView.sources = !inboxView.sources }}>
                 {inboxView.sources ? 'Show less' : 'Show all'}
               </button>
             ) : null}
           </h2>
-          <div className={inboxView.sources ? 'inbox-desk__grid' : 'inbox-desk__row'}>
-            {(inboxView.sources ? sources.list : sources.list.slice(0, ROW)).map((source) => (
-              <DocChip key={source.id} id={source.id} doc={cardOf(source)} note={noteOf(source).text} tone={noteOf(source).tone} />
-            ))}
-          </div>
+          {realSources.value.length ? null : (
+            <p className="inbox-desk__empty inbox-desk__none" data-role="inbox-sources-none">{noSourcesLine()}</p>
+          )}
+          {sources.list.length ? (
+            <div className={inboxView.sources ? 'inbox-desk__grid' : 'inbox-desk__row'}>
+              {(inboxView.sources ? sources.list : sources.list.slice(0, ROW)).map((source) => (
+                <DocChip key={source.id} id={source.id} doc={cardOf(source)} note={noteOf(source).text} tone={noteOf(source).tone} />
+              ))}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
-      {inbox.loaded && desk.loaded && !inbox.goals.length && !recentDocs.value.length && !sources.list.length ? (
+      {inbox.loaded && desk.loaded && !inbox.goals.length && !recentDocs.value.length && !realSources.value.length ? (
         <p className="inbox-desk__empty">
           Nothing waits here. What you write in the field lands at the top.
         </p>

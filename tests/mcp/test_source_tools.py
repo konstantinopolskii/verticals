@@ -346,3 +346,24 @@ async def _reads_and_cutoff(f2_dsn: str, tmp_path: Path) -> None:
 
 def test_a_source_names_the_tools_that_read_it_and_the_list_says_where_the_last_report_stopped(f2_dsn: str, tmp_path: Path) -> None:
     anyio.run(_reads_and_cutoff, f2_dsn, tmp_path)
+
+
+async def _connections_is_not_listed(f2_dsn: str, tmp_path: Path) -> None:
+    """The app's own check of the agent's servers is nothing to read, so the morning's list leaves it out; by its path it is still
+    there to look at. A document under sources/ with no check is a plain document, not a source: the list leaves it out too."""
+    with psycopg.connect(f2_dsn, autocommit=True) as conn:
+        connections = core.ensure_connections(conn, owner=TEST_OWNER)
+    async with open_mcp_stdio(f2_dsn, tmp_path, label="source-connections") as (session, streams):
+        await session.call_tool("doc_create", {"path": "sources/elena/transcript.md", "title": "A transcript", "body": "No check here."})
+        made = await session.call_tool("source", {**CHAT, "check": {"kind": "dns", "host": "localhost", "reads": READS}})
+        assert made.is_error is False, made.content
+        listed = await session.call_tool("sources", {})
+        assert [s["path"] for s in listed.structured_content["sources"]] == ["sources/team-chat.md"]
+        assert listed.content[0].text.startswith("1 source(s)")
+        one = await session.call_tool("sources", {"id": "sources/connections.md"})
+        assert (one.structured_content["source"]["id"], one.structured_content["source"]["kind"]) == (connections, "connections")
+        streams.assert_hygiene(token=TEST_TOKEN)
+
+
+def test_the_list_leaves_connections_and_plain_documents_out(f2_dsn: str, tmp_path: Path) -> None:
+    anyio.run(_connections_is_not_listed, f2_dsn, tmp_path)

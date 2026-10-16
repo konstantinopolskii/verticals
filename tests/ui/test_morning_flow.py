@@ -17,7 +17,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -27,6 +27,8 @@ import pytest
 from tests.core.morning_sample import make_report, report_body, source_doc, source_row, sources_section
 from tests.ui.conftest import F2_OWNER, TEST_TOKEN, Server, _backend
 from tests.ui.test_agent_conversation import _agent_gateway, _cli_starts, _flag
+from verticals.core import sources as core_sources
+from verticals.core.sources import Result
 
 DAY, YESTERDAY = "2026-08-08", "2026-08-07"
 ZONE = "Europe/Berlin"
@@ -415,3 +417,19 @@ def test_a_morning_that_wrote_no_report_is_not_checked(morning: Morning) -> None
     run = morning.ask(morning.task())
     assert run.final()["error"] is False and "Make my morning report" in run.words() and len(morning.starts()) == 1
     assert [e["t"] for e in run.events if e["t"] in ("step",)] == []
+
+
+def test_with_no_sources_the_red_block_is_one_line_naming_the_servers_and_there_is_no_sources_table(morning: Morning) -> None:
+    with morning.db() as conn:
+        connections = core_sources.ensure_connections(conn, owner=F2_OWNER)
+        own = core_sources.find(conn, owner=F2_OWNER, ref=connections)
+        core_sources.record(conn, owner=F2_OWNER, doc_id=connections, check_hash=own.check.hash,
+                            result=Result(ok=True, detail="all 2 answer: chat, mail", value=2.0, ms=5), now=datetime.now(timezone.utc))
+    task = morning.task()
+    morning.scenario(rows=[{"id": morning.goal("Launch plan is shared"), "title": "Launch plan is shared"}])
+    run = morning.ask(task)
+    assert run.final()["error"] is False
+    body = morning.report()
+    assert body.split("\n")[:3] == ["```unread", "No sources yet. The agent reaches chat and mail. Tell it what to read each morning, in one sentence.", "```"]
+    assert "## Sources" not in body and morning.rows() == {}
+    assert body.split("\n")[4] == "Checked against the sources by a second agent: all 10 passed."

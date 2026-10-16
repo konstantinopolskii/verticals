@@ -259,7 +259,7 @@ def test_the_connections_source_exists_only_where_the_app_is_told_to_ask(db: psy
     ran = _pass(pool, clock, home, connections=["claude"], path=path)
     assert [(r.path, r.result.ok) for r in ran] == [("sources/connections.md", False)]
     view = _view(db, core.find(db, owner=OWNER, ref=core.CONNECTIONS_PATH).id, clock)
-    assert (view.title, view.kind, view.detail) == ("Connections", "connections", "1 of 2 answer; not answering: b (failed to connect)")
+    assert (view.title, view.kind, view.detail) == ("Connections", "connections", "1 of 2 answer: a; not answering: b (failed to connect)")
     # Taken off the list of agents, the document stays and is left alone.
     clock.move(hours=2)
     assert _pass(pool, clock, home, connections=[], path=path) == []

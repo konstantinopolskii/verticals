@@ -100,8 +100,11 @@ def check(
         return Result(True, "no MCP server is in use", value=0, raw=raw)
     answering = [s for s in servers if s.state == "answers"]
     down = [s for s in servers if s.state != "answers"]
+    # The names of the servers that answer are in the line: the Inbox tells the owner, while they have no source yet, which
+    # servers the agent reaches, and the agent reads the same line.
+    reached = ", ".join(s.name for s in answering)
     if not down:
-        return Result(True, f"all {len(servers)} answer", value=float(len(answering)), raw=raw)
+        return Result(True, f"all {len(servers)} answer: {reached}", value=float(len(answering)), raw=raw)
     names = ", ".join(f"{s.name} ({LABEL.get(s.state, shown(s.status, 30))})" for s in down)
-    return Result(False, f"{len(answering)} of {len(servers)} answer; not answering: {names}",
-                  value=float(len(answering)), raw=raw)
+    head = f"{len(answering)} of {len(servers)} answer" + (f": {reached}" if reached else "")
+    return Result(False, f"{head}; not answering: {names}", value=float(len(answering)), raw=raw)

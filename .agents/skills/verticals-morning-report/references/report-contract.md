@@ -17,6 +17,8 @@ Team chat: list_messages answered with an error at 06:51.
 
 It holds every source that is red or waiting for the reader's Approve, every tool that was declined or failed, and every source with no tool listed for reading it. The app draws it in red. Leave it out when everything was read. A source named here still has its row in the sources, with the window it had before.
 
+A source is a document under `sources/` with a check block; a document there without one is a plain document, and the app's own Connections check is not a source. With no sources at all, the block is one line, `No sources yet. The agent reaches chat and mail. Tell it what to read each morning, in one sentence.`, naming the servers the Connections check found answering, and the report has no Sources section.
+
 ## 2. The check
 
 One line, directly under the red block (or at the very top when there is none), written as:
@@ -52,7 +54,7 @@ The last section, `## Sources`. Its first line says the zone the times are in, a
 
 `Times in Europe/Berlin.`
 
-Then one table with a row for every source, in this shape, the numbers after `Read` being counts:
+Then one table with a row for every source, in this shape, the numbers after `Read` being counts (with no sources at all, this section is left out; see the red block above):
 
 | Source | Window | Read | Tasks | Inbox | Done | Put off | Context | Gap |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

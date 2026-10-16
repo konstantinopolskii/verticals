@@ -405,7 +405,8 @@ def test_the_connections_check_names_what_is_not_answering(home: Path, tmp_path:
     result = _ask(home, path, environ={"PATH": "/usr/bin:/bin", "HOME": str(home), "VERTICALS_TOKEN": "secret-token",
                                        "CLAUDE_CONFIG_DIR": "/some/config"})
     assert result.ok is False
-    assert result.detail == "4 of 6 answer; not answering: board (failed to connect), chat (needs sign-in)"
+    assert result.detail == ("4 of 6 answer: mail, calendar, notes, plugin:files:files; "
+                             "not answering: board (failed to connect), chat (needs sign-in)")
     assert result.value == 4.0 and "Needs authentication" in result.raw
     assert (tmp_path / "note.args").read_text().strip() == "mcp list"
     seen = (tmp_path / "note.env").read_text()
@@ -416,7 +417,7 @@ def test_the_connections_check_names_what_is_not_answering(home: Path, tmp_path:
 def test_every_server_answering_passes_and_a_cli_that_fails_is_a_failure(home: Path, tmp_path: Path) -> None:
     good = _fake_claude(tmp_path / "good", "Checking MCP server health…\n\na: https://a.test (HTTP) - ✓ Connected\nb: ./b - ✓ Connected")
     ok = _ask(home, good)
-    assert (ok.ok, ok.detail, ok.value) == (True, "all 2 answer", 2.0)
+    assert (ok.ok, ok.detail, ok.value) == (True, "all 2 answer: a, b", 2.0)
     none = _fake_claude(tmp_path / "none", "No MCP servers configured. Use `claude mcp add` to add a server.")
     empty = _ask(home, none)
     assert (empty.ok, empty.detail) == (True, "no MCP servers are set up")

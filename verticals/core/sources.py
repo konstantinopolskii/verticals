@@ -89,7 +89,8 @@ class Row:
 
 @dataclass(frozen=True)
 class Source:
-    """A document under `sources/` as the timer finds it: its check (or why there is none) and what it knows."""
+    """A document under `sources/` as the timer finds it: its check (or why there is none) and what it knows. `missing` says
+    the document has no check block at all: then it is a plain document, and `sources` leaves it out."""
 
     id: str
     path: str
@@ -190,10 +191,12 @@ def _source(r: tuple) -> Source:
 
 
 def sources(conn: psycopg.Connection, *, owner: str) -> list[Source]:
-    """Every document under `sources/`, path order."""
+    """Every source: a document under `sources/` with a check block, path order. A document there without one (a transcript
+    saved before sources existed, a note) is a plain document, not a source: not listed, not checked, not in the Inbox's row,
+    not in the report. `find` still finds it by its id, so the agent's tool can give it a check and make it a source."""
     owner = validate_owner(owner)
     rows = conn.execute(_SELECT + " ORDER BY d.path", {"owner": owner, "prefix": sc.PREFIX}).fetchall()
-    return [_source(r) for r in rows]
+    return [s for s in (_source(r) for r in rows) if not s.missing]
 
 
 def find(conn: psycopg.Connection, *, owner: str, ref: str) -> Source:

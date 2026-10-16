@@ -330,3 +330,26 @@ def test_fix_opens_a_conversation_about_the_source_with_the_failure_in_its_first
     expect(said).to_contain_text("sources/chat.md")
     # The agent was asked once, by the click; nothing sent anything before it.
     expect(said).to_have_count(1)
+
+
+def test_with_no_sources_the_row_says_so_and_names_the_servers_the_agent_reaches(ui_f2: UiSession) -> None:
+    """Nothing to read yet: the row does not vanish, it says so and names the servers the agent reaches, from the app's own
+    Connections check, so the owner learns where sources come from. A document under the folder with no check is a plain
+    document: it stands in Documents, not here."""
+    session = ui_f2
+    page = session.page
+    now = datetime.now(timezone.utc)
+    with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
+        connections = core.ensure_connections(conn, owner=OWNER)
+        own = core.find(conn, owner=OWNER, ref=connections)
+        core.record(conn, owner=OWNER, doc_id=connections, check_hash=own.check.hash,
+                    result=Result(ok=True, detail="all 3 answer: chat, mail, calendar", value=3.0, ms=900), now=now - timedelta(minutes=2))
+        plain = core_docs.create(conn, owner=OWNER, path="sources/elena/transcript.md", title="A transcript", body="No check here.").doc.id
+
+    _open_inbox(session)
+    row = page.locator(ROW)
+    expect(row.locator('[data-role="inbox-sources-none"]')).to_have_text(
+        "No sources yet. The agent reaches chat, mail and calendar. Tell it what to read each morning, in one sentence.", timeout=10000)
+    expect(row.locator(".inbox-desk__head")).to_have_text("Sources")
+    expect(row.locator(f'[data-doc-id="{plain}"]')).to_have_count(0)
+    expect(page.locator(f'[data-role="inbox-docs"] [data-doc-id="{plain}"]')).to_have_count(1)

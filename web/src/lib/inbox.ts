@@ -15,7 +15,7 @@ import { isoDate } from './schedule'
 import { todayIso } from '../store'
 import { moving } from './moving'
 import { desk } from './docsDesk'
-import { isSourcePath } from './sources'
+import { isSource } from './sources'
 import type { DeskDoc } from './api'
 
 export const SHELVES: ReadonlyArray<readonly [string, string]> = [
@@ -76,7 +76,7 @@ export const shelves = computed(() => SHELVES
 /** Documents: every document, newest edit first, as Finder's Recents (round 8). Read with the Documents desk. The sources
  *  are documents too, and have a row of their own under this one (lib/sources.ts), so they are not in this row twice. */
 export const recentDocs = computed<DeskDoc[]>(() => Object.values(desk.data?.docs ?? {})
-  .filter((doc) => !isSourcePath(doc.path))
+  .filter((doc) => !isSource(doc.id))
   .sort((a, b) => b.updated_at.localeCompare(a.updated_at)))
 
 /** A document has no column, so “Show all” puts it on the shelf of its age, by its last edit: today on Day, up to a week
