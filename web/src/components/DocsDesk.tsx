@@ -1,7 +1,7 @@
 /* The Documents desk: every document as a page, in stacks by the goal it accumulates
    under, grouped by value in the board's order, and first the documents no goal holds, under "No goal" with the board's
    grey square, one stack for each age. A click on a stack lays its pages out over the desk; a click on a page opens it
-   as a window; Esc puts them back. The field narrows the desk as it narrows the board.
+   as a window; Esc puts them back (App.tsx, where Esc peels the layers in order). The field narrows the desk as it narrows the board.
 
    The stack opens in one movement per step: the desk dims first, in 150 ms; the laid-out pages grow from where the stack
    lies, 95 % to 100 % in 300 ms, fading in from 60 ms. Closing, the pages go first (120 ms) and the dim lifts last, by
@@ -15,7 +15,7 @@ import { store } from '../store'
 import { count, desk, docMatches, groups, loadDesk, openStack, shortDay } from '../lib/docsDesk'
 import { devPaletteFor, rgbaFromHex } from '../lib/devPalette'
 import { goalWashInk } from '../lib/goalColor'
-import { openWindow, windows } from '../lib/windows'
+import { openWindow } from '../lib/windows'
 import { Transition } from '../Transition'
 import { cx, fallthrough, sx, valueOf } from '../bind'
 import { tracked } from '../tracked'
@@ -51,14 +51,6 @@ export const DocsDesk = tracked(function DocsDesk(attrs: Record<string, unknown>
       const doc = data.value?.docs[id]
       openWindow({ kind: 'doc', target: id, title: doc?.title || doc?.path || 'Document' }, event.currentTarget as Element)
     }
-    function onKey(event: KeyboardEvent): void {
-      if (event.key === 'Escape' && desk.open && !windows.list.length && !event.defaultPrevented) {
-        const target = event.target instanceof HTMLElement ? event.target : null
-        if (target?.closest('input, textarea, [contenteditable="true"]')) return
-        desk.open = null
-      }
-    }
-
     // A new document: its path, folders by "/", committed with ↵.
     const creating = ref(false)
     const draft = ref('')
@@ -87,10 +79,8 @@ export const DocsDesk = tracked(function DocsDesk(attrs: Record<string, unknown>
 
     onMounted(() => {
       void loadDesk()
-      window.addEventListener('keydown', onKey)
     })
     onBeforeUnmount(() => {
-      window.removeEventListener('keydown', onKey)
       desk.open = null
     })
     return { data, mark, behind, openStackAt, onOpenEnter, openDoc, creating, draft, draftInput, startCreate, commitCreate }

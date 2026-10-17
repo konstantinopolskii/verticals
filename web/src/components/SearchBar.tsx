@@ -495,7 +495,8 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
         void stop()
         return
       }
-      if (event.key === 'Escape' && circleWords.value?.kind === 'answer') {
+      if (event.key === 'Escape' && circleWords.value?.kind === 'answer' && !anyMenuOpen()) {
+        event.preventDefault() // one press does one thing: the answer goes back, and nothing under it closes with it
         sendBack()
         return
       }

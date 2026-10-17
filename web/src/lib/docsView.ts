@@ -158,6 +158,7 @@ export function createDocsView(state: { docs: DocsState }, deps: Deps) {
   function closeDoc(): void {
     state.docs.currentId = null
     state.docs.current = null
+    state.docs.currentLoading = false
     state.docs.historyOpen = false
     state.docs.history = null
     state.docs.viewingRevision = null

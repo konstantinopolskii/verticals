@@ -24,11 +24,12 @@ import { commandFilter } from './lib/commandFilter'
 import { agentChat, currentThread, newThread, openForGoal, openThread, send, startAgentChat } from './lib/agentChat'
 import { circle, inboxWriting } from './lib/circle'
 import { inbox, loadInbox, writeDown } from './lib/inbox'
-import { endMove, moveContext } from './lib/moving'
+import { endMove, escape as letGoOfMove, moveContext, moving } from './lib/moving'
 import { findGoal } from './lib/boardIndex'
 import { spanGoal } from './lib/spans'
 import { REPLAN_ASK, type CarriedPlan } from './lib/replan'
 import { closeWindows, frontWindow, openWindow, outOfFocus, stepWindow, windows } from './lib/windows'
+import { desk } from './lib/docsDesk'
 import { WindowStack } from './components/WindowStack'
 import { AgentConversation } from './components/AgentConversation'
 import { AgentTag } from './components/AgentTag'
@@ -187,20 +188,40 @@ export const App = tracked(function App() {
       if (!id || (frontWindow.value?.kind === 'goal' && frontWindow.value.target === id)) return
       openWindow({ kind: 'goal', target: id, title: title || 'Goal' })
     }
-    /* Esc, when nothing smaller takes it, sends the windows away; ⌘[ and ⌘] move one window. */
-    function onWindowsKey(event: KeyboardEvent): void {
-      if (!windows.list.length || event.defaultPrevented) return
-      const target = event.target instanceof HTMLElement ? event.target : null
-      if ((event.metaKey || event.ctrlKey) && (event.key === '[' || event.key === ']')) {
+    /* Esc, when nothing smaller takes it, peels one layer a press: the agent's conversation, the windows, then on a desk
+       a goal held on the field, on Documents a document's history, the document itself and a laid-out stack, and last the
+       desk, Inbox or Documents, back to the board. What has its own Esc keeps it: the text being typed, a menu, a dialog,
+       a goal in the hand, and on the board a goal open in place (GoalDetail) and the moving mode (SpansBoard). ⌘[ and ⌘]
+       move one window. */
+    function escapeStep(): (() => void) | null {
+      if (agentChat.open) return () => { agentChat.open = false }
+      if (windows.list.length) return closeWindows
+      const view = store.state.activeView
+      if (view === 'verticals') return null
+      if (moving.picked || circle.moving) return () => void letGoOfMove()
+      if (view === 'docs') {
+        const docs = store.state.docs
+        if (docs.historyOpen && docs.current) return store.closeHistory
+        if (docs.historyOpen || docs.currentId || docs.currentLoading) return store.closeDoc
+        if (desk.open) return () => { desk.open = null }
+      }
+      return () => store.setView('verticals')
+    }
+    function onShellKey(event: KeyboardEvent): void {
+      if (event.defaultPrevented) return
+      if (windows.list.length && (event.metaKey || event.ctrlKey) && (event.key === '[' || event.key === ']')) {
         event.preventDefault()
         stepWindow(event.key === '[' ? -1 : 1)
         return
       }
-      if (event.key === 'Escape' && !target?.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) {
-        event.preventDefault()
-        if (agentChat.open) agentChat.open = false
-        else closeWindows()
-      }
+      if (event.key !== 'Escape' || event.isComposing || event.repeat) return
+      const target = event.target instanceof HTMLElement ? event.target : null
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return
+      if (store.state.drag.id || store.state.drag.pending || store.state.drag.settling) return
+      const step = escapeStep()
+      if (!step) return
+      event.preventDefault()
+      step()
     }
     /* The morning report: looked for on start, once the agent has answered, and every five minutes. */
     let morningTimer: ReturnType<typeof setInterval> | null = null
@@ -212,7 +233,7 @@ export const App = tracked(function App() {
       window.addEventListener('verticals:discuss-goal', onDiscussGoal)
       window.addEventListener('verticals:replan', onReplan)
       window.addEventListener('verticals:open-goal-window', onOpenGoalWindow)
-      window.addEventListener('keydown', onWindowsKey)
+      window.addEventListener('keydown', onShellKey)
       // The Inbox read once at start, so it opens with its rows; it reads again whenever it is opened.
       void loadInbox()
       morningTimer = setInterval(() => void morningCheck(), 5 * 60_000)
@@ -222,7 +243,7 @@ export const App = tracked(function App() {
       window.removeEventListener('verticals:discuss-goal', onDiscussGoal)
       window.removeEventListener('verticals:replan', onReplan)
       window.removeEventListener('verticals:open-goal-window', onOpenGoalWindow)
-      window.removeEventListener('keydown', onWindowsKey)
+      window.removeEventListener('keydown', onShellKey)
     })
     return { devPanelsVisible, searchBar, onSubmit, onVeilClick, onConversationLink }
   })
