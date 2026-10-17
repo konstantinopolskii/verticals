@@ -90,6 +90,13 @@ def test_codex_is_given_the_relay_the_address_and_the_file_never_the_token(check
     assert "verticals_desktop" in chat_source and "verticals_desktop" not in checked["codexAdd"]
 
 
+def test_agents_env_points_the_agents_at_a_sign_in_and_sets_nothing_else(checked: dict) -> None:
+    """`agents.env` in the state folder: an app opened from Finder never sees the owner's shell, so this is how its Claude Code
+    and Codex use another account's folder. Only those two variables, only absolute paths after `~` is the home folder."""
+    assert checked["agentEnv"] == {"CLAUDE_CONFIG_DIR": "/Users/sample/.claude-personal", "CODEX_HOME": "/Users/sample/codex home"}
+    assert checked["agentEnvRelative"] == {"CODEX_HOME": "/Users/sample"}
+
+
 def test_the_bundle_registers_the_verticals_scheme_and_compiles_the_link_file() -> None:
     """Info.plist is written by desktop/macos/bundle.py: it names the scheme the app opens, and the compile line has AppLinks.swift."""
     source = (REPO_ROOT / "desktop" / "macos" / "bundle.py").read_text()

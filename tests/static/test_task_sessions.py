@@ -136,6 +136,16 @@ def test_the_terminal_script_changes_to_the_sessions_folder_and_quotes_what_it_w
     # A folder with a quote or a dollar in it stays one word.
     odd = sessions.terminal_script(sessions.open_action("claude", CLAUDE_SESSION, "/Users/sample/it's $HOME"), None)
     assert shlex.split(next(line for line in odd.splitlines() if line.startswith("cd ")).split(" 2>/dev/null")[0])[1] == "/Users/sample/it's $HOME"
+    assert "CLAUDE_CONFIG_DIR" not in script
+
+
+def test_the_terminal_script_keeps_the_apps_claude_sign_in() -> None:
+    """Terminal starts from the owner's shell, so the app's `CLAUDE_CONFIG_DIR` (agents.env) is set again before `claude` runs."""
+    sessions = _agent_sessions()
+    action = sessions.open_action("claude", CLAUDE_SESSION, FOLDER)
+    lines = sessions.terminal_script(action, None, "/Users/sample/my claude").splitlines()
+    assert lines[1] == "export CLAUDE_CONFIG_DIR='/Users/sample/my claude'"
+    assert lines[-1] == f"exec claude --resume {CLAUDE_SESSION}"
 
 
 def test_a_task_has_a_link_the_app_opens() -> None:

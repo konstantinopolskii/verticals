@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         process.executableURL = URL(fileURLWithPath: "\(res)/python/bin/python3")
         process.arguments = [script.path]
         process.currentDirectoryURL = root
-        var env = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environment.merging(agentEnvironment) { _, chosen in chosen }
         env["PATH"] = agentPath
         env["VERTICALS_DESKTOP_STATE"] = stateDir.path
         env["VERTICALS_DESKTOP_PYTHONPATH"] = "\(res):\(res)/site"
@@ -458,7 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = [tool] + args
-            var env = ProcessInfo.processInfo.environment
+            var env = ProcessInfo.processInfo.environment.merging(agentEnvironment) { _, chosen in chosen }
             env["PATH"] = agentPath
             process.environment = env
             let pipe = Pipe()
@@ -470,6 +470,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             }
             do { try process.run() } catch { done.resume(returning: (127, "")) }
         }
+    }
+
+    // Whose sign-in Claude Code and Codex use: `agents.env` in the state folder, read at every start (AppLinks.agentEnvironment).
+    // The chat, the morning report, the source checks, "Connect Claude Code" and a session opened in Terminal all follow it.
+    var agentEnvironment: [String: String] {
+        let file = stateDir.appendingPathComponent("agents.env")
+        guard let text = try? String(contentsOf: file, encoding: .utf8) else { return [:] }
+        return AppLinks.agentEnvironment(text, home: FileManager.default.homeDirectoryForCurrentUser.path)
     }
 
     // Apps launched from Finder get a bare PATH; the agent CLIs (claude, codex) live in these.

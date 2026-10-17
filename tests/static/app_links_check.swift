@@ -29,6 +29,16 @@ import Foundation
             relay: "/Applications/Verticals.app/Contents/Resources/desktop/chat/mcp_proxy.py",
             mcpURL: "http://127.0.0.1:8281/mcp", headersFile: headers)
         out["codexRemove"] = AppLinks.codexRemoveArguments
+        out["agentEnv"] = AppLinks.agentEnvironment("""
+            # whose sign-in the agents use
+            CLAUDE_CONFIG_DIR=~/.claude-personal
+            export CODEX_HOME="/Users/sample/codex home"
+
+            PATH=/tmp/evil
+            ANTHROPIC_API_KEY=sk-not-read
+            CLAUDE_CODE_OAUTH_TOKEN=/not/read/either
+            """, home: "/Users/sample")
+        out["agentEnvRelative"] = AppLinks.agentEnvironment("CLAUDE_CONFIG_DIR=claude-personal\nCODEX_HOME='~'", home: "/Users/sample")
         let data = try! JSONSerialization.data(withJSONObject: out, options: [.sortedKeys])
         print(String(data: data, encoding: .utf8)!)
     }

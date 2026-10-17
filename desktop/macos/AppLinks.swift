@@ -57,4 +57,30 @@ enum AppLinks {
     }
 
     static let codexRemoveArguments = ["mcp", "remove", codexServer]
+
+    // MARK: whose sign-in the agents use
+
+    /// The variables `agents.env` in the state folder may set. An app opened from Finder never sees the owner's shell, so this file
+    /// is how the agents it starts are pointed at a sign-in other than the default `~/.claude` or `~/.codex`. Nothing else is read.
+    static let agentVariables: Set<String> = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"]
+
+    /// `KEY=VALUE` lines, `#` comments and blank lines skipped, quotes around a value dropped, a leading `~/` made the home folder.
+    /// Only `agentVariables` are kept, and only with an absolute path: a typo is ignored rather than handed to an agent.
+    static func agentEnvironment(_ text: String, home: String) -> [String: String] {
+        var found: [String: String] = [:]
+        for raw in text.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.hasPrefix("#"), let eq = line.firstIndex(of: "=") else { continue }
+            var key = line[..<eq].trimmingCharacters(in: .whitespaces)
+            if key.hasPrefix("export ") { key = String(key.dropFirst(7)).trimmingCharacters(in: .whitespaces) }
+            var value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+            if value.count >= 2, let first = value.first, first == value.last, first == "\"" || first == "'" {
+                value = String(value.dropFirst().dropLast())
+            }
+            if value == "~" { value = home } else if value.hasPrefix("~/") { value = home + value.dropFirst() }
+            guard agentVariables.contains(key), value.hasPrefix("/") else { continue }
+            found[key] = value
+        }
+        return found
+    }
 }

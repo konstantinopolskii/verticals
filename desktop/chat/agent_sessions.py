@@ -134,11 +134,15 @@ def open_action(provider: str, session_id: object, cwd: str | None) -> dict:
     return {"kind": "terminal", "cwd": cwd or None, "command": ["claude", "--resume", str(session_id)]}
 
 
-def terminal_script(action: dict, exe: str | None) -> str:
+def terminal_script(action: dict, exe: str | None, config_dir: str | None = None) -> str:
     """The script Terminal runs for a `terminal` action: into the session's folder (home if it has gone), then the command, in
-    place of the shell. `exe` is where `claude` was found; the folder and every word are quoted, whatever they hold."""
+    place of the shell. `exe` is where `claude` was found; the folder and every word are quoted, whatever they hold.
+    `config_dir` is the app's `CLAUDE_CONFIG_DIR`: Terminal starts from the owner's shell, not the app, so without it Claude
+    would look for the session, and sign in, under another account's folder."""
     command = [exe or action["command"][0], *action["command"][1:]]
     lines = ["#!/bin/zsh"]
+    if config_dir:
+        lines.append(f"export CLAUDE_CONFIG_DIR={shlex.quote(config_dir)}")
     if action.get("cwd"):
         lines.append(f"cd {shlex.quote(action['cwd'])} 2>/dev/null || cd ~")
     lines.append("exec " + " ".join(shlex.quote(word) for word in command))

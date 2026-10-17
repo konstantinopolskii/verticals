@@ -82,6 +82,23 @@ board and MCP are running, and has:
 - Open at Login — a login item (`SMAppService`); at login Vertical starts in the menu bar only.
 - Quit Verticals — the only way, with ⌘Q, to stop the board and MCP.
 
+## Which account the agents use
+
+The app runs `claude` and `codex` as they are signed in by default (`~/.claude`, `~/.codex`). An app opened from Finder
+never sees your shell, so a `CLAUDE_CONFIG_DIR` or `CODEX_HOME` set there doesn't reach it. To give Vertical another
+sign-in, for example a personal account beside a work one, put the folder in `agents.env` in the state folder
+(`~/Library/Application Support/Verticals/agents.env`) and restart the app:
+
+```sh
+CLAUDE_CONFIG_DIR=~/.claude-personal
+CODEX_HOME=~/.codex-personal
+```
+
+Only these two variables are read, and only absolute paths (`~/` is your home folder). The chat, the morning report, the
+source checks, "Connect Claude Code" and "Connect Codex" in the menu bar, and a session opened in Terminal all use them.
+A folder that has never been signed in to needs one sign-in first: `CLAUDE_CONFIG_DIR=~/.claude-personal claude`, then
+`/login`.
+
 ## Run from the repository
 
 Requires PostgreSQL 16 (`brew install postgresql@16`), Python 3.12 (`uv python install 3.12`) and,

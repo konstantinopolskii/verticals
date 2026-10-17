@@ -1262,7 +1262,7 @@ class Chat:
             folder = self.state_dir / "open"
             folder.mkdir(mode=0o700, exist_ok=True)
             script = folder / f"claude-{entry['sessionId']}.command"
-            script.write_text(agent_sessions.terminal_script(action, which("claude")))
+            script.write_text(agent_sessions.terminal_script(action, which("claude"), os.environ.get("CLAUDE_CONFIG_DIR")))
             script.chmod(0o700)
             argv = [opener, "-a", "Terminal", str(script)]
         else:
