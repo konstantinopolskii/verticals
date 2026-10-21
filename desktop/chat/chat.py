@@ -232,6 +232,16 @@ MCP_OUTPUT_TOKENS = "100000"
 READ_TOOLS = ["board", "goal", "outline", "search", "evidence_due", "tags", "size_report",
               "doc_get", "doc_image", "doc_tree", "doc_history", "doc_revision", "comments",
               "privacy", "sources"]
+# Replan over the whole board (docs/design/replan-whole-board.md): the owner says go to the whole document once, and the
+# answer's Undo takes all of it back (docs/design/agent-answer-undo.md), so a conversation a Replan message started makes
+# these Verticals writes without a question for each, in every permission mode. Nothing outside Verticals is among them.
+REPLAN_WRITES = ["schedule", "delete", "update", "reparent", "doc_create", "doc_save", "doc_link"]
+# Claude's own question tool. Its call comes to the gateway as a permission request (its permission check always asks), and
+# the field shows each question as an ask; the answers go back in the call's input, keyed by each question's words
+# (Claude Agent SDK docs, "Handle approvals and user input"; the CLI reads `answers[question]` as text).
+QUESTION_TOOL = "AskUserQuestion"
+# An option the agent marks as its guess stays first, where one tap takes it.
+GUESS_MARKS = ("(my guess)", "(recommended)")
 
 # Agent descriptors: labels and details are Enjoy's own (see its provider registry). `signin` is how the field signs a signed-out
 # agent back in (agent_signin.py, docs/design/agent-sign-in.md): its login command, its status command and how the status is read
@@ -493,7 +503,12 @@ class ClaudeAgent:
             claude_settings["permissions"] = {"ask": MORNING_ASKS}
         self.full = full_access(settings) and not self.connected
         self.reads = declared_reads(chat) if self.connected else {}
-        allowed = READ_TOOLS + (MORNING_WRITES if self.connected and not self.checker else [])
+        # A conversation a Replan message started (Chat._send) writes on the board without asking (REPLAN_WRITES).
+        self.replan = bool(settings.get("replan")) and not self.connected and prompt is None
+        self.questions = {}  # the ask of each question that waits -> the question call it belongs to
+        self.asking = {}     # a question call -> its questions, the answers so far and the ask on show
+        allowed = READ_TOOLS + (MORNING_WRITES if self.connected and not self.checker else []) + (
+            REPLAN_WRITES if self.replan else [])
         # What this seat runs without a question: on the command line, and again in handle() for when the CLI asks anyway.
         self.allowed = [f"mcp__verticals__{t}" for t in allowed] + list(self.reads)
         mode = ASK_FIRST if self.connected else settings.get("permission") or BOARD_ONLY
@@ -508,7 +523,10 @@ class ClaudeAgent:
                 "--permission-prompts", "host", "--permission-prompt-tool", "stdio",
                 *([] if self.connected or self.full else ["--strict-mcp-config"]), "--mcp-config", str(chat.claude_config(getattr(s, "id", None))),
                 "--settings", json.dumps(claude_settings),
-                *(["--add-dir", str(Path.home())] if self.full else ["--tools", ""]),
+                # "Verticals only" has none of Claude Code's tools but its question tool, which reaches nothing (QUESTION_TOOL);
+                # the morning's seats and a conversation of another kind (report_kind.py) have none at all.
+                *(["--add-dir", str(Path.home())] if self.full else
+                  ["--tools", "" if self.connected or prompt is not None else QUESTION_TOOL]),
                 "--allowedTools", ",".join(self.allowed),
                 "--append-system-prompt", prompt if prompt is not None else PROMPT + "\n" + brief,
                 "--resume" if resume_id else "--session-id", self.session_id]
@@ -537,11 +555,70 @@ class ClaudeAgent:
         self.proc.send({"type": "control_request", "request_id": str(uuid.uuid4()), "request": {"subtype": "interrupt"}})
 
     def decide(self, rid, option):
+        if rid in self.questions:
+            return self.answer(rid, option)
         tool_input = self.pending.pop(rid, None)
         response = {"behavior": "allow", "updatedInput": tool_input} if option == "accept" else \
             {"behavior": "deny", "message": "The user declined this action."}
+        self.respond(rid, response)
+
+    def respond(self, rid, response):
         self.proc.send({"type": "control_response",
                         "response": {"subtype": "success", "request_id": rid, "response": response}})
+
+    # -- Claude's questions (QUESTION_TOOL, docs/design/replan-whole-board.md)
+
+    def ask_questions(self, rid, tool_input):
+        """A question call: its questions are asked one at a time, as the field's asks, and answered to Claude once."""
+        questions = [q for q in (tool_input.get("questions") if isinstance(tool_input, dict) else None) or []
+                     if isinstance(q, dict) and str(q.get("question") or "").strip()]
+        if not questions:
+            return self.respond(rid, {"behavior": "allow", "updatedInput": {**(tool_input or {}), "answers": {}}})
+        self.asking[rid] = {"input": tool_input, "questions": questions, "answers": {}, "at": 0, "key": None, "labels": []}
+        self.ask_next(rid)
+
+    def ask_next(self, rid):
+        call = self.asking.get(rid)
+        if call is None:
+            return
+        number = call["at"]
+        q = call["questions"][number]
+        options = [o for o in q.get("options") or [] if isinstance(o, dict) and str(o.get("label") or "").strip()]
+        options.sort(key=lambda o: not str(o["label"]).strip().lower().endswith(GUESS_MARKS))
+        call["key"], call["labels"] = f"{rid}:q{number + 1}", [str(o["label"]) for o in options]
+        self.questions[call["key"]] = rid
+        body = "\n".join(filter(None, [str(q.get("header") or ""), *(
+            f"{o['label']}: {o['description']}" if o.get("description") else str(o["label"]) for o in options)]))
+        self.s.ask(self, call["key"], str(q["question"])[:500], body,
+                   [(label[:120], str(i)) for i, label in enumerate(call["labels"])], tool=QUESTION_TOOL,
+                   tool_input={"question": q["question"], "header": q.get("header"), "multiSelect": bool(q.get("multiSelect")),
+                               "options": options})
+
+    def answer(self, key, value, typed=False):
+        """One question answered: by a tap (the option's number, or several numbers for a multi-select question, whose
+        labels are joined with ", ", as the SDK docs say) or by the owner's own words (`typed`). The next question is asked
+        by what this returns, once the field was told this one is done (Chat.decide); after the last, Claude gets every
+        answer. An answer that is neither, the refusal a quiet seat gives every ask (report_kind.py), declines the call."""
+        rid = self.questions.pop(key, None)
+        call = self.asking.get(rid)
+        if call is None:
+            return None
+        labels = call["labels"]
+        picked = value if isinstance(value, list) else [value]
+        if typed:
+            words = str(value).strip()
+        elif picked and all(isinstance(v, str) and v.isdigit() and int(v) < len(labels) for v in picked):
+            words = ", ".join(labels[int(v)] for v in picked)
+        else:
+            self.asking.pop(rid)
+            return self.respond(rid, {"behavior": "deny", "message": "The user did not answer."})
+        call["answers"][str(call["questions"][call["at"]]["question"])] = words
+        call["at"] += 1
+        if call["at"] < len(call["questions"]):
+            return lambda: self.ask_next(rid)
+        self.asking.pop(rid)
+        self.respond(rid, {"behavior": "allow", "updatedInput": {**call["input"], "answers": call["answers"]}})
+        return None
 
     def handle(self, msg):
         s, kind = self.s, msg.get("type")
@@ -581,7 +658,11 @@ class ClaudeAgent:
         elif kind == "control_request" and msg.get("request", {}).get("subtype") == "can_use_tool":
             req, rid = msg["request"], msg.get("request_id")
             tool, tool_input = req.get("tool_name", ""), req.get("input", {})
+            if tool == QUESTION_TOOL and not self.connected:
+                return self.ask_questions(rid, tool_input)
             self.pending[rid] = tool_input
+            if self.replan and tool in self.allowed:
+                return self.decide(rid, "accept")  # REPLAN_WRITES, should the CLI ask about them anyway (plan mode does)
             if self.connected:
                 # Every MCP tool of a morning turn comes here (`MORNING_ASKS`). What the seat may run is what is on its command
                 # line: Verticals' reading tools, the tools its approved sources declare, and for the agent that writes the
@@ -601,7 +682,10 @@ class ClaudeAgent:
                   "\n\n".join(filter(None, [req.get("decision_reason"), json.dumps(tool_input, indent=2, ensure_ascii=False)])),
                   [("Allow once", "accept"), ("Decline", "decline")], tool=short(tool), tool_input=tool_input)
         elif kind == "control_cancel_request":
-            s.resolve(msg.get("request_id"), "Cancelled")
+            call = self.asking.pop(msg.get("request_id"), None)
+            if call:  # a question call: the ask on show is its own
+                self.questions.pop(call["key"], None)
+            s.resolve(call["key"] if call else msg.get("request_id"), "Cancelled")
         elif kind == "control_response" and msg.get("response", {}).get("request_id") == "initialize":
             models = (msg["response"].get("response") or {}).get("models") or []
             self.chat.remember_models("claude", models)
@@ -972,6 +1056,10 @@ class Session:
     def resolve(self, key, label):
         if key is not None and self.asks.pop(str(key), None):
             self.emit({"t": "permission_done", "requestId": str(key), "label": label})
+
+    def open_question(self):
+        """The ask of the agent's question that waits, if one does: words sent now answer it (Chat._send)."""
+        return next((key for key, agent in self.asks.items() if key in getattr(agent, "questions", {})), None)
 
     # -- lifecycle
 
@@ -1484,6 +1572,10 @@ class Chat:
         goal = context.get("goal") if isinstance(context, dict) else None
         if isinstance(goal, dict) and isinstance(goal.get("id"), str) and len(goal["id"]) < 100:
             self.update(id, goal={"id": goal["id"], "title": str(goal.get("title", ""))[:300]})
+        if isinstance(context, dict) and isinstance(context.get("replan"), dict) and not self.load().get(id, {}).get("sessionId"):
+            # A conversation that Replan starts stays a Replan conversation for its later turns, and after the gateway starts
+            # again (start_turn reads it): its writes run without a question for each (REPLAN_WRITES).
+            self.update(id, replan=True)
         if not which(settings["provider"]):
             raise ChatError(f"{AGENTS[settings['provider']]['label']} is not installed.")
         self.log.info("send provider=%s permission=%s morning=%s chars=%d mode=%s queued=%s session=%s",
@@ -1491,6 +1583,11 @@ class Chat:
         s.emit({"t": "user", "text": text, "provider": settings["provider"], "model": settings.get("model"),
                 "effort": settings.get("effort")})
         self.record(id, "user", text)
+        question = s.open_question()
+        if question is not None:
+            # Words typed while the agent's question waits are its answer, in the owner's words: no turn starts for them.
+            self.decide(id, question, text, typed=True)
+            return
         if self.signin.holds(s.id):
             # Behind a sign-in every message waits, in the order sent, and goes after the one that failed (agent_signin.py).
             s.queue.append((text, context, settings))
@@ -1515,8 +1612,10 @@ class Chat:
             s.turn = (text, context, settings)
             s.started_at = time.time()
             s.answer = secrets.token_hex(8)  # this turn is one answer, and what its writes change is kept under this id
-        s.settings = settings
         stored = self.load().get(s.id, {})
+        if stored.get("replan"):
+            settings = {**settings, "replan": True}  # a Replan conversation's every turn (_send), so its agent stays the same
+        s.settings = settings
         provider = settings["provider"]
         handoff, fresh = "", False
         try:
@@ -1577,15 +1676,20 @@ class Chat:
             self.close_answer(answer)
             s.emit({"t": "done", "error": True, "detail": str(e), "ms": 0, "answer": answer})
 
-    def decide(self, id, request_id, value):
+    def decide(self, id, request_id, value, typed=False):
+        """An ask answered: by one of its options (`value`), or, for a question of the agent's, by the owner's own words
+        (`typed`), which the event and the log never carry. A question that has another after it asks that one once the field
+        knows this one is done."""
         s = self.session(id)
         agent = s.asks.pop(str(request_id), None)
         if agent is None:
             self.log.warning("refused permission no longer active session=%s", str(id)[:8])
             raise ChatError("This request is no longer active")
-        agent.decide(str(request_id), value)
+        then = agent.answer(str(request_id), value, typed=True) if typed else agent.decide(str(request_id), value)
         if agent is not self.signin:  # the sign-in's ask stays open after a click, and says itself how it ends
-            s.emit({"t": "permission_done", "requestId": str(request_id), "value": value})
+            s.emit({"t": "permission_done", "requestId": str(request_id), **({"label": "Answered"} if typed else {"value": value})})
+        if callable(then):
+            then()
 
     def stop(self, id):
         s = self.session(id)
@@ -1751,11 +1855,8 @@ def format_context(ctx):
             lines.append(REPLAN_RULES)
     replan = ctx.get("replan")
     if isinstance(replan, dict):
-        # "Replan" clicked on the plans that carried over (Inbox and Documents redesign, round 8): nothing was made before it.
-        plans = [p for p in replan.get("plans") or [] if isinstance(p, dict) and isinstance(p.get("id"), str)][:60]
-        listed = "; ".join(f"\"{str(p.get('title') or '')[:200]}\" (id {p['id'][:40]})" for p in plans)
-        lines.append(f"The owner clicked Replan on {len(plans)} plans that carried over into "
-                     f"{str(replan.get('column') or 'this column')[:40]}: {listed}. " + REPLAN_ASK_RULES)
+        # "Replan" clicked in any box: every plan that carried over on the board (docs/design/replan-whole-board.md).
+        lines.append(replan_plans(replan) + "\n" + REPLAN_ASK_RULES)
     move = ctx.get("move")
     if isinstance(move, dict):
         # Words sent while the owner moves a goal on the board (docs/design-handoff S5.P3.041).
@@ -1770,16 +1871,63 @@ def format_context(ctx):
     return "\n".join(lines)
 
 
-# Replan on request (Inbox and Documents redesign, round 8; the app makes no task and no document by itself any more).
+# The boxes carried plans sit in, in the board's order, and what each is called on the board.
+REPLAN_BOXES = {"day": "Day", "week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year", "decade": "3 years"}
+REPLAN_PLANS = 200
+
+
+def replan_plans(replan):
+    """The carried plans the app sent with Replan, by the box each sits in: its title and id, its own scale and planned
+    date, and what it belongs to. At most REPLAN_PLANS of them, ids and titles clipped."""
+    plans = [p for p in replan.get("plans") or [] if isinstance(p, dict) and isinstance(p.get("id"), str)]
+    boxes = {}
+    for plan in plans[:REPLAN_PLANS]:
+        boxes.setdefault(str(plan.get("column") or "")[:20], []).append(plan)
+
+    def one(plan):
+        scale = str(plan.get("vertical") or "")[:20]
+        scale = "3-year" if scale == "decade" else scale
+        when = str(plan.get("anchor_date") or "")[:20]
+        said = [f"id {plan['id'][:40]}", f"{scale} plan" + (f" for {when}" if when else "") if scale else ""]
+        if plan.get("parent"):
+            said.append(f"under \"{str(plan['parent'])[:200]}\"")
+        return f"\"{str(plan.get('title') or '')[:200]}\" ({', '.join(filter(None, said))})"
+
+    order = [box for box in REPLAN_BOXES if box in boxes] + [box for box in boxes if box not in REPLAN_BOXES]
+    listed = [f"{REPLAN_BOXES.get(box) or box.capitalize() or 'Other'} box ({len(boxes[box])}): "
+              + "; ".join(one(plan) for plan in boxes[box]) for box in order]
+    head = (f"The plans that carried over on the board, {len(plans)} in all"
+            + (f", the first {REPLAN_PLANS} listed" if len(plans) > REPLAN_PLANS else "") + ", by the box each sits in:")
+    return "\n".join([head, *listed])
+
+
+# Replan over the whole board (docs/design/replan-whole-board.md; the owner, 21 Oct 2026: "refresh the whole due list", the
+# whole batch in "like 5 minutes max"): the board read before asking, at most three questions with the guesses first, then
+# one document sorted by decision, applied on go.
 REPLAN_ASK_RULES = (
-    "Make one document with doc_create, path replan/<today>.md, titled \"Replan — <d Month YYYY>\": a markdown table "
-    "Goal | Summary | Next step | Your comment, one row per plan, its goal linked as [title](#goal/<id>). Fill Summary "
-    "from each plan's own notes, and under its planned time in Next step put where it should go (Move to this week, Move "
-    "to next week, Move to the Inbox, Move to next month). Then answer in at most two short lines and end with the "
-    "document's link on its own line, as [title](#doc/<id>). When the owner later writes in Your comment and says they "
-    "are ready, save those words verbatim as a comment on that plan, apply it with schedule, reparent or update, clear "
-    "the cell and leave the receipt in Next step, such as \"Moved to next week, as you wrote.\" Move nothing until "
-    "the owner says they are ready. Edit only the cells you change."
+    "The owner clicked Replan: sort out every plan that carried over on the board, all columns at once, so they decide the "
+    "whole list in about five minutes with as little thinking as possible. 1. Read before you ask. Call board for today. "
+    "Look at what the owner did lately: the goals done, added or moved in the last two weeks, and the documents they worked "
+    "on; if this conversation reaches their calendar and messages, the next two weeks and the last few days. From that, "
+    "guess what matters most now and which streams went quiet. 2. Your first answer: two short lines on what the board "
+    "holds now (this week and this month), how many plans carried over and from which streams; then at most three "
+    "questions about what matters now, each with two to four short options, your guess first and marked \"(my guess)\". "
+    "Ask with the AskUserQuestion tool when you have it, all the questions in one call. Without it, number the questions, "
+    "letter the options and end with: \"Say go to take my guesses, or answer like 1b 3a.\" Ask nothing the board or their "
+    "recent work already tells you. 3. With the answers, sort every plan into one of: Keep (it's fine: into the current "
+    "period of the column it carried into: this week, this month, this quarter), Idk (not now, not dead: to the Inbox, "
+    "the date taken away, with a note), Fuck it (dead: deleted), Done (it already happened; say by what evidence). Decide a "
+    "whole stream at once where its plans share a fate. Make one document with doc_create, path replan/<today>.md, or "
+    "replan/<today>-2.md (then -3 and on) when that path is taken: never overwrite an earlier document. Title it "
+    "\"Replan — <d Month YYYY>\": a section per decision with its count in the heading, \"Keep · N\", \"Idk · N\", "
+    "\"Fuck it · N\", \"Done · N\", inside it the plans grouped by what they belong to, each linked as [title](#goal/<id>) "
+    "with a few words of why. Then answer in one line with the counts and \"Say go, or move a row in the document.\", and "
+    "end with the document's link on its own line, as [title](#doc/<id>). 4. On go, apply the document as it stands then: "
+    "Keep with schedule (the column's scale, today's date); Idk with schedule (vertical and anchor_date null), then one "
+    "update of its id whose body is its notes as they are (read them with goal) and, after them, the line \"Needs "
+    "realigning. Moved from <its planned period, such as the week of 5 Oct> on <today, such as 21 Oct>.\"; Fuck it with "
+    "delete (cascade true only when the plan's own steps go with it); Done with one update of ids with done true. Then one "
+    "line on what changed. Move nothing before go."
 )
 
 # The app's sorting task (docs/design-handoff S4.P4.010, .011): how its table is worked. Its words are the agent's own.

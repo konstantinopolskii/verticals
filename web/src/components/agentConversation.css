@@ -76,9 +76,11 @@
 .agent-balloon__markdown + .agent-balloon__chips { margin-top: 14px; }
 .agent-balloon__chips + .agent-balloon__ask { margin-top: 12px; }
 .agent-balloon__choices { display: flex; flex-wrap: wrap; gap: 8px; }
+/* A label longer than the balloon breaks inside its own pill (a question's option, docs/design/replan-whole-board.md). */
 .agent-balloon__choice {
-  height: 32px;
-  padding: 0 14px;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 6px 14px;
   border: 0;
   border-radius: 16px;
   background: #fff;

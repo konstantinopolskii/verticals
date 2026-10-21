@@ -4,7 +4,7 @@
 // opens on a click, a key or ⌘K (docs/design/field-hover.md).
 import { computed, reactive } from '../reactivity'
 import { commandFilter } from './commandFilter'
-import { agentChat, balloons, openAsk } from './agentChat'
+import { QUESTION_TOOL, agentChat, balloons, openAsk } from './agentChat'
 import { askLine } from './askDetail'
 import { frontWindow, windows } from './windows'
 import { pictures, reporting } from './reportPictures'
@@ -34,14 +34,20 @@ export const circle = reactive({
   moving: false,
 })
 
-/** The field writes things down: the Inbox is open, with no window over it, no conversation and nothing being moved. */
+/** The agent's question waits: the field's words are its answer (lib/answerSuggestions.ts, docs/design/replan-whole-board.md). */
+export const answering = computed(() => openAsk.value?.tool === QUESTION_TOOL)
+export const ANSWER_CAPTION = 'Your answer'
+
+/** The field writes things down: the Inbox is open, with no window over it, no conversation, no question of the agent's
+ *  waiting and nothing being moved. */
 export const inboxWriting = computed(() => store.state.activeView === 'inbox' && !windows.list.length && !agentChat.open
-  && !circle.moving)
+  && !circle.moving && !answering.value)
 
 /** Once an answer has gone up into the conversation, the field asks the agent (S1.P1.015). */
 export const circleCaption = computed(() => {
   if (pictures.over) return DROP_CAPTION
   if (reporting.value) return REPORT_CAPTION
+  if (answering.value) return ANSWER_CAPTION
   if (inboxWriting.value) return INBOX_CAPTION
   if (circle.job !== 'board') return CAPTIONS[circle.job]
   if (frontWindow.value?.kind === 'goal') return CAPTIONS.goal

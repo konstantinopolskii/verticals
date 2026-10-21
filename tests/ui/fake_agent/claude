@@ -5,8 +5,10 @@ way Claude does, with the connection the gateway wrote for this conversation: `-
 `[ask:NAME]` asks permission for one of the writes in ASKS, shaped as the real tool is called, `[make:ID|Title]` makes the
 goal ID by calling `create` and gets the words Verticals' server answers it with, `[slow]` works for a second and a half,
 `[wait:N]` works for N seconds, `[long]` answers in three paragraphs, `[fail]` ends the turn with an error, `[say]` answers
-with the words after it, and `[context]` with the app context Verticals sent. A message that opens with "Check again" (a
-document's comments and edits handed over, web/src/lib/checkAgain.ts) works for a second and a half, which is the time a test
+with the words after it, and `[context]` with the app context Verticals sent. `[question]` says what the board holds,
+then asks Claude's question tool (AskUserQuestion) the two questions of QUESTION, as the CLI asks its host for it, and answers
+with the answers it got back, the way the tool's result reads them ("question"="answer"). A message that opens with "Check
+again" (a document's comments and edits handed over, web/src/lib/checkAgain.ts) works for a second and a half, which is the time a test
 has to rewrite the document as the real agent would, then answers in two lines. A message that opens with "Improve it" (a
 report's design asked for, web/src/lib/reportActions.ts) is answered as the real agent answers it through Verticals' tools: it
 writes a design document into the report's task, linked to it, and says it is waiting for the person's comments; this one
@@ -76,6 +78,47 @@ ASKS = {
     "delete": ("delete", {"id": "SYNDAY01"}),
     "unknown": ("schedule", {"id": "SYNNOPE1", "vertical": "day", "anchor_date": "2026-08-10"}),
 }
+
+
+# `[question]`: what the agent asks before it sorts the plans (docs/design/replan-whole-board.md), each guess first and marked.
+QUESTION_LEAD = "This week holds 6 plans and this month 4. 9 plans carried over, from the guide and the launch."
+QUESTION = {"questions": [
+    {"question": "What matters most this week?", "header": "Focus", "multiSelect": False, "options": [
+        {"label": "The guide (my guess)", "description": "You worked on it every day last week"},
+        {"label": "The launch", "description": "Its plans carried over twice"},
+        {"label": "Rest", "description": "Keep the week light"}]},
+    {"question": "Which stream went quiet?", "header": "Quiet", "multiSelect": False, "options": [
+        {"label": "Reading (my guess)", "description": "Nothing done in it for three weeks"},
+        {"label": "Sport", "description": ""}]},
+]}
+
+
+def stream_text(words):
+    """Words as the CLI streams an answer's text."""
+    out({"type": "stream_event", "event": {"type": "message_start"}})
+    out({"type": "stream_event", "event": {"type": "content_block_start", "content_block": {"type": "text"}}})
+    for piece in re.findall(r"\S+\s*|\n+", words):
+        out({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": piece}}})
+
+
+def question(number):
+    """Claude's question tool: the call, the CLI's permission request for it, and the tool's result from the host's answer.
+    The questions are QUESTION's, or the scenario's own (`questions` in scenario.json, the tool's input as Claude gives it)."""
+    use, asked_for = f"question-{number}", (SCENARIO or {}).get("questions") or QUESTION
+    out({"type": "assistant", "message": {"content": [{"type": "tool_use", "id": use, "name": "AskUserQuestion", "input": asked_for}]}})
+    out({"type": "control_request", "request_id": use, "request": {
+        "subtype": "can_use_tool", "tool_name": "AskUserQuestion", "input": asked_for}})
+    reply = None
+    while (reply := read()) is not None and reply.get("type") != "control_response":
+        pass
+    response = ((reply or {}).get("response") or {}).get("response") or {}
+    with open("decisions.log", "a") as decisions:
+        decisions.write(json.dumps({"tool": "AskUserQuestion", **response}) + "\n")
+    answers = (response.get("updatedInput") or {}).get("answers") or {} if response.get("behavior") == "allow" else {}
+    said = ", ".join(f'"{q}"="{a}"' for q, a in answers.items())
+    out({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": use, "is_error": not answers,
+                                                  "content": f"User has answered your questions: {said}" if answers else "No answer."}]}})
+    return f"Answers: {said}." if answers else "No answers."
 
 
 def ask_host(full, tool_input):
@@ -383,6 +426,10 @@ for msg in iter(read, None):
         out({"type": "user", "message": {"content": [
             {"type": "tool_result", "tool_use_id": f"make-{goal}", "content": [{"type": "text", "text": f"Created {title!r} [{goal}]"}]}]}})
     fixed = None
+    if "[question]" in words:
+        asked += 1
+        stream_text(QUESTION_LEAD)
+        fixed = question(asked)
     if words.startswith(IMPROVE):
         time.sleep(1.0)
         fixed = improve(words)
@@ -395,8 +442,5 @@ for msg in iter(read, None):
     if "[fail]" in words:
         out({"type": "result", "is_error": True, "result": "The fake agent failed on purpose."})
         continue
-    out({"type": "stream_event", "event": {"type": "message_start"}})
-    out({"type": "stream_event", "event": {"type": "content_block_start", "content_block": {"type": "text"}}})
-    for piece in re.findall(r"\S+\s*|\n+", fixed or answer_for(words)):
-        out({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": piece}}})
+    stream_text(fixed or answer_for(words))
     out({"type": "result", "is_error": False, "result": ""})
