@@ -58,7 +58,7 @@ body,
 }
 body {
   margin: 0;
-  background: #ffffff;
+  background: var(--color-bg);
 }
 
 /* Owner ruling (2026-08-09): "Restrict all the text selection on the app except the places where
@@ -157,7 +157,7 @@ body {
 
   --vt-focus-blur: 64px;
   --vt-focus-saturate: 1.4;
-  --vt-focus-veil: rgba(245, 245, 247, .9);
+  --vt-focus-veil: rgb(var(--vt-desk-rgb, 245 245 247) / .9);
   --vt-blur-0: 1px;
   --vt-blur-1: 3px;
   --vt-blur-2: 6px;
@@ -213,7 +213,7 @@ body {
 }
 
 /* The white inside every checkbox is black (S0.P1.048). */
-.checkbox__input:checked + .checkbox__box { color: #000; }
+.checkbox__input:checked + .checkbox__box { color: var(--color-text); }
 
 #goal-detail.modal {
   z-index: 5000;
@@ -268,8 +268,8 @@ body {
   box-sizing: border-box;
   height: 73px;
   padding: 20px 24px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  background-color: rgb(255, 255, 255);
+  border-top: 1px solid rgb(var(--vt-text-rgb, 0 0 0) / 0.08);
+  background-color: rgb(var(--vt-surface-rgb, 255 255 255));
 }
 #goal-detail .goal-detail__loading { padding: 76px; }
 @media (max-width: 693px) {
@@ -290,7 +290,7 @@ body {
     margin-top: 5px;
     padding-top: 8px;
     border-radius: 8px 8px 0 0;
-    background: rgb(255, 255, 255);
+    background: rgb(var(--vt-surface-rgb, 255 255 255));
   }
   #goal-detail .goal-detail__header {
     height: 30px;

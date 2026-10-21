@@ -29,7 +29,7 @@
   flex: none;
   box-sizing: border-box;
   border-radius: var(--vt-radius-balloon);
-  color: #fff;
+  color: var(--vt-on-black, #fff);
   font: 400 15px/22px var(--font-body);
   overflow-wrap: anywhere;
   user-select: text;

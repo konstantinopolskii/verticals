@@ -13,8 +13,8 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: 14px;
-  background: #fff;
-  color: #000;
+  background: var(--color-bg);
+  color: var(--color-text);
   box-shadow: var(--vt-shadow-hair), var(--vt-near-small) rgba(var(--vt-ink), var(--vt-shadow-grey-near));
   font: 400 14px/20px var(--font-body);
   animation: doc-list-in var(--vt-dur-open) var(--vt-ease-large) backwards;
@@ -37,10 +37,10 @@
   text-align: left;
   cursor: pointer;
 }
-@media (hover: hover) and (pointer: fine) { .doc-list__row:hover { background: rgb(0 0 0 / 5%); } }
-.doc-list__row:focus-visible { outline: 2px solid #000; outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) { .doc-list__row:hover { background: rgb(var(--vt-text-rgb, 0 0 0) / 5%); } }
+.doc-list__row:focus-visible { outline: 2px solid var(--color-text); outline-offset: -2px; }
 .doc-list__words { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.doc-list__said { overflow: hidden; color: rgb(0 0 0 / 55%); font: 400 13px/18px var(--font-body); text-overflow: ellipsis; white-space: nowrap; }
-.doc-list__said b { color: rgb(0 0 0 / 80%); font-weight: 500; }
-.doc-list__head { margin: 8px 10px 2px; color: rgb(0 0 0 / 60%); font: 500 11px/16px var(--font-body); }
-.doc-list__row--resolved .doc-list__words { color: rgb(0 0 0 / 55%); font-weight: 400; }
+.doc-list__said { overflow: hidden; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); font: 400 13px/18px var(--font-body); text-overflow: ellipsis; white-space: nowrap; }
+.doc-list__said b { color: rgb(var(--vt-text-rgb, 0 0 0) / 80%); font-weight: 500; }
+.doc-list__head { margin: 8px 10px 2px; color: rgb(var(--vt-text-rgb, 0 0 0) / 60%); font: 500 11px/16px var(--font-body); }
+.doc-list__row--resolved .doc-list__words { color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); font-weight: 400; }

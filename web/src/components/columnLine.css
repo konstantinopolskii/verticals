@@ -47,7 +47,7 @@
   white-space: nowrap;
   transition: opacity var(--motion-title) var(--vt-ease-small);
 }
-.column-line__kind { color: rgb(45 48 54 / 52%); font-weight: var(--fw-regular); }
+.column-line__kind { color: rgb(var(--vt-foreground-rgb, 45 48 54) / 52%); font-weight: var(--fw-regular); }
 .column-line__name { color: var(--color-text); font-weight: var(--fw-bold); opacity: 0; }
 .column-line[data-state='period'] .column-line__kind { opacity: 0; }
 .column-line[data-state='period'] .column-line__name { opacity: 1; }

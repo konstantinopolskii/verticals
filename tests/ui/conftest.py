@@ -560,11 +560,12 @@ class UiSession:
 
 def _make_ui_session(
     *, browser: Browser, backend: Server, static_base_url: str, request: pytest.FixtureRequest,
-    reduced_motion: str,
+    reduced_motion: str, color_scheme: str | None = None,
 ) -> Iterator[UiSession]:
     context = browser.new_context(
         viewport=VIEWPORT,
         reduced_motion=reduced_motion,
+        color_scheme=color_scheme,
     )
     context.add_init_script(script=_DIALOG_RECORDER_SCRIPT)
     page = context.new_page()

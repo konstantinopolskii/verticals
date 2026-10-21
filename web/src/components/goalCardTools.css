@@ -55,9 +55,9 @@
 .goal-actions__section + .goal-actions__section {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, .08);
+  border-top: 1px solid rgb(var(--vt-text-rgb, 0 0 0) / .08);
 }
-.goal-actions__heading { margin: 2px 14px 2px; color: rgb(45 48 54 / 52%); font: 400 13px/18px var(--font-body); }
+.goal-actions__heading { margin: 2px 14px 2px; color: rgb(var(--vt-foreground-rgb, 45 48 54) / 52%); font: 400 13px/18px var(--font-body); }
 .goal-actions__item.goal-actions__item,
 .goal-actions__submenu.goal-actions__submenu button {
   box-sizing: border-box;
@@ -82,7 +82,7 @@
 .goal-actions__submenu button:hover,
 .goal-actions__submenu button:focus {
   outline: none;
-  background-color: rgba(0, 0, 0, .05);
+  background-color: rgb(var(--vt-text-rgb, 0 0 0) / .05);
 }
 .goal-actions__item[aria-disabled="true"],
 .goal-actions__schedule button[aria-disabled="true"] { cursor: default; opacity: .5; }

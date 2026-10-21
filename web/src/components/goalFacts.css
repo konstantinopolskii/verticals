@@ -5,7 +5,7 @@
   font-size: 13px;
   line-height: 20px;
   font-weight: 400;
-  color: rgba(0, 0, 0, .5);
+  color: rgb(var(--vt-text-rgb, 0 0 0) / .5);
   cursor: default;
 }
 .goal-facts__item,
@@ -20,12 +20,12 @@
   cursor: pointer;
 }
 .goal-facts__item:hover,
-.goal-facts .shot-size-fields__summary:hover { color: #000; }
+.goal-facts .shot-size-fields__summary:hover { color: var(--color-text); }
 .goal-facts__item:focus-visible,
 .goal-facts .shot-size-fields__summary:focus-visible { outline: 2px solid var(--color-border-strong); outline-offset: 2px; }
-.goal-facts__item--act { color: #000; font-weight: 500; }
-.goal-facts__item--act:hover { text-decoration: underline; text-underline-offset: 2.25px; text-decoration-color: rgba(0, 0, 0, .2); }
-.goal-facts__sep { padding: 0 4px; color: rgba(0, 0, 0, .28); }
+.goal-facts__item--act { color: var(--color-text); font-weight: 500; }
+.goal-facts__item--act:hover { text-decoration: underline; text-underline-offset: 2.25px; text-decoration-color: rgb(var(--vt-text-rgb, 0 0 0) / .2); }
+.goal-facts__sep { padding: 0 4px; color: rgb(var(--vt-text-rgb, 0 0 0) / .28); }
 .goal-facts > .schedule-popover-anchor,
 .goal-facts .dropdown,
 .goal-facts > .shot-size-fields { display: inline; }

@@ -84,8 +84,9 @@ export function goalLight(color: string | null | undefined): { '--vt-tint': stri
 /** The colour a goal's row lights in (`--goal-hover-background`). */
 export function goalHoverBackground(color: string | null | undefined): string {
   const card = devPaletteFor(color)?.card
-  if (card) return rgbaFromHex(card.color, card.opacity)
-  return color ? `rgb(${goalWashInk(color).washRgb})` : `rgb(${NEUTRAL_LIGHT.join(', ')})`
+  const wash = card ? rgbaFromHex(card.color, card.opacity)
+    : color ? `rgb(${goalWashInk(color).washRgb})` : `rgb(${NEUTRAL_LIGHT.join(', ')})`
+  return `color-mix(in srgb, ${wash} var(--vt-goal-wash), var(--color-bg))`
 }
 
 /** A goal's checkbox square and its tick. A colourless square reads a shade darker than the add row's (D225). */

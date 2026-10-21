@@ -11,18 +11,18 @@
   padding: 2px 0;
   border: 0;
   background: none;
-  color: #000;
+  color: var(--color-text);
   font: 400 13px/20px var(--font-body);
   text-align: left;
   cursor: pointer;
 }
-.goal-links__row--inherited { color: rgb(0 0 0 / 50%); }
-.goal-links__mark { flex: none; width: 14px; height: 14px; color: rgb(0 0 0 / 55%); }
+.goal-links__row--inherited { color: rgb(var(--vt-text-rgb, 0 0 0) / 50%); }
+.goal-links__mark { flex: none; width: 14px; height: 14px; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); }
 .goal-links__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline;
-  text-decoration-thickness: 1px; text-underline-offset: .15em; text-decoration-color: rgb(0 0 0 / 20%); }
-.goal-links__note, .goal-links__date { flex: none; color: rgb(0 0 0 / 45%); }
+  text-decoration-thickness: 1px; text-underline-offset: .15em; text-decoration-color: rgb(var(--vt-text-rgb, 0 0 0) / 20%); }
+.goal-links__note, .goal-links__date { flex: none; color: rgb(var(--vt-text-rgb, 0 0 0) / 45%); }
 .goal-links__open { display: grid; flex: none; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; background: none;
-  color: rgb(0 0 0 / 45%); cursor: pointer; }
-@media (hover: hover) and (pointer: fine) { .goal-links__open:hover { color: #000; } }
-.goal-links__more { padding: 2px 0 0 22px; border: 0; background: none; color: rgb(0 0 0 / 45%); font: 400 13px/20px var(--font-body);
+  color: rgb(var(--vt-text-rgb, 0 0 0) / 45%); cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .goal-links__open:hover { color: var(--color-text); } }
+.goal-links__more { padding: 2px 0 0 22px; border: 0; background: none; color: rgb(var(--vt-text-rgb, 0 0 0) / 45%); font: 400 13px/20px var(--font-body);
   cursor: pointer; }

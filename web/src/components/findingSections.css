@@ -3,14 +3,14 @@
 .finding__note {
   margin: 0;
   padding: 6px 0 6px 17px;
-  color: rgb(0 0 0 / 45%);
+  color: rgb(var(--vt-text-rgb, 0 0 0) / 45%);
   font: 400 12px/19px var(--font-body);
   white-space: nowrap;
 }
 .finding__headline {
   margin: 14px 0 6px;
   padding: 0 8px 0 17px;
-  color: rgb(45 48 54 / 52%);
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / 52%);
   font: 400 12px/16px var(--font-body);
   white-space: nowrap;
 }

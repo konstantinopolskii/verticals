@@ -9,7 +9,7 @@
   width: 15px;
   height: 14px;
   fill: none;
-  stroke: rgba(45, 48, 54, .3);
+  stroke: rgb(var(--vt-foreground-rgb, 45 48 54) / .3);
   stroke-width: 2.2;
 }
 .goal-card--detail-open .goal-card__repeat {

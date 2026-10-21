@@ -95,7 +95,7 @@ body.pattern-vertical-board__no-select * {
     isolation: isolate;
     scale: var(--deck-card-scale);
     filter: none;
-    background: #fff;
+    background: var(--color-bg);
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
     border-radius: 1.2rem;
@@ -132,7 +132,7 @@ body.pattern-vertical-board__no-select * {
     transform: none;
     z-index: 3;
     scale: 1;
-    background: #fff;
+    background: var(--color-bg);
     translate: 0 0;
   }
 
@@ -145,7 +145,7 @@ body.pattern-vertical-board__no-select * {
     z-index: 2;
     filter: blur(0);
     scale: var(--deck-card-active-scale);
-    background: #fff;
+    background: var(--color-bg);
     translate: 0 var(--deck-card-active-offset-y);
   }
 

@@ -1,6 +1,6 @@
 .page-window { height: min(686px, calc(80vh - 52px)); }
-.page-window__frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.page-window__frame { display: block; width: 100%; height: 100%; border: 0; background: var(--color-bg); }
 .page-window__refused, .page-window__checking { display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-  margin: 0; padding: 24px; color: rgb(0 0 0 / 55%); font: 400 16px/24px var(--font-body); }
-.page-window__refused p { margin: 0; color: #000; }
-.page-window__refused a { display: inline-flex; align-items: center; gap: 2px; color: #000; font-weight: 500; }
+  margin: 0; padding: 24px; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); font: 400 16px/24px var(--font-body); }
+.page-window__refused p { margin: 0; color: var(--color-text); }
+.page-window__refused a { display: inline-flex; align-items: center; gap: 2px; color: var(--color-text); font-weight: 500; }
