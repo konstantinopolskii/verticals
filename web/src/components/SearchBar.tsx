@@ -9,7 +9,7 @@ import { historyKey } from '../lib/boardHistory'
 import { fieldUndo } from '../lib/fieldUndo'
 import { circle, circleCaption, circleState, circleWords, inboxWriting } from '../lib/circle'
 import { carry } from '../lib/inboxCarry'
-import { agentChat, decide, openAsk, stop } from '../lib/agentChat'
+import { QUESTION_TOOL, agentChat, decide, openAsk, stop } from '../lib/agentChat'
 import { answerUndo } from '../lib/answerUndo'
 import { plainWords } from '../lib/chatMarkdown'
 import { closeWindows, windows } from '../lib/windows'
@@ -165,6 +165,11 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
     const chipWords = computed(() => (answerText.value ? Math.min(2, answerLines.value) * 22 + CHIPS_GAP : 0))
     /* An ask says what it will change under its question: the goal and its date (lib/askDetail.ts). */
     const changesText = computed(() => (circleWords.value?.kind === 'ask' ? circleWords.value.changes : ''))
+    /* A question of the agent's brings up to four options (docs/design/replan-whole-board.md): the field takes the full
+       measure for them, and their rows, measured as drawn, set its height. */
+    const question = computed(() => circleWords.value?.kind === 'ask' && openAsk.value?.tool === QUESTION_TOOL)
+    const choicesBox = ref<HTMLElement | null>(null)
+    const choicesMeasured = ref(0)
     const stopping = computed(() => state.value === 'working' && circle.pointed)
     /* With an ask waiting in the open conversation the circle only waits (no turning line, no step). The step is a
        conversation's: while a report is made from pictures the line turns with none (docs/design/bug-reports.md). */
@@ -188,7 +193,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
       if (carry.over) return 120
       if (state.value === 'answer' && answerChips.value.length) return ANSWER_MEASURE + 2 * CHIPS_PAD
       if (state.value === 'answer') {
-        const wide = Math.min((leadLines.value ? ANSWER_MEASURE : answerWidth.value) + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD)
+        const wide = Math.min((leadLines.value || question.value ? ANSWER_MEASURE : answerWidth.value) + 2 * ANSWER_PAD, ANSWER_MEASURE + 2 * ANSWER_PAD)
         return Math.max(CIRCLE, wide, undoable.value ? UNDO_W + 2 * ANSWER_PAD : 0)
       }
       if (stepShown.value) return Math.min(STEP_WIDTH, maxWidth.value)
@@ -217,7 +222,8 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
         return Math.max(CIRCLE, PAD_Y * 2 + chipWords.value + chipsHeight.value + (undoable.value ? UNDO_ROW : 0))
       }
       if (state.value === 'answer') {
-        const ask = circleWords.value?.kind === 'ask' ? 44 + (leadLines.value ? leadLines.value * 22 + 8 : 0) : 0
+        const choices = Math.max(44, choicesMeasured.value + 12) // 10 px above the buttons, a row of 32 at least
+        const ask = circleWords.value?.kind === 'ask' ? choices + (leadLines.value ? leadLines.value * 22 + 8 : 0) : 0
         return Math.max(CIRCLE, PAD_Y * 2 + answerLines.value * 22 + ask + (undoable.value ? UNDO_ROW : 0))
       }
       return CIRCLE
@@ -315,6 +321,15 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
       if (!el || typeof ResizeObserver === 'undefined') return
       chipsWatch = new ResizeObserver(() => { chipsMeasured.value = Math.round(el.offsetHeight) })
       chipsWatch.observe(el)
+    }, { flush: 'post' })
+    let choicesWatch: ResizeObserver | null = null
+    watch(choicesBox, (el) => {
+      choicesWatch?.disconnect()
+      choicesWatch = null
+      choicesMeasured.value = 0
+      if (!el || typeof ResizeObserver === 'undefined') return
+      choicesWatch = new ResizeObserver(() => { choicesMeasured.value = Math.round(el.offsetHeight) })
+      choicesWatch.observe(el)
     }, { flush: 'post' })
     /* An ask in the field carries the agent's last words on top, two lines at most (S2.P1.044). */
     watch(leadText, async () => {
@@ -559,7 +574,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
     })
 
     return {
-      body, shape, surface, line, input, mirror, pivot, answerMeasure, leadMeasure, chipsBox, flying, still, lines, state,
+      body, shape, surface, line, input, mirror, pivot, answerMeasure, leadMeasure, chipsBox, choicesBox, flying, still, lines, state,
       hovered, answerChips, shownChips, moreChips, undoable, answerText, answerSays, leadText, changesText, stopping,
       stepShown, holding, width, shownLines, height, stepShift, tagsShown, lineMode, measure, moved, send, onShapeMove,
       onTagsEnter, onLeave, onShapeClick, captionLeaving,
@@ -674,7 +689,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
               ) : null}
               {s.undoable.value && words.kind === 'answer' ? <AnswerUndo answer={words.answer} className="circle-field__answer-undo" /> : null}
               {words.kind === 'ask' && ask ? (
-                <div className="circle-field__answer-choices">
+                <div ref={bindRef(s.choicesBox)} className="circle-field__answer-choices">
                   {ask.options.map((option) => (
                     <button key={option.value} type="button" className="circle-field__answer-choice"
                       onClick={(event) => stopClick(event, () => void decide(openAsk.value!.requestId, option.value))}>{option.label}</button>

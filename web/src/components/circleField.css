@@ -233,12 +233,15 @@
   background: #fff;
   animation: circle-field-blink 1060ms steps(1) infinite;
 }
-.circle-field__answer-choices { display: flex; gap: 8px; margin-top: 10px; }
+/* A question of the agent's brings up to four options (docs/design/replan-whole-board.md): they wrap to the next row whole, and
+   a label longer than the row breaks inside its own pill. The conversation's choices do the same (agentConversation.css). */
+.circle-field__answer-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 /* An answer's Undo (`AnswerUndo.tsx`) stands under its words at the left, the notice's own pill. */
 .circle-field__answer-undo { align-self: flex-start; }
 .circle-field__answer-choice {
-  height: 32px;
-  padding: 0 14px;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 6px 14px;
   border: 0;
   border-radius: 16px;
   background: #fff;
