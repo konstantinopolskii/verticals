@@ -9,7 +9,7 @@ import { inbox, writeDown } from './inbox'
 import { endMove, moveContext } from './moving'
 import { findGoal } from './boardIndex'
 import { spanGoal } from './spans'
-import { REPLAN_ASK, type CarriedPlan } from './replan'
+import { REPLAN_ASK, replanPlans } from './replan'
 import { closeWindows, frontWindow, openWindow } from './windows'
 import { takeSelection } from './pageSelection'
 import { makeReport } from './report'
@@ -94,14 +94,16 @@ export function useAgentField(searchBar: Ref<SearchBarApi | null>) {
     // The menu that asked gives its focus back on its next tick; the field takes it after that.
     void nextTick(() => nextTick(() => searchBar.value?.focusField()))
   }
-  /* "Replan": a conversation of its own over the board, your words in it, the carried plans with them. */
-  function onReplan(event: Event): void {
-    const detail = ((event as CustomEvent).detail ?? {}) as { plans?: CarriedPlan[]; column?: string }
-    if (!agentChat.available || !detail.plans?.length) return
+  /* "Replan" in any box: a conversation of its own over the board, your words in it, every carried plan of the board with
+     them, not only the box's (docs/design/replan-whole-board.md). */
+  async function onReplan(): Promise<void> {
+    if (!agentChat.available) return
+    const plans = await replanPlans()
+    if (!plans.length) return
     newThread()
     agentChat.open = true
     agentChat.engaged = true
-    void send(REPLAN_ASK, { replan: { plans: detail.plans, column: detail.column ?? '' } })
+    void send(REPLAN_ASK, { replan: { plans } })
   }
   onMounted(() => {
     window.addEventListener('verticals:discuss-goal', onDiscussGoal)

@@ -21,7 +21,7 @@ from tests.ui.views import FIELD
 GROUP = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-group"]'
 PLACE = '.pattern-vertical-board__column[data-vertical="year"] [data-role="carried-place"]'
 GAP = f'{PLACE} [data-role="carried-gap"]'
-FIRST = "Sort out the plans carried over: where each goes, based on when I planned it and what it belongs to."
+FIRST = "Sort out every plan that carried over: what matters now, and where each goes."
 
 
 def _last_year(conn: psycopg.Connection, title: str, parent: str | None = None) -> str:

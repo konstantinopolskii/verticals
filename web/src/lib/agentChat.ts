@@ -172,6 +172,10 @@ export const balloons = computed<Balloon[]>(() => {
   return out.filter((balloon) => balloon.text || balloon.ask)
 })
 
+/** Claude's question tool: the gateway asks each of its questions as an ask with this `tool`, the options as its choices, and
+ *  words you send while one waits are its answer (desktop/chat/chat.py's QUESTION_TOOL). */
+export const QUESTION_TOOL = 'AskUserQuestion'
+
 /** An ask the agent is waiting on, if any (S2.P1.014, .044). */
 export const openAsk = computed<Ask | null>(() => {
   for (let i = balloons.value.length - 1; i >= 0; i--) {
@@ -495,7 +499,9 @@ export async function send(text: string, extra: Record<string, unknown> = {}, se
   }
   touchThread({ provider: agentChat.selection!.provider, status: 'working' })
   agentChat.answer = null
-  awaitingReplies += 1
+  // Words sent while the agent's question waits answer it, in the turn that asked (the gateway's Chat._send): no reply of
+  // their own comes (docs/design/replan-whole-board.md).
+  if (openAsk.value?.tool !== QUESTION_TOOL) awaitingReplies += 1
   record({ t: 'user', text: words, pending: true, ...(settings.sources ? { app: true } : {}) }, false)
   const since: Record<string, unknown> = {}
   if (goal && goalSince !== null) {
