@@ -186,7 +186,7 @@ def test_once_signed_in_the_message_goes_again_once_with_what_it_was_sent_with(s
         ended = [e for e in events(gate, key) if e["t"] == "permission_done"]
         assert ended == [{"t": "permission_done", "requestId": ask["requestId"], "label": "Signed in", "says": "Signed in"}]
         first, again = received(workspace)
-        assert again == first and "The owner clicked Replan on 1 plans" in again and again.endswith("Sort these plans")
+        assert again == first and "The plans that carried over on the board, 1 in all" in again and again.endswith("Sort these plans")
         starts = [json.loads(line) for line in (workspace / "argv.log").read_text().splitlines()]
         assert len(starts) == 2 and all(start[start.index("--permission-mode") + 1] == "manual" for start in starts)
         assert answers(gate, key)[0]["detail"] == "" and wait_for(lambda: not alive(login["pid"]), "the login stopped")
