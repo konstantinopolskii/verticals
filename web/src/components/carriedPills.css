@@ -1,6 +1,7 @@
-/* The three pills beside a carried plan (docs/design/carried-pills.md). The root stands where `lib/carriedPills.ts` puts
-   it, over the board's columns and their lines (11, 12) and under the veil a window brings (280); its padding on the
-   card's side is the unpainted way back to the card. */
+/* The capsule over a carried plan (docs/design/carried-pills.md; the owner's sketch, 21 Oct 2026). The root stands where
+   `lib/carriedPills.ts` puts it, over the board's columns and their lines (11, 12) and under the veil a window brings
+   (280); its padding on the plan's side is the unpainted way to the plan. Its colours and type are the plan's own, read off
+   the card into `--carried-pill-*`. */
 .carried-pills {
   position: fixed;
   top: 0;
@@ -19,33 +20,42 @@
   pointer-events: auto;
   transition: opacity var(--motion-popover) var(--vt-ease-small);
 }
-/* One backing for the three: the wash the box takes for the pointed plan's family (carriedGroup.css), or white for a plan
-   with no colour (the owner's "white background with light shadow"; the box's grey ground vanished over a grey box). It
-   floats over the next column, so it carries a light shadow. The pills inside share its centre. */
+/* One capsule, no shadow: the box's ground under the plan's light at the plan's strength, as the card's lit block is drawn
+   (goalCard.css `.goal-card__row::before`), so the two read as one object. The ground changes with the box's, the light at
+   once, as on the card. */
 .carried-pills__set {
+  position: relative;
+  isolation: isolate;
   display: flex;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 17px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(var(--vt-ink), .08);
+  gap: 10px;
+  padding: 0 3px;
+  border-radius: 13px;
+  background: var(--carried-pill-ground);
   transition: background-color 200ms var(--vt-ease-large);
 }
-.carried-pills--lit .carried-pills__set { background: rgb(var(--vt-pale)); }
-/* Left of the box the order turns, so the mild action stays nearest the card and Delete farthest from it. */
-.carried-pills[data-side='left'] .carried-pills__set { flex-direction: row-reverse; }
-/* White capsules at the plan's own level: its title's type, read off the card (lib/carriedPills.ts), 28 px tall, with the
-   menu's hover over the white. */
-.carried-pills__pill {
+.carried-pills__set::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--carried-pill-light);
+  opacity: var(--carried-pill-strength);
+}
+/* Each word is a button as tall as the capsule; its hover is the plan's light once more behind that word only, a pill
+   inset 3 px that shares the capsule's centre. The words sit 1 px above the flex centre: centred, their lowercase stood
+   1.9 px below the capsule's middle and read low (measured at 2×); now it is a little below, where text in a control
+   reads centred. */
+.carried-pills__word {
+  position: relative;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 8px 2px;
   border: 0;
-  border-radius: 14px;
-  background: #fff;
-  color: #000;
+  background: none;
+  color: var(--carried-pill-ink);
   font-family: var(--carried-pill-family);
   font-size: var(--carried-pill-size);
   font-weight: var(--carried-pill-weight);
@@ -54,10 +64,24 @@
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  transition: background-color var(--motion-hover) var(--vt-ease-small);
+  transition: scale 100ms var(--vt-ease-small);
+}
+.carried-pills__word::before {
+  content: '';
+  position: absolute;
+  inset: 3px 0;
+  z-index: -1;
+  border-radius: 10px;
+  background: var(--carried-pill-light);
+  opacity: 0;
+  transition: opacity var(--motion-hover) var(--vt-ease-small);
 }
 @media (hover: hover) and (pointer: fine) {
-  .carried-pills__pill:hover { background: #f2f2f2; transition: none; } /* rgba(0, 0, 0, .05) over #fff */
+  .carried-pills__word:hover::before { opacity: var(--carried-pill-strength); transition: none; }
 }
-.carried-pills__pill:focus { outline: none; }
-.carried-pills__pill--danger { color: #c93a5b; }
+/* A press gives a little and comes back, as the field notice's buttons do. */
+.carried-pills__word:active { scale: .97; }
+.carried-pills__word:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .carried-pills__word, .carried-pills__word:active { scale: none; transition: none; }
+}

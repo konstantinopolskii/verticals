@@ -1,38 +1,36 @@
-// Three pills beside a carried plan (docs/design/carried-pills.md, the owner, 21 Oct 2026): pointing at a plan in a carried
-// box shows "This week" (the box's column's own period: "This month", "This quarter"...), "To Inbox" and "Delete" to the
-// right of the box, level with the plan's first line, in the type of the plan's own title, on the box's own lit colour
-// (white for a plan with no colour). Each is the card menu's own action
-// (`GoalCardTools.tsx`), so the board's history and ⌘Z, the sound and the field's Undo are the menu's. The markup is
-// `components/CarriedPills.tsx`; this keeps the rules.
+// Three words over a carried plan (docs/design/carried-pills.md; the owner's sketch, 21 Oct 2026): pointing at a plan in a
+// carried box shows one capsule just above the plan's lit block, "Keep · Idk · Fuck it", in the plan's own light and its
+// title's own type, so the card and the capsule read as one object. Keep puts the plan in the column's current period, Idk
+// adds a line to its notes and sends it to the Inbox, Fuck it deletes it. 1, 2 and 3 do the same while a plan is pointed
+// at. Each goes through the store as the card's menu does, so the board's history and ⌘Z, the sound and the field's Undo
+// are the menu's. The markup is `components/CarriedPills.tsx`; this keeps the rules.
 //
-//   · The pills are drawn in <body>: the column's scroller clips what is inside it at its sides, and they float over the
-//     next column (or the one before, where the window has no room). Out of the box's DOM, moving onto them is leaving
-//     the box and the card, so the box keeps them as its own (CarriedGroup's pointerleave, `carriedFilter.ts`'s column),
-//     the plan's family stays lit, and its row keeps its light (`data-pills`, carriedGroup.css). The pills reach back to
-//     the card, so the pointer crosses no gap to them.
-//   · They stand where their card is, through the box's lift and a scroll, and glide to the next plan the pointer takes.
-//   · A click: the card leaves as it does from the menu. Once the column is still, the plan on the pills' line (or under
-//     the pointer, when it is over the box) has them, without the pointer moving: a list is sorted click, click, click.
-//     Until then the pills wait, and a second click does nothing.
+//   · The capsule is drawn in <body>: the column's scroller clips what is inside it, and the capsule may stand over the box's
+//     line or the plan above. Out of the box's DOM, moving onto it is leaving the box and the card, so the box keeps it as its
+//     own (CarriedGroup's pointerleave, `carriedFilter.ts`'s column), the plan's family stays lit, and its row keeps its
+//     light (`data-pills`, carriedGroup.css). The capsule reaches down to the block, so the pointer crosses no gap to it.
+//   · It stands where the block is, through the box's lift and a scroll, and glides to the next plan the pointer takes.
+//   · A click or a key: the card leaves as it does from the menu. Once the column is still, the plan on the capsule's line
+//     (or under the pointer, when it is over the box) has it, without the pointer moving: a list is sorted 1, 1, 3, 2...
+//     Until then the capsule waits, and another click or key does nothing.
 //   · Pointer only; not while a goal is held or a menu is open, and not on the box's open plan.
 
 import { computed, onBeforeUnmount, ref, watch, type Ref } from '../reactivity'
 import { store, todayIso } from '../store'
+import { editsText } from './boardHistory'
 import { anyMenuOpen, menuGoalId } from './cardLift'
 import { goalLight } from './look'
 import { reducedMotion, timing } from './motion'
 import type { VerticalScale } from './periods'
 import { isoDate, localDate, periodKeyFor } from './schedule'
+import { realignLine } from './realign'
 import { playSound } from './sound'
 import type { GoalCardData } from '../types'
 
-/** What keeping a plan in its column says: the column's own period. */
-const KEEP: Record<string, string> = {
-  day: 'Today', week: 'This week', month: 'This month', quarter: 'This quarter', year: 'This year', decade: 'These three years',
-}
-const GAP = 8 // px between the box and the pills, and kept from the window's edge
+const AIR = 4 // px between the capsule and the plan's lit block
 const FOLLOW_MS = 400 // after anything that may move the card, the pills look where it is for this long
-const SETTLE_MS = 600 // the longest a click waits for its column to stop moving
+const GO_MS = 2000 // the longest a click waits for its plan to leave the box (Idk reads and writes the notes first)
+const SETTLE_MS = 600 // and then for its column to stop moving
 
 const PLANS = ':scope > [data-section="carried"] > .goal-card[data-goal-id]'
 
@@ -53,6 +51,29 @@ function cardOf(box: HTMLElement, id: string): HTMLElement | null {
 const within = (r: DOMRect, p: { x: number; y: number }): boolean => p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom
 /** An animation that ends: the mascot's breath never does, and is no reason to wait. */
 const ends = (a: Animation): boolean => a.playState === 'running' && Number.isFinite(Number(a.effect?.getComputedTiming().endTime))
+
+/** The window's top that the board can use: under the desktop app's title bar. */
+function topOfBoard(): number {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--titlebar-height')) || 0
+}
+
+/* 1, 2 and 3 while a plan is pointed at (no hint on screen: the words are the hint). Heard as this module loads, before the
+   field's own listener (SearchBar.tsx, once mounted), which would take any printable key as its first letter; a key it
+   uses here goes no further. Inside a text field the keys stay the field's. */
+interface Keys { keep(): void; idk(): void; remove(): void }
+let pointed: Keys | null = null
+const KEYS: Record<string, keyof Keys> = { 1: 'keep', 2: 'idk', 3: 'remove', Digit1: 'keep', Digit2: 'idk', Digit3: 'remove' }
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (event) => {
+    const keys = pointed
+    if (!keys || event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return
+    const name = KEYS[event.key] ?? (event.shiftKey ? undefined : KEYS[event.code])
+    if (!name || editsText(event.target)) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    if (!event.repeat) keys[name]()
+  }, true)
+}
 
 export type CarriedPillsApi = ReturnType<typeof useCarriedPills>
 
@@ -77,7 +98,6 @@ export function useCarriedPills(o: {
   const plan = computed(() => o.plans().find((g) => g.id === target.value) ?? null)
   const blocked = computed(() => o.open() || store.state.drag.id !== null || store.state.drag.pending !== null || menuGoalId.value !== null)
   const shown = computed(() => !blocked.value && (waiting.value || plan.value !== null))
-  const keepLabel = computed(() => KEEP[o.vertical()] ?? 'Keep')
 
   /* The plan's row keeps its light while the pointer is on its pills. */
   let marked: HTMLElement | null = null
@@ -91,54 +111,59 @@ export function useCarriedPills(o: {
   }
   watch(shown, mark, { flush: 'post' })
 
-  /* Where the pills stand: right of the box, centred on the card's first line; left of it, over the column before, when the
-     window has no room on the right (the box of the last column but Life: three pills are wider than a box, so over the
-     card they would hide the plan they sort). The root reaches back to the card's edge with no paint, so the way there
-     has no gap. */
+  /* Where the capsule stands: just above the plan's lit block, its left edge on the block's, AIR between them; just below
+     when the window has no room above. The root reaches to the block with no paint, so the way there has no gap. */
   let glide: Animation | null = null
   let last = ''
-  let lastType = ''
+  let lastPaint = ''
+  let line = Number.NaN // the middle of the lit block the capsule stood by, where the next plan rises after a click
   function set(): HTMLElement | null {
     return (el.value?.firstElementChild as HTMLElement | null) ?? null
+  }
+  /** The block's own colour and the title's own type: the box's ground under the plan's light at the plan's strength, as
+   *  the card draws it (goalCard.css `.goal-card__row::before`), in either appearance and as the Layout panel tunes it. */
+  function paint(root: HTMLElement, box: HTMLElement, card: HTMLElement, title: HTMLElement | null): void {
+    const light = getComputedStyle(card)
+    const type = title ? getComputedStyle(title) : null
+    const values: Record<string, string> = {
+      '--carried-pill-ground': getComputedStyle(box).backgroundColor,
+      '--carried-pill-light': light.getPropertyValue('--goal-hover-background').trim(),
+      '--carried-pill-strength': light.getPropertyValue('--goal-light-tint').trim() || '.7',
+    }
+    if (type) {
+      Object.assign(values, {
+        '--carried-pill-ink': type.color, '--carried-pill-family': type.fontFamily, '--carried-pill-size': type.fontSize,
+        '--carried-pill-weight': type.fontWeight, '--carried-pill-line': type.lineHeight,
+      })
+    }
+    const now = Object.values(values).join('|')
+    if (now === lastPaint) return
+    lastPaint = now
+    for (const [name, value] of Object.entries(values)) root.style.setProperty(name, value)
   }
   function place(): void {
     const root = el.value
     const pills = set()
     const box = o.box.value
     const card = box && target.value ? cardOf(box, target.value) : null
-    if (!root || !pills || !box || !card) return
-    const title = card.querySelector<HTMLElement>(':scope > .goal-card__row .goal-card__title')
-    const b = box.getBoundingClientRect()
-    const c = card.getBoundingClientRect()
-    let line = c.top + c.height / 2
-    if (title) {
-      const t = title.getBoundingClientRect()
-      const k = title.offsetHeight ? t.height / title.offsetHeight : 1 // the box's lift scales what is in it
-      const type = getComputedStyle(title)
-      line = t.top + (parseFloat(type.lineHeight) || title.offsetHeight) * k / 2
-      // The pills speak at the plan's own level: its title's type, compact or open column, as the Layout panel tunes it.
-      const now = `${type.fontFamily}|${type.fontSize}|${type.fontWeight}|${type.lineHeight}`
-      if (now !== lastType) {
-        lastType = now
-        root.style.setProperty('--carried-pill-family', type.fontFamily)
-        root.style.setProperty('--carried-pill-size', type.fontSize)
-        root.style.setProperty('--carried-pill-weight', type.fontWeight)
-        root.style.setProperty('--carried-pill-line', type.lineHeight)
-      }
-    }
-    const w = pills.offsetWidth
-    const right = b.right + GAP + w <= window.innerWidth - GAP
-    const left = Math.round(right ? b.right + GAP : Math.max(GAP, b.left - GAP - w))
-    const from = right ? Math.min(left, Math.round(c.right)) : left
-    const back = right ? left - from : Math.max(0, Math.round(c.left) - left - w) // the unpainted way to the card
-    const top = Math.round(line - pills.offsetHeight / 2)
-    const now = `${from} ${back} ${right} ${top}`
+    const row = card?.querySelector<HTMLElement>(':scope > .goal-card__row') ?? null
+    if (!root || !pills || !box || !card || !row) return
+    paint(root, box, card, row.querySelector<HTMLElement>('.goal-card__title'))
+    const r = row.getBoundingClientRect()
+    const k = row.offsetHeight ? r.height / row.offsetHeight : 1 // the box's lift scales what is in it
+    const wash = getComputedStyle(row, '::before') // the lit block reaches past the row by its wash
+    const left = Math.round(r.left + (parseFloat(wash.left) || 0) * k)
+    const top = r.top + (parseFloat(wash.top) || 0) * k
+    const bottom = r.bottom - (parseFloat(wash.bottom) || 0) * k
+    const h = pills.offsetHeight
+    line = (top + bottom) / 2
+    const above = top - AIR - h >= topOfBoard()
+    const y = Math.round(above ? top - AIR - h : bottom)
+    const now = `${left} ${y} ${above}`
     if (now === last) return
     last = now
-    root.style.transform = `translate(${from}px, ${top}px)`
-    root.style.paddingLeft = right ? `${back}px` : '0px'
-    root.style.paddingRight = right ? '0px' : `${back}px`
-    root.dataset.side = right ? 'right' : 'left' // on the left the order turns: the mild one stays nearest the card
+    root.style.transform = `translate(${left}px, ${y}px)`
+    root.style.padding = above ? `0 0 ${AIR}px` : `${AIR}px 0 0`
   }
 
   let frame = 0
@@ -183,8 +208,8 @@ export function useCarriedPills(o: {
     mark()
   }
 
-  /** After a click, once the column is still: the plan on the pills' line when the pointer is on them, or under the
-   *  pointer when it is over the box, takes them, and the wait ends. */
+  /** After a click, once the column is still: the plan that rose where the last one stood, when the pointer is on the
+   *  capsule, or the plan under the pointer, when it is over the box, takes the capsule, and the wait ends. */
   function resolve(): void {
     const box = o.box.value
     const root = el.value
@@ -193,7 +218,7 @@ export function useCarriedPills(o: {
     const b = box.getBoundingClientRect()
     const s = pills && shown.value ? pills.getBoundingClientRect() : null
     const onPills = !!root && !!s && within(root.getBoundingClientRect(), at)
-    const point = onPills && s ? { x: b.left + b.width / 2, y: s.top + s.height / 2 } : at
+    const point = onPills ? { x: b.left + b.width / 2, y: line } : at
     let id: string | null = null
     if (!blocked.value && Number.isFinite(point.x) && within(b, point)) {
       const hit = document.elementsFromPoint(point.x, point.y).find((node) => box.contains(node))
@@ -218,12 +243,17 @@ export function useCarriedPills(o: {
     mark()
     if (store.state.hoverChainId === id) store.setHoverChain(null) // its family's light leaves with it
     run(id)
-    const column = o.box.value?.closest('.pattern-vertical-board__column') ?? null
+    const box = o.box.value
+    const column = box?.closest('.pattern-vertical-board__column') ?? null
     const start = performance.now()
+    let left = 0 // when the plan was seen gone; a write that failed leaves it, and the wait ends at GO_MS
     const check = (): void => {
       if (gone) return
+      const now = performance.now()
+      if (!left && box && cardOf(box, id) && now - start < GO_MS) { requestAnimationFrame(check); return }
+      left ||= now
       const moving = column?.getAnimations({ subtree: true }).some(ends) ?? false
-      if (moving && performance.now() - start < SETTLE_MS) { requestAnimationFrame(check); return }
+      if (moving && now - left < SETTLE_MS) { requestAnimationFrame(check); return }
       resolve()
     }
     requestAnimationFrame(() => requestAnimationFrame(check)) // the change is drawn, and its movement started, first
@@ -236,8 +266,9 @@ export function useCarriedPills(o: {
       void store.scheduleGoalQuick(id, scale, key, periodKeyFor(scale, today) === key ? isoDate(today) : undefined)
     })
   }
-  function inbox(): void {
-    act((id) => void store.moveGoalToInbox(id))
+  function idk(): void {
+    const g = plan.value
+    act((id) => void store.realignToInbox(id, realignLine(g?.vertical, g?.anchorDate, localDate(todayIso()))))
   }
   function remove(): void {
     act((id) => {
@@ -283,6 +314,12 @@ export function useCarriedPills(o: {
 
   // A goal held, a menu or the plan opened: the pills let their plan go, and come back when the pointer next points.
   watch(blocked, (now) => { if (now) retarget(null) })
+  // The keys are this box's while it shows its capsule (and while a click is carried out, so a key then does nothing).
+  const keys: Keys = { keep, idk, remove }
+  watch(shown, (now) => {
+    if (now) pointed = keys
+    else if (pointed === keys) pointed = null
+  }, { flush: 'sync' })
 
   const onScroll = (): void => { if (target.value) follow() }
   if (typeof window !== 'undefined') {
@@ -294,12 +331,13 @@ export function useCarriedPills(o: {
     if (frame) cancelAnimationFrame(frame)
     glide?.cancel()
     marked?.removeAttribute('data-pills')
+    if (pointed === keys) pointed = null
     window.removeEventListener('scroll', onScroll, { capture: true })
     window.removeEventListener('resize', onScroll)
   })
 
   return {
-    el, target, shown, waiting, tone, keepLabel, column: o.vertical, keep, inbox, remove, over, owns, away, follow,
+    el, target, shown, waiting, tone, column: o.vertical, keep, idk, remove, over, owns, away, follow,
     onEnter, onMouseEnter, onLeave,
   }
 }

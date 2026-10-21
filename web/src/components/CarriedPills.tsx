@@ -1,10 +1,11 @@
-/* The three pills beside a carried plan (docs/design/carried-pills.md): "This week" (the column's own period), "To Inbox"
-   and "Delete", white on the box's lit colour, drawn in <body> over the next column. What they do, where they stand and
-   when they show is `lib/carriedPills.ts`. They are the pointer's quick way; the card's menu does the same by keyboard. */
+/* The capsule over a carried plan (docs/design/carried-pills.md; the owner's sketch, 21 Oct 2026): "Keep · Idk · Fuck it",
+   the owner's own words, in the plan's light and its title's type, drawn in <body> just above the plan. What each does,
+   where it stands and when it shows is `lib/carriedPills.ts`. It is the pointer's quick way, with 1, 2 and 3; the card's
+   menu does the same by keyboard. */
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { Teleport } from '../Teleport'
 import type { CarriedPillsApi } from '../lib/carriedPills'
-import { bindRef, cx, sx } from '../bind'
+import { bindRef, cx } from '../bind'
 import { tracked } from '../tracked'
 import { listen, useSetup } from '../setup'
 import './carriedPills.css'
@@ -20,25 +21,23 @@ export const CarriedPills = tracked(function CarriedPills({ api }: { api: Carrie
     return {}
   })
   const on = api.shown.value
-  const tone = api.tone.value
   return (
     <Teleport to="body">
       <div
         ref={bindRef(api.el)}
-        className={cx('carried-pills', { 'carried-pills--on': on, 'carried-pills--lit': !!tone })}
+        className={cx('carried-pills', { 'carried-pills--on': on })}
         data-role="carried-pills"
         data-column={api.column()}
         data-for={on && !api.waiting.value ? api.target.value ?? undefined : undefined}
         aria-hidden={on ? undefined : 'true'}
-        style={sx(tone ?? {})}
       >
         <div className="carried-pills__set" role="group" aria-label="Sort this plan">
-          <button type="button" className="carried-pills__pill" data-pill="keep" tabIndex={-1} onMouseDown={keepFocus}
-            onClick={api.keep}>{api.keepLabel.value}</button>
-          <button type="button" className="carried-pills__pill" data-pill="inbox" tabIndex={-1} onMouseDown={keepFocus}
-            onClick={api.inbox}>To Inbox</button>
-          <button type="button" className="carried-pills__pill carried-pills__pill--danger" data-pill="delete" tabIndex={-1}
-            onMouseDown={keepFocus} onClick={api.remove}>Delete</button>
+          <button type="button" className="carried-pills__word" data-pill="keep" aria-label="Keep it in this period" tabIndex={-1}
+            onMouseDown={keepFocus} onClick={api.keep}>Keep</button>
+          <button type="button" className="carried-pills__word" data-pill="idk" aria-label="To the Inbox, to realign" tabIndex={-1}
+            onMouseDown={keepFocus} onClick={api.idk}>Idk</button>
+          <button type="button" className="carried-pills__word" data-pill="delete" aria-label="Delete" tabIndex={-1}
+            onMouseDown={keepFocus} onClick={api.remove}>Fuck it</button>
         </div>
       </div>
     </Teleport>

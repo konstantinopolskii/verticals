@@ -21,7 +21,7 @@ import './carriedGroup.css'
 
 interface Props {
   vertical: string
-  /** The period the column shows: "This week" keeps a plan in it (lib/carriedPills.ts). */
+  /** The period the column shows: "Keep" keeps a plan in it (lib/carriedPills.ts). */
   periodKey?: string | null
   goals: GoalCardData[]
   onReplan?: (from: Element, plans: { id: string; title: string }[]) => void
@@ -84,7 +84,7 @@ export const CarriedGroup = tracked(function CarriedGroup(raw: Props & Record<st
     // The mascot: its root element and what it exposes.
     const mascotEl = ref<HTMLElement | null>(null)
     const mascot = ref<CarriedMascotApi | null>(null)
-    let pills: CarriedPillsApi | null = null // made below: it takes the box's own pointer in and out
+    let pills: CarriedPillsApi | null = null // the capsule's, made below: it takes the box's own pointer in and out
     const { hold, pinned, gap, circle, lift, lit, visible, family, button, opened, more: onMore, openPlan, enter, leave } = useCarriedFilter({
       vertical: () => props.vertical,
       plans: () => newestFirst.value,
@@ -97,8 +97,8 @@ export const CarriedGroup = tracked(function CarriedGroup(raw: Props & Record<st
       },
       held: () => (pills?.waiting.value ? pills.tone.value : null),
     })
-    /* The pills beside a pointed plan (docs/design/carried-pills.md) are drawn outside the box, and are the box's: moving
-       onto them is not leaving it. */
+    /* The capsule over a pointed plan (docs/design/carried-pills.md) is drawn outside the box, and is the box's: moving
+       onto it is not leaving it. */
     pills = useCarriedPills({
       vertical: () => props.vertical,
       periodKey: () => props.periodKey ?? null,

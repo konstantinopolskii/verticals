@@ -32,7 +32,7 @@ const UNPIN_MS = 250 // a slip out of the box over a gap doesn't count as leavin
 const MIN_GAP = 52 // the room the filter leaves holds the mascot's circle from this height, or from what it needs
 
 const COLUMN = '.pattern-vertical-board__column[data-vertical]'
-const PILLS = '[data-role="carried-pills"]' // drawn in <body> beside a box, and its column's (lib/carriedPills.ts)
+const PILLS = '[data-role="carried-pills"]' // the capsule drawn in <body> over a box's plan, and its column's (lib/carriedPills.ts)
 
 /* Where the pointer is: the column and the goal under it. One listener for every box. */
 export const pointerColumn = ref<string | null>(null)
@@ -109,8 +109,8 @@ export function useCarriedFilter(o: {
   place: Ref<HTMLElement | null>
   /** The mascot's room inside the box, and the heights the mascot needs there: with its circle, and its words alone. */
   room?: () => { el: HTMLElement; need: { circle: number; words: number } } | null
-  /** A light the box keeps while the plan it was lit for leaves by a pill and the next one isn't taken yet
-   *  (lib/carriedPills.ts): the box and the pills change colour together, once. */
+  /** A light the box keeps while the plan it was lit for leaves by the capsule over it and the next one isn't taken yet
+   *  (lib/carriedPills.ts): the box changes colour once, with the capsule. */
   held?: () => Record<string, string> | null
 }) {
   track()
