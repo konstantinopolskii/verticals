@@ -11,6 +11,8 @@ import { CarriedMascot, type CarriedMascotApi } from './CarriedMascot'
 import { store, todayIso } from '../store'
 import { MONTH_NAMES } from '../lib/periods'
 import { useCarriedFilter } from '../lib/carriedFilter'
+import { useCarriedPills, type CarriedPillsApi } from '../lib/carriedPills'
+import { CarriedPills } from './CarriedPills'
 import type { GoalCardData } from '../types'
 import { bindRef, cx, fallthrough, sx } from '../bind'
 import { tracked } from '../tracked'
@@ -19,6 +21,8 @@ import './carriedGroup.css'
 
 interface Props {
   vertical: string
+  /** The period the column shows: "This week" keeps a plan in it (lib/carriedPills.ts). */
+  periodKey?: string | null
   goals: GoalCardData[]
   onReplan?: (from: Element, plans: { id: string; title: string }[]) => void
 }
@@ -28,8 +32,8 @@ function isoDay(d: Date): string {
 }
 
 export const CarriedGroup = tracked(function CarriedGroup(raw: Props & Record<string, unknown>) {
-  const { vertical, goals, onReplan, ...attrs } = raw
-  const s = useSetup({ vertical, goals, onReplan }, (props) => {
+  const { vertical, periodKey, goals, onReplan, ...attrs } = raw
+  const s = useSetup({ vertical, periodKey, goals, onReplan }, (props) => {
     /** The start of the period before the current one, for the column's scale. */
     const previous = computed(() => {
       const today = new Date(`${todayIso()}T12:00:00`)
@@ -80,6 +84,7 @@ export const CarriedGroup = tracked(function CarriedGroup(raw: Props & Record<st
     // The mascot: its root element and what it exposes.
     const mascotEl = ref<HTMLElement | null>(null)
     const mascot = ref<CarriedMascotApi | null>(null)
+    let pills: CarriedPillsApi | null = null // made below: it takes the box's own pointer in and out
     const { hold, pinned, gap, circle, lift, lit, visible, family, button, opened, more: onMore, openPlan, enter, leave } = useCarriedFilter({
       vertical: () => props.vertical,
       plans: () => newestFirst.value,
@@ -90,10 +95,28 @@ export const CarriedGroup = tracked(function CarriedGroup(raw: Props & Record<st
         const el = mascotEl.value
         return m && el ? { el, need: m.need() } : null
       },
+      held: () => (pills?.waiting.value ? pills.tone.value : null),
+    })
+    /* The pills beside a pointed plan (docs/design/carried-pills.md) are drawn outside the box, and are the box's: moving
+       onto them is not leaving it. */
+    pills = useCarriedPills({
+      vertical: () => props.vertical,
+      periodKey: () => props.periodKey ?? null,
+      plans: () => props.goals,
+      box: root,
+      open: () => openPlan.value !== null,
+      enter,
+      leave,
     })
     // Native listeners: a goal's menu teleported out of the box is outside it in the DOM.
     listen(root, 'pointerenter', enter)
-    listen(root, 'pointerleave', leave)
+    const own = pills
+    listen(root, 'pointerleave', (event) => {
+      if (own.owns(event.relatedTarget)) return
+      own.away()
+      leave()
+    })
+    listen(root, 'pointerover', own.over)
 
     /** What the mascot says: why the box is emptier than it was. The count line above it already says where the plans
      *  come from. It speaks only when that is all of the story: the goal has nothing here, or the box shows everything
@@ -118,7 +141,7 @@ export const CarriedGroup = tracked(function CarriedGroup(raw: Props & Record<st
     }
     return {
       notice, root, place, mascotEl, mascot, hold, pinned, gap, circle, lift, lit, visible, button, opened, onMore, openPlan,
-      words, onHeadClick, cardProps,
+      words, onHeadClick, cardProps, pills: own,
     }
   })
   const openPlan = s.openPlan.value
@@ -162,6 +185,7 @@ export const CarriedGroup = tracked(function CarriedGroup(raw: Props & Record<st
             {button}<AppIcon name="chevron-down" size={12} className={cx({ 'carried-group__chevron--open': s.opened.value })} />
           </button>
         ) : null}
+        <CarriedPills api={s.pills} />
       </section>
     </div>
   )

@@ -412,7 +412,7 @@ export const Column = tracked(function Column(raw: Props & Record<string, unknow
                 onForm={(form) => s.onForm(slide, form)}
               />
               <div className="pattern-vertical-board__body">
-                {carried.length ? <CarriedGroup vertical={vertical} goals={carried} onReplan={s.onReplan} /> : null}
+                {carried.length ? <CarriedGroup vertical={vertical} periodKey={slide.periodKey} goals={carried} onReplan={s.onReplan} /> : null}
                 <KCardStack dense data-section="planned">
                   {s.renderItems(slide).map((item) => item.kind === 'slot' ? (
                     <div

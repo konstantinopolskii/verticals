@@ -1,0 +1,54 @@
+/* The three pills beside a carried plan (docs/design/carried-pills.md). The root stands where `lib/carriedPills.ts` puts
+   it, over the board's columns and their lines (11, 12) and under the veil a window brings (280); its padding on the
+   card's side is the unpainted way back to the card. */
+.carried-pills {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  /* A popover's fade (none with motion reduced); going, it is hidden once it has faded. */
+  transition: opacity var(--motion-popover) var(--vt-ease-small), visibility 0s linear var(--motion-popover);
+}
+.carried-pills--on {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--motion-popover) var(--vt-ease-small);
+}
+/* One backing for the three, in the box's own colour: its ground, or the wash it takes for the pointed plan's family
+   (carriedGroup.css). It floats over the next column, so it carries a light shadow. The pills inside share its centre. */
+.carried-pills__set {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 20px;
+  background: #f5f5f1;
+  box-shadow: 0 2px 8px rgba(var(--vt-ink), .08);
+  transition: background-color 200ms var(--vt-ease-large);
+}
+.carried-pills--lit .carried-pills__set { background: rgb(var(--vt-pale)); }
+/* Left of the box the order turns, so the mild action stays nearest the card and Delete farthest from it. */
+.carried-pills[data-side='left'] .carried-pills__set { flex-direction: row-reverse; }
+/* White capsules in the menu's item type (goalCardTools.css: 17 px at weight 500), with the menu's hover over the white. */
+.carried-pills__pill {
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  color: #000;
+  font: 500 17px/24px var(--font-body);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color var(--motion-hover) var(--vt-ease-small);
+}
+@media (hover: hover) and (pointer: fine) {
+  .carried-pills__pill:hover { background: #f2f2f2; transition: none; } /* rgba(0, 0, 0, .05) over #fff */
+}
+.carried-pills__pill:focus { outline: none; }
+.carried-pills__pill--danger { color: #c93a5b; }
