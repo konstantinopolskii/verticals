@@ -24,6 +24,22 @@ import { tracked } from './tracked'
 import { useSetup } from './setup'
 import './app.css'
 
+/** What fills the app: a goal opened from search, the Inbox, Documents or the board. */
+const MainView = tracked(function MainView() {
+  const { activeView, openGoalVertical, openGoalId, goalDetail: detail } = store.state
+  if (openGoalVertical === 'search' && openGoalId) {
+    return (
+      <div className="search-goal-surface">
+        <GoalCard id={openGoalId} title={detail?.title ?? 'Loading…'} done={!!detail?.done_at} color={detail?.color}
+          vertical={detail?.vertical} columnVertical="search" />
+      </div>
+    )
+  }
+  if (activeView === 'inbox') return <InboxView />
+  if (activeView === 'docs') return <DocsView />
+  return <Board columns={store.columns.value} showSampleBanner={store.hasSampleData.value} onRemoveSample={() => void store.removeSample()} />
+})
+
 export const App = tracked(function App() {
   const s = useSetup({}, () => {
     useAppLifetime()
@@ -34,12 +50,11 @@ export const App = tracked(function App() {
 
   const unfocused = outOfFocus.value
   const windowOpen = windows.list.length > 0
-  const detail = store.state.goalDetail
+  const boardInFocus = store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !unfocused
   return (
     <CardDnd>
       <div className="app-shell">
-        {store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !unfocused
-          ? <div className="board-top-fade" aria-hidden="true"></div> : null}
+        {boardInFocus ? <div className="board-top-fade" aria-hidden="true"></div> : null}
         <div className={cx('app-veil', { 'is-shown': unfocused, 'app-veil--window': windowOpen })} data-role="out-of-focus"
           aria-hidden="true" onClick={s.onVeilClick}></div>
         <WindowStack />
@@ -49,14 +64,7 @@ export const App = tracked(function App() {
           agentTag={<AgentTag />} />
         <DocCheck />
         <div className={cx('app-content', { 'app-content--out-of-focus': unfocused, 'app-content--window': windowOpen })}>
-          {store.state.openGoalVertical === 'search' && store.state.openGoalId ? (
-            <div className="search-goal-surface">
-              <GoalCard id={store.state.openGoalId} title={detail?.title ?? 'Loading…'} done={!!detail?.done_at} color={detail?.color}
-                vertical={detail?.vertical} columnVertical="search" />
-            </div>
-          ) : store.state.activeView === 'inbox' ? <InboxView />
-            : store.state.activeView === 'docs' ? <DocsView />
-            : <Board columns={store.columns.value} showSampleBanner={store.hasSampleData.value} onRemoveSample={() => void store.removeSample()} />}
+          <MainView />
         </div>
       </div>
       <div id="dropdownPortal" aria-live="off"></div>
