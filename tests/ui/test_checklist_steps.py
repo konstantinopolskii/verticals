@@ -3,7 +3,9 @@
 The sample board (F1) with two steps added under its Week task: one with a date, the task's own week, and one with no
 date. The dated step stands on the board under the task. The undated step is not on the board; the task, opened, lists it
 after the dated one, and there it completes and opens as a step does. A step added inside the open task has no date and
-stays inside it. No Hide / Show subtasks toggle is left. Each test runs in light and in dark."""
+stays inside it. The dated step's menu takes its date away like any goal's ("To Inbox"): it leaves the board, shows inside
+the opened task and in the Inbox, and ⌘Z puts it back. No Hide / Show subtasks toggle is left. Each test runs in light and
+in dark."""
 
 from __future__ import annotations
 
@@ -12,11 +14,13 @@ from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 
+import httpx
 import psycopg
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from tests.ui.conftest import F1_OWNER, UiSession, _backend, _make_ui_session, _static_server
+from tests.ui.undo_helpers import keys, wait_for
 from verticals.core import goals
 
 DAY = date(2026, 8, 8)  # the pinned clock's day, in the sample board's own week
@@ -146,3 +150,33 @@ def test_a_step_added_inside_the_open_task_has_no_date_and_stays_inside(sample) 
         editor.press("Escape")  # the editor waits for the next step; Escape puts it away first
     _close(page)
     expect(_card(page, row[0])).to_have_count(0)
+
+
+def test_a_dated_steps_menu_takes_its_date_away_and_cmd_z_puts_it_back(sample) -> None:
+    """D179 kept Reschedule and To Inbox out of the menu of a step under a parent of its own column, as such a step then
+    showed nowhere. It shows inside its parent now, so its menu is any goal's."""
+    session, steps = sample
+    page = session.page
+    dsn = session.backend.dsn
+    place = lambda: _row(dsn, "SELECT vertical::text, anchor_date::text, parent_id FROM goals WHERE id = %s", steps["dated"])  # noqa: E731
+
+    _under(page, TASK, steps["dated"]).locator(":scope > .goal-card__row").click(button="right")
+    menu = page.locator('[data-role="goal-context-menu"]')
+    for item in ("tomorrow", "next-week", "date", "under", "inbox"):
+        expect(menu.locator(f'[data-move="{item}"]')).to_have_count(1)
+    menu.locator('[data-action="inbox"]').click()
+    wait_for(page, lambda: place()[0], None, "the date is taken away")
+    assert place()[2] == TASK  # still the task's step
+    expect(_card(page, steps["dated"])).to_have_count(0)
+
+    _open(page, TASK)
+    expect(_under(page, TASK, steps["dated"])).to_be_visible()
+    _close(page)
+    inbox = httpx.get(f"{session.backend.base_url}/api/undated", headers={"Authorization": f"Bearer {session.backend.token}"})
+    listed = {goal["id"]: goal for goal in inbox.json()["goals"]}  # what the Inbox draws
+    assert listed[steps["dated"]]["parent"]["id"] == TASK
+
+    undo, _ = keys(page)
+    page.keyboard.press(undo)
+    wait_for(page, place, ("week", DAY.isoformat(), TASK), "⌘Z puts the date back")
+    expect(_under(page, TASK, steps["dated"])).to_be_visible()
