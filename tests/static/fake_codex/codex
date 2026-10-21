@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""A stand-in for the Codex CLI, for the sign-in's tests (docs/design/agent-sign-in.md): no model, no network, and only as much
+of the CLI as the desktop gateway asks of it. `codex [-c key=value]… mcp list --json` lists the one server the gateway leaves
+on; `codex app-server` answers `initialize`, `thread/start` and `turn/start` over JSON-RPC, and a turn says "Done: <words>"
+back. `fake-auth.json` in Codex's home (`CODEX_HOME`) says it is signed out, `{"signedOut": true}`: every turn then fails as
+a signed-out Codex does, `codex login status` exits 1 (0 when signed in), and `codex login` prints the sign-in page's address
+and waits, its stdin open, until the test signs it in by writing the file again. Without the file, or without that folder, it
+is signed in. Each `login` call appends its arguments, the `CODEX_HOME` it saw and its pid to `auth.log` in its folder, and
+every message a turn is sent goes to `received.log` beside it.
+
+It lives apart from tests/ui/fake_agent: on the UI suite's PATH it would make Codex an agent every scenario can choose."""
+import json
+import os
+import sys
+import threading
+import time
+import uuid
+
+SIGNED_OUT = "Not logged in. Run codex login to sign in."
+SIGN_IN_PAGE = "https://auth.openai.com/oauth/authorize?client_id=sample-client&state=sample-state"
+
+
+def auth_state():
+    home = os.environ.get("CODEX_HOME")
+    if not home:
+        return {}
+    try:
+        with open(os.path.join(home, "fake-auth.json")) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def out(obj):
+    sys.stdout.write(json.dumps(obj) + "\n")
+    sys.stdout.flush()
+
+
+def words():
+    """The arguments after the `-c key=value` overrides the gateway puts first."""
+    args, rest = sys.argv[1:], []
+    while args:
+        if args[0] == "-c":
+            args = args[2:]
+            continue
+        rest.append(args.pop(0))
+    return rest
+
+
+def login(command):
+    with open("auth.log", "a") as log:
+        log.write(json.dumps({"args": sys.argv[1:], "home": os.environ.get("CODEX_HOME"), "pid": os.getpid()}) + "\n")
+    if command == ["login", "status"]:
+        signed = not auth_state().get("signedOut")
+        print("Logged in using ChatGPT" if signed else "Not logged in")
+        sys.exit(0 if signed else 1)
+    print(f"Starting the sign-in. If the browser did not open, visit: {SIGN_IN_PAGE}", flush=True)
+    threading.Thread(target=lambda: (sys.stdin.read(), os._exit(3)), daemon=True).start()
+    while auth_state().get("signedOut"):
+        time.sleep(0.05)
+    print("Successfully logged in", flush=True)
+    sys.exit(0)
+
+
+def app_server():
+    thread = str(uuid.uuid4())
+    for raw in sys.stdin:
+        try:
+            msg = json.loads(raw)
+        except ValueError:
+            continue
+        method, rid, params = msg.get("method"), msg.get("id"), msg.get("params") or {}
+        if rid is None:
+            continue
+        if method == "thread/start" or method == "thread/resume":
+            out({"id": rid, "result": {"thread": {"id": thread}, "model": "fake-codex"}})
+        elif method == "turn/start":
+            text = "".join(part.get("text", "") for part in params.get("input") or [])
+            with open("received.log", "a") as received:
+                received.write(json.dumps(text) + "\n")
+            out({"id": rid, "result": {"turn": {"id": "turn-1"}}})
+            if auth_state().get("signedOut"):
+                out({"method": "turn/completed", "params": {"threadId": thread, "turn": {
+                    "id": "turn-1", "status": "failed", "error": {"message": SIGNED_OUT}}}})
+                continue
+            said = text.split("</app_context>")[-1].strip()
+            out({"method": "item/agentMessage/delta", "params": {"threadId": thread, "itemId": "m1", "delta": f"Done: {said}"}})
+            out({"method": "turn/completed", "params": {"threadId": thread, "turn": {"id": "turn-1", "status": "completed"}}})
+        else:
+            out({"id": rid, "result": {}})
+
+
+command = words()
+if command[:1] == ["login"]:
+    login(command)
+elif command[:2] == ["mcp", "list"]:
+    print(json.dumps([{"name": "verticals_desktop", "enabled": True}]))
+elif command[:1] == ["app-server"]:
+    app_server()
+else:
+    sys.exit(2)

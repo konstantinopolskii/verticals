@@ -55,8 +55,10 @@ export function askDetail(ask: Ask): { goal: string; date: string | null } | nul
   return goal ? { goal, date: dateOf(input) } : null
 }
 
-/** The same, as the one line the field says. */
+/** The same, as the one line the field says; an ask the app makes of its own says its note (the sign-in's,
+ *  docs/design/agent-sign-in.md). */
 export function askLine(ask: Ask): string {
+  if (ask.note) return ask.note
   const detail = askDetail(ask)
   return detail ? [detail.goal, detail.date].filter(Boolean).join(' · ') : ''
 }

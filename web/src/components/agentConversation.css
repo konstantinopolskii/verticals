@@ -69,6 +69,7 @@
 /* What it will change stands right under the question, in the balloon's own type: the two are one block, the buttons the next. */
 .agent-balloon__ask-title--changes { margin-bottom: 0; }
 .agent-balloon__ask-changes { margin: 0 0 10px; }
+.agent-balloon__ask-changes:last-child { margin-bottom: 0; }
 .agent-balloon__ask-sep { color: rgb(255 255 255 / 40%); }
 .agent-balloon__markdown + .agent-balloon__ask { margin-top: 12px; }
 /* What the message made or changed, one chip under another, after its words. */

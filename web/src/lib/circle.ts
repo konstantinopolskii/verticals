@@ -60,7 +60,9 @@ function lastAgentWords(): string {
 /** What the circle holds while the conversation is hidden: the answer, or the ask the agent waits on (S2.P4, S2.P1.044). */
 export const circleWords = computed(() => {
   if (agentChat.open) return null
-  if (openAsk.value) return { kind: 'ask' as const, text: openAsk.value.title, lead: lastAgentWords(), changes: askLine(openAsk.value) }
+  // The app's own ask (the sign-in, docs/design/agent-sign-in.md) is not the agent's: no words of the agent's lead it.
+  const ask = openAsk.value
+  if (ask) return { kind: 'ask' as const, text: ask.title, lead: ask.note ? '' : lastAgentWords(), changes: askLine(ask) }
   if (agentChat.answer) return { kind: 'answer' as const, text: agentChat.answer.text, answer: agentChat.answer.answer }
   return null
 })

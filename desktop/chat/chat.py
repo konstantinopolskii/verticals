@@ -34,6 +34,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 import agent_sessions  # noqa: E402  (where a session lives, when it moved, how it opens: docs/design/task-sessions.md)
+import agent_signin  # noqa: E402  (a signed-out agent signed back in from the field: docs/design/agent-sign-in.md)
 from morning_flow import MorningFlow  # noqa: E402
 
 SKILL = HERE.parents[1] / ".agents" / "skills" / "verticals-operator"
@@ -232,7 +233,10 @@ READ_TOOLS = ["board", "goal", "outline", "search", "evidence_due", "tags", "siz
               "doc_get", "doc_image", "doc_tree", "doc_history", "doc_revision", "comments",
               "privacy", "sources"]
 
-# Agent descriptors: labels and details are Enjoy's own (see its provider registry).
+# Agent descriptors: labels and details are Enjoy's own (see its provider registry). `signin` is how the field signs a signed-out
+# agent back in (agent_signin.py, docs/design/agent-sign-in.md): its login command, its status command and how the status is read
+# (`json`, the key that says it in the JSON it prints; else the exit code), the variable that holds its home, and words of its
+# errors beyond the common ones.
 AGENTS = {
     "claude": {
         "label": "Claude Code", "exe": "claude", "image": "claude.svg", "order": 10,
@@ -250,6 +254,7 @@ AGENTS = {
             ["bypassPermissions", "Bypass permissions", "Skip permission checks. Use only in an isolated environment you trust."],
         ],
         "defaultPermission": "board",
+        "signin": {"login": ["auth", "login"], "status": ["auth", "status"], "json": "loggedIn", "home": "CLAUDE_CONFIG_DIR"},
     },
     "codex": {
         "label": "Codex", "exe": "codex", "image": "codex.png", "order": 20,
@@ -264,6 +269,7 @@ AGENTS = {
             ["full-access", "Full access", "Run commands and edit files anywhere, with network access and no approval prompts."],
         ],
         "defaultPermission": "auto-review",
+        "signin": {"login": ["login"], "status": ["login", "status"], "home": "CODEX_HOME", "words": ["codex login", "unauthorized"]},
     },
 }
 CODEX_MODELS = {  # Enjoy's curated presentation for Codex models
@@ -914,6 +920,7 @@ class Session:
         self.cond = threading.Condition()
         self.running = False
         self.queue = []                  # (text, context, settings) sent after the current turn
+        self.turn = None                 # (text, context, settings) of the message the running turn answers: what goes again
         self.asks = {}                   # request key -> agent
         self.settings = {}
         self.started_at = None
@@ -953,13 +960,14 @@ class Session:
                 self.cond.wait(timeout)
             return [(s, e) for s, e in self.events if s > seq]
 
-    def ask(self, agent, key, title, body, options, tool=None, tool_input=None):
+    def ask(self, agent, key, title, body, options, tool=None, tool_input=None, note=None):
         """`tool` and `tool_input` are the write the agent wants to make, as it calls it: the app draws what will change from
-        them (web lib/askDetail.ts, docs/design/agent-fixes.md, fix 6), where `body` is only stored."""
+        them (web lib/askDetail.ts, docs/design/agent-fixes.md, fix 6), where `body` is only stored. `note` is the line an ask
+        the app makes of its own shows under its title (the sign-in, agent_signin.py)."""
         self.asks[key] = agent
         self.emit({"t": "permission", "requestId": key, "title": title, "body": body,
                    "options": [{"label": label, "value": value} for label, value in options],
-                   **({"tool": tool, "input": tool_input or {}} if tool else {})})
+                   **({"tool": tool, "input": tool_input or {}} if tool else {}), **({"note": note} if note else {})})
 
     def resolve(self, key, label):
         if key is not None and self.asks.pop(str(key), None):
@@ -975,10 +983,15 @@ class Session:
             return
         self.finish(error, detail)
 
-    def finish(self, error, detail):
-        """The answer ends: its words are recorded, the owner is told it is done, and the next queued message starts."""
+    def finish(self, error, detail, signed_out=None):
+        """The answer ends: its words are recorded, the owner is told it is done, and the next queued message starts. A turn that
+        failed because its agent is signed out ends with the sign-in's ask instead of the error, and the queue waits behind it
+        (agent_signin.py); `signed_out` is that, when the caller knows it already."""
         if not self.running:
             return
+        if signed_out is None:
+            signed_out = bool(error) and self.chat.signin.signed_out(self, detail)
+        waiting = self.chat.signin.hold(self) if signed_out else None
         self.running = False
         self.tools.clear()
         ms = int((time.time() - (self.started_at or time.time())) * 1000)
@@ -988,9 +1001,12 @@ class Session:
         answer, self.answer = self.answer, None
         # The answer ends at the MCP server before the page is told: it asks for the answer as soon as it hears of its end.
         self.chat.close_answer(answer)
-        self.emit({"t": "done", "error": bool(error), "detail": detail or "", "ms": ms, "at": at, "answer": answer})
+        self.emit({"t": "done", "error": bool(error), "detail": "" if waiting else detail or "", "ms": ms, "at": at,
+                   "answer": answer, **({"signin": True} if waiting else {})})
         for key in list(self.asks):
             self.resolve(key, "Expired")
+        if waiting is not None:
+            return self.chat.signin.show(waiting)
         if self.queue:
             text, context, settings = self.queue.pop(0)
             threading.Thread(target=self.chat.start_turn, args=(self, text, context, settings), daemon=True).start()
@@ -1001,6 +1017,8 @@ class Session:
         self.agent = None
         if self.flow is not None:
             self.flow.abandon()
+        if self.running and code and self.chat.signin.signed_out(self, detail):
+            return self.finish(True, detail, signed_out=True)  # a CLI that stops because it is signed out asks as a turn does
         if self.running:
             self.running = False
             answer, self.answer = self.answer, None
@@ -1028,6 +1046,8 @@ class Chat:
         self.moved: dict[str, tuple[int, float]] = {}
         self._cached, self._stamp = {}, None
         self.stopping = threading.Event()
+        # A signed-out agent is signed back in from the field (docs/design/agent-sign-in.md): the asks, and one login per agent.
+        self.signin = agent_signin.SignIn(self, AGENTS, lambda provider: which(provider), lambda: child_env())
         # The MCP server also answers the record of what each answer wrote, beside its /mcp endpoint.
         self.answers_url = mcp_url.removesuffix("/mcp")
         for stale in state_dir.glob("chat-mcp*.json"):
@@ -1467,6 +1487,10 @@ class Chat:
         s.emit({"t": "user", "text": text, "provider": settings["provider"], "model": settings.get("model"),
                 "effort": settings.get("effort")})
         self.record(id, "user", text)
+        if self.signin.holds(s.id):
+            # Behind a sign-in every message waits, in the order sent, and goes after the one that failed (agent_signin.py).
+            s.queue.append((text, context, settings))
+            return
         if s.running:
             # Enjoy: Enter queues after the current turn; "send now" interrupts it first.
             if mode == "now":
@@ -1484,6 +1508,7 @@ class Chat:
         # taken back at once from the report's answer).
         s.running, s.reply = True, ""
         if stage is None:
+            s.turn = (text, context, settings)
             s.started_at = time.time()
             s.answer = secrets.token_hex(8)  # this turn is one answer, and what its writes change is kept under this id
         s.settings = settings
@@ -1540,8 +1565,10 @@ class Chat:
                 self.open_answer(s.id, s.answer)  # before the agent hears the words: every call it makes after is this answer's
             agent.send(body + text)
         except (ChatError, OSError) as e:
-            s.running = False
             s.flow, s.holding = None, None
+            if self.signin.signed_out(s, str(e)):
+                return s.finish(True, str(e), signed_out=True)
+            s.running = False
             self.log.warning("turn_failed_to_start %s session=%s", clip(e), str(s.id)[:8])
             answer, s.answer = s.answer, None
             self.close_answer(answer)
@@ -1554,11 +1581,13 @@ class Chat:
             self.log.warning("refused permission no longer active session=%s", str(id)[:8])
             raise ChatError("This request is no longer active")
         agent.decide(str(request_id), value)
-        s.emit({"t": "permission_done", "requestId": str(request_id), "value": value})
+        if agent is not self.signin:  # the sign-in's ask stays open after a click, and says itself how it ends
+            s.emit({"t": "permission_done", "requestId": str(request_id), "value": value})
 
     def stop(self, id):
         s = self.session(id)
         s.queue.clear()
+        self.signin.drop(s)
         if s.flow is not None:
             s.flow.stop()
         if s.running and s.agent:
@@ -1566,6 +1595,8 @@ class Chat:
 
     def reset(self, id):
         s = self.sessions.pop(id, None)
+        if s:
+            self.signin.drop(s)
         if s and s.flow is not None:
             s.flow.abandon()
         if s and s.agent:
@@ -1574,6 +1605,7 @@ class Chat:
 
     def shutdown(self):
         self.stopping.set()
+        self.signin.close()
         for s in list(self.sessions.values()):
             if s.flow is not None:
                 s.flow.abandon()
@@ -1625,9 +1657,13 @@ def codex_usage(raw):
 
 
 def format_handoff(transcript, current):
-    """Earlier turns for an agent that did not take part in them (agent switch or lost session)."""
+    """Earlier turns for an agent that did not take part in them (agent switch or lost session): those before the current
+    message. The transcript holds it already, and the messages sent after it to wait their turn too: a message that goes again
+    once its agent is signed in has the ones that waited behind it there (docs/design/agent-sign-in.md)."""
     lines, total = [], 0
-    for role, text in reversed(transcript[:-1] if transcript and transcript[-1] == ["user", current[:4000]] else transcript):
+    sent = ["user", current[:4000]]
+    cut = max((at for at, said in enumerate(transcript) if said == sent), default=len(transcript))
+    for role, text in reversed(transcript[:cut]):
         entry = f"{'User' if role == 'user' else 'Assistant'}: {text}"
         if total + len(entry) > HANDOFF_CHARS:
             break
