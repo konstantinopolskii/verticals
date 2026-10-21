@@ -88,7 +88,8 @@ def test_the_replan_context_carries_the_new_rules_and_the_old_task_keeps_its_own
                   "at most three questions about what matters now, each with two to four short options, your guess first",
                   "Ask with the AskUserQuestion tool when you have it, all the questions in one call.",
                   'end with: "Say go to take my guesses, or answer like 1b 3a."',
-                  "Make one document with doc_create, path replan/<today>.md",
+                  "Make one document with doc_create, path replan/<today>.md, or replan/<today>-2.md (then -3 and on) when "
+                  "that path is taken: never overwrite an earlier document.",
                   '"Keep this week · 6"', "[title](#goal/<id>)", '"Say go, or move a row in the document."',
                   "Keep with schedule (the column's scale, today's date), To Inbox with schedule (vertical and anchor_date null)",
                   "Delete with delete (cascade true only when the plan's own steps go with it)",
