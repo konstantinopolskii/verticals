@@ -54,11 +54,10 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
       window.dispatchEvent(new CustomEvent('verticals:start-work', { detail: { id: props.id } }))
       closeMenu()
     }
-    const fixedSameVerticalParent = computed(() => store.sameVerticalParentId(props.id))
     const repeatVertical = computed(() => (props.vertical && props.vertical !== 'life' ? props.vertical : null))
-    /* A goal nested under a parent of its own vertical has no dates or parent of its own to change here (D179), so only its
-       Repeat stays, under Reschedule, and the Move group is left out. */
-    const showReschedule = computed(() => !fixedSameVerticalParent.value || repeatVertical.value !== null)
+    /* Every goal has the same menu. A step under a parent of its own column had no Reschedule or Move here (D179), as a
+       step taken off the board then showed nowhere; a step's date now decides where it shows, and one with no date lives
+       inside its parent (docs/design/checklist-steps.md), so it is rescheduled, moved and taken to the Inbox like any goal. */
     function onOpen() {
       open.value = true
       props.onOpenChange?.(true)
@@ -112,7 +111,7 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
 
     exposeTo(props.expose, { openMenu })
     return {
-      trigger, open, showAgent, discuss, startWork, fixedSameVerticalParent, repeatVertical, showReschedule, onOpen, onClose,
+      trigger, open, showAgent, discuss, startWork, repeatVertical, onOpen, onClose,
       closeMenu, step, tomorrow, nextWeek, moveToInbox, moveTo, tags, addTag, removeTag, remove,
     }
   })
@@ -126,7 +125,6 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
   // The engine draws the menu only while it is open, so a closed card reads none of it: built here only then.
   function menu(): ReactNode {
     if (s.step.value) return <MoveStep id={id} step={s.step.value} onGo={(next) => (s.step.value = next)} onDone={s.closeMenu} />
-    const fixed = s.fixedSameVerticalParent.value
     const repeatVertical = s.repeatVertical.value
     const tags = s.tags.value
     return (
@@ -144,36 +142,28 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
           </div>
         ) : null}
 
-        {s.showReschedule.value ? (
-          <div className="goal-actions__section" data-menu-section="reschedule" role="group" aria-label="Reschedule">
-            <p className="goal-actions__heading" aria-hidden="true">Reschedule</p>
-            {!fixed ? (
-              <>
-                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="tomorrow" data-cap="schedule"
-                  onClick={() => s.moveTo('day', s.tomorrow.value)}>Tomorrow</button>
-                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="next-week"
-                  onClick={() => s.moveTo('week', s.nextWeek.value)}>Next week</button>
-                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="date" onClick={toStep('date')}>
-                  <span>Date</span>{arrow}
-                </button>
-              </>
-            ) : null}
-            {repeatVertical ? <RepeatPopover id={id} vertical={repeatVertical} repeat={repeat ?? null} /> : null}
-          </div>
-        ) : null}
+        <div className="goal-actions__section" data-menu-section="reschedule" role="group" aria-label="Reschedule">
+          <p className="goal-actions__heading" aria-hidden="true">Reschedule</p>
+          <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="tomorrow" data-cap="schedule"
+            onClick={() => s.moveTo('day', s.tomorrow.value)}>Tomorrow</button>
+          <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="next-week"
+            onClick={() => s.moveTo('week', s.nextWeek.value)}>Next week</button>
+          <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="date" onClick={toStep('date')}>
+            <span>Date</span>{arrow}
+          </button>
+          {repeatVertical ? <RepeatPopover id={id} vertical={repeatVertical} repeat={repeat ?? null} /> : null}
+        </div>
 
-        {!fixed ? (
-          <div className="goal-actions__section" data-menu-section="move" role="group" aria-label="Move">
-            <p className="goal-actions__heading" aria-hidden="true">Move</p>
-            <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="under" onClick={toStep('under')}>
-              <span>Into a goal</span>{arrow}
-            </button>
-            {vertical ? (
-              <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="inbox" data-action="inbox"
-                onClick={s.moveToInbox}>To Inbox</button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="goal-actions__section" data-menu-section="move" role="group" aria-label="Move">
+          <p className="goal-actions__heading" aria-hidden="true">Move</p>
+          <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="under" onClick={toStep('under')}>
+            <span>Into a goal</span>{arrow}
+          </button>
+          {vertical ? (
+            <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="inbox" data-action="inbox"
+              onClick={s.moveToInbox}>To Inbox</button>
+          ) : null}
+        </div>
 
         {open ? (
           <div className="goal-actions__section" data-menu-section="tags">

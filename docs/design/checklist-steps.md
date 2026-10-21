@@ -11,7 +11,7 @@ So there is nothing to press: a date puts a step on the board, no date keeps it 
 - **A step with a date** stands on the board in its column, as every goal does: with its parent's date, under its parent; with a date in another column, on its own there.
 - **A step with no date** (vertical and anchor date empty) is not on the board. When its parent is opened in place, it shows in the parent's list of steps, after the dated ones, drawn as they are: its box and title; it completes and opens as a step does. The Inbox lists it with its parent, as it does today.
 - **A step added inside an open goal** ("Add…") has no date: it shows in the open goal and stays inside it. Giving it a date is the menu's Reschedule.
-- **Taking a date away** (Reschedule, "To Inbox") keeps a step inside its parent and puts a parentless goal in the Inbox, as today.
+- **Taking a date away** keeps a step inside its parent and puts a parentless goal in the Inbox, as today. It works from every goal's menu ("To Inbox"), a step's under a parent in its own column too: that menu had no Reschedule or Move (D179), as such a step then showed nowhere, and is now any goal's menu. ⌘Z puts the date back.
 - A Life value is the one goal that doesn't list its goals with no date when opened: under a value they are its ideas, which its detail keeps apart and the Inbox shelves, as today.
 - The parent's box keeps counting all its steps, dated or not.
 - The Hide / Show N subtasks toggle goes, with what it saved on the device.
@@ -22,4 +22,4 @@ The open goal's undated steps come from what is loaded already: the board carrie
 
 ## Done when
 
-UI tests on the sample board, light and dark: an undated step is not on the board, shows when its parent opens, after the dated steps, and completes from there; a dated step under the same task shows on the board; a step added inside an open task has no date and shows in the open task, not on the board once it closes; no Hide / Show toggle anywhere. MCP and static tests: the `create` and `schedule` descriptions and the skills carry the rule. Before and after pictures: a Week task closed and opened.
+UI tests on the sample board, light and dark: an undated step is not on the board, shows when its parent opens, after the dated steps, and completes from there; a dated step under the same task shows on the board; a step added inside an open task has no date and shows in the open task, not on the board once it closes; the dated step's "To Inbox" takes it off the board, into the opened task and the Inbox, and ⌘Z puts it back; no Hide / Show toggle anywhere. MCP and static tests: the `create` and `schedule` descriptions and the skills carry the rule. Before and after pictures: a Week task closed and opened.

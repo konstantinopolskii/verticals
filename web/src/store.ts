@@ -235,8 +235,8 @@ function parentVertical(id: string): VerticalScale | undefined {
   return placementParentVertical(state.board, id)
 }
 
-/** Same-vertical children are visually nested, but may be scheduled down into another vertical.
- * Reparent/detach still stays blocked: scheduling changes time scale, not family identity. */
+/** The parent a goal is drawn under in its own column, or null. The drag reads it to tell a step that outgrows its
+ *  parent (D242) and the colour a drop gives it; it blocks nothing any more (D241, docs/design/checklist-steps.md). */
 function sameVerticalParentId(id: string): string | null {
   const goal = findGoalById(id)
   if (!goal?.parent_id || !goal.vertical) return null
@@ -431,9 +431,8 @@ async function scheduleGoalQuick(id: string, scale: VerticalScale, periodKey: st
 
 async function moveGoalToInbox(id: string): Promise<void> {
   // Cleared, a parentless goal goes to the Inbox, and a step stays inside its parent, listed when it opens and in the
-  // Inbox (docs/design/checklist-steps.md). D179 still offers no Inbox in the menu of a step under a parent of its own
-  // vertical (`GoalCardTools.tsx`), and this keeps to that.
-  if (sameVerticalParentId(id)) return
+  // Inbox (docs/design/checklist-steps.md). D179 kept a step under a parent of its own vertical out of here, as it then
+  // showed nowhere; it shows inside its parent now.
   const placement = schedulePlacement(
     state.board,
     id,
