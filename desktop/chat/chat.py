@@ -36,6 +36,7 @@ if str(HERE) not in sys.path:
 import agent_sessions  # noqa: E402  (where a session lives, when it moved, how it opens: docs/design/task-sessions.md)
 import agent_signin  # noqa: E402  (a signed-out agent signed back in from the field: docs/design/agent-sign-in.md)
 from morning_flow import MorningFlow  # noqa: E402
+from morning_schedule import MorningSchedule  # noqa: E402
 
 SKILL = HERE.parents[1] / ".agents" / "skills" / "verticals-operator"
 MORNING_SKILL = HERE.parents[1] / ".agents" / "skills" / "verticals-morning-report"
@@ -1048,6 +1049,7 @@ class Chat:
         self.stopping = threading.Event()
         # A signed-out agent is signed back in from the field (docs/design/agent-sign-in.md): the asks, and one login per agent.
         self.signin = agent_signin.SignIn(self, AGENTS, lambda provider: which(provider), lambda: child_env())
+        self.morning = MorningSchedule(self)
         # The MCP server also answers the record of what each answer wrote, beside its /mcp endpoint.
         self.answers_url = mcp_url.removesuffix("/mcp")
         for stale in state_dir.glob("chat-mcp*.json"):
@@ -1602,6 +1604,9 @@ class Chat:
         if s and s.agent:
             s.agent.close()
         (self.state_dir / f"chat-mcp-{id}.json").unlink(missing_ok=True)
+
+    def start_background_morning(self, every=30):
+        self.morning.start(every)
 
     def shutdown(self):
         self.stopping.set()

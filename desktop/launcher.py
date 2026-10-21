@@ -309,6 +309,8 @@ def make_gateway(token, chat):
                 return self.send_json({"agents": chat.agents()})
             if self.command == "GET" and path == "/__chat/busy":
                 return self.send_json({"busy": chat.busy()})
+            if self.command == "GET" and path == "/__chat/morning":
+                return self.send_json(chat.morning.status())
             if self.command == "GET" and path == "/__chat/frame":
                 page = parse_qs(urlparse(self.path).query).get("url", [""])[0]
                 return self.send_json({"framable": framable(page)})
@@ -349,6 +351,8 @@ def make_gateway(token, chat):
                     return self.send_json({"ok": True, **chat.open_session(body.get("session"))})
                 elif action == "report-kind":
                     return self.send_json(report_kind.ask(chat, body.get("words"), body.get("settings")))
+                elif action == "morning":
+                    chat.morning.configure(body.get("settings"), body.get("timezone"))
                 else:
                     return self.deny(404, "not found")
             except (ChatError, ValueError) as e:
@@ -504,6 +508,7 @@ def main():
         gateway.daemon_threads = True
         threading.Thread(target=gateway.serve_forever, daemon=True).start()
         wait_healthy()
+        chat.start_background_morning()
         write_mcp_config(cfg["token"])
         print(f"\nVerticals desktop is up\n  UI:  http://127.0.0.1:{UI_PORT}/\n  {mcp_instructions()}\n"
               f"Ctrl-C stops everything; data stays in {STATE}.\n", flush=True)
