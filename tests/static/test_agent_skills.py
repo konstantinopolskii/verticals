@@ -107,3 +107,19 @@ def test_evidence_tool_payload_reference_has_a_documented_section() -> None:
 
     example = document.split("```json\n", 1)[1].split("\n```", 1)[0]
     assert validate_payload(json.loads(example)) == json.loads(example)
+
+
+def test_the_skills_say_where_a_steps_date_puts_it() -> None:
+    """A step's date decides where it shows (docs/design/checklist-steps.md). The owner, 21 Oct 2026: "it should be written
+    in the agent's mc that vertical uses, so NOBODY will do same mistake again." The words the `create` and `schedule` tools
+    carry stand in every skill that writes goals: the operator's (and its MCP reference, which the app's chat reads), the
+    planning one and the morning report's."""
+    from verticals.mcp.tool_schemas import STEP_DATES
+
+    for path in (
+        SKILLS / "verticals-operator" / "SKILL.md",
+        SKILLS / "verticals-operator" / "references" / "mcp-operations.md",
+        SKILLS / "verticals-planning" / "SKILL.md",
+        SKILLS / "verticals-morning-report" / "SKILL.md",
+    ):
+        assert " ".join(STEP_DATES.split()) in " ".join(path.read_text(encoding="utf-8").split()), path
