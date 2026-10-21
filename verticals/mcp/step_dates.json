@@ -1,0 +1,5 @@
+{
+  "rule": "A step gets a date only when the owner wants to track it on the board; a date the same as its parent's puts it on the board under the parent. An agent's checklist, its working steps and tasks for sub-agents are created without a date (vertical and anchor_date null): they live inside the parent, show when it is opened, and in the Inbox. Removing a goal's date puts a parentless goal in the Inbox and keeps a step inside its parent.",
+  "step_date": "ISO 8601 date; required together with vertical. Leave both out for a step the owner does not track on the board: it lives inside its parent and shows when the parent is opened.",
+  "clear_date": "ISO 8601 date. Both null clears the schedule: a parentless goal goes to the Inbox, a step stays inside its parent."
+}

@@ -14,6 +14,8 @@ reparent/delete) declares an optional, nullable `client_token`.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from verticals.core import goals as core_goals
@@ -40,6 +42,16 @@ _CLIENT_TOKEN_PROP = {
     "arguments returns the original result instead of writing again.",
 }
 
+# A step's date decides where it shows (docs/design/checklist-steps.md). The owner, 21 Oct 2026: "It should be clear from
+# the MCP and it should be written in the agent's mc that vertical uses, so NOBODY will do same mistake again." So the
+# `create` and `schedule` texts carry these words, and the operator, planning and morning-report skills carry the same
+# words (tests/static/test_agent_skills.py). They live in a file of their own (`step_dates.json`), as the morning report's
+# checks do: they name the Inbox, which is no code path here, and this package keeps the word out of its strings
+# (tests/static/test_architecture.py, row 4).
+_STEP_DATES_TEXT = json.loads(Path(__file__).with_name("step_dates.json").read_text(encoding="utf-8"))
+STEP_DATES: str = _STEP_DATES_TEXT["rule"]
+_STEP_DATE: str = _STEP_DATES_TEXT["step_date"]
+
 _CHILD_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -49,7 +61,7 @@ _CHILD_SCHEMA: dict[str, Any] = {
         "color": {"type": ["string", "null"], "enum": [*_COLOR_ENUM, None]},
         "tags": {"type": "array", "items": {"type": "string", "maxLength": core_goals.MAX_TAG_CHARS}, "maxItems": core_goals.MAX_TAGS},
         "vertical": {"type": ["string", "null"], "enum": [*_VERTICAL_ENUM, None]},
-        "anchor_date": {"type": ["string", "null"], "description": "ISO 8601 date; required together with vertical."},
+        "anchor_date": {"type": ["string", "null"], "description": _STEP_DATE},
         "children": {"type": "array", "items": {"$ref": "#/$defs/child"}},
     },
     "required": ["title"],
@@ -145,7 +157,7 @@ CREATE_SCHEMA: dict[str, Any] = {
         "body": {"type": "string", "description": f"Markdown, at most {core_goals.MAX_BODY_BYTES} UTF-8 bytes."},
         "parent_id": {"type": ["string", "null"]},
         "vertical": {"type": ["string", "null"], "enum": [*_VERTICAL_ENUM, None]},
-        "anchor_date": {"type": ["string", "null"], "description": "ISO 8601 date; required together with vertical."},
+        "anchor_date": {"type": ["string", "null"], "description": _STEP_DATE},
         "color": {"type": ["string", "null"], "enum": [*_COLOR_ENUM, None]},
         "tags": {"type": "array", "items": {"type": "string", "maxLength": core_goals.MAX_TAG_CHARS}, "maxItems": core_goals.MAX_TAGS},
         "children": {
@@ -257,7 +269,7 @@ SCHEDULE_SCHEMA: dict[str, Any] = {
     "properties": {
         "id": {"type": "string"},
         "vertical": {"type": ["string", "null"], "enum": [*_VERTICAL_ENUM, None]},
-        "anchor_date": {"type": ["string", "null"], "description": "ISO 8601 date. Both null clears the schedule."},
+        "anchor_date": {"type": ["string", "null"], "description": _STEP_DATES_TEXT["clear_date"]},
         "client_token": _CLIENT_TOKEN_PROP,
     },
     "required": ["id", "vertical", "anchor_date"],

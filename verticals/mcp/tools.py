@@ -83,6 +83,7 @@ from verticals.mcp.tool_schemas import (
     REPARENT_SCHEMA,
     SCHEDULE_SCHEMA,
     SEARCH_SCHEMA,
+    STEP_DATES,
     UPDATE_SCHEMA,
 )
 
@@ -103,9 +104,9 @@ TOOLS: tuple[types.Tool, ...] = (
     types.Tool(name="goal", description="One goal with its breadcrumb of ancestors and its direct children. Its docs field already includes every document linked to any ancestor, marked with inherited_from — no need to walk the breadcrumb yourself to find them. A doc link is plain markdown in body text ('[label](doc:path)'); doc_link/doc_unlink are the safe verbs for adding or removing one — never link a document an ancestor already links, since every descendant inherits it automatically. A picture inside the body comes as [picture 1], [picture 2] and so on, never its data.", input_schema=GOAL_SCHEMA),
     types.Tool(name="outline", description="Render a subtree as one readable markdown outline, every node's id inline. A picture inside a body shows as [picture], never its data.", input_schema=OUTLINE_SCHEMA),
     types.Tool(name="search", description="Full-text and tag search over the owner's goals.", input_schema=SEARCH_SCHEMA),
-    types.Tool(name="create", description="Create a goal, optionally with a nested plan of children, in one call.", input_schema=CREATE_SCHEMA),
+    types.Tool(name="create", description=f"Create a goal, optionally with a nested plan of children, in one call. {STEP_DATES}", input_schema=CREATE_SCHEMA),
     types.Tool(name="update", description="Edit content (title/body/color/tags/done/foil/private/repeat) on one or many goals, or reorder one goal among its siblings. `private` hides a goal and its whole subtree from screenshots while privacy mode is on; it never shows in the app. A repeating goal's next occurrence is materialized when the current one is completed — never by the clock — under the completed row's parent, so a series follows wherever its last instance was moved. The new occurrence brings the goal's steps back, unticked, in their order; a dated step moves with the goal, and every copy keeps its own `private` flag. A [picture N] placeholder kept in the body of one goal is that picture again.", input_schema=UPDATE_SCHEMA),
-    types.Tool(name="schedule", description="Set or clear a goal's vertical and anchor date.", input_schema=SCHEDULE_SCHEMA),
+    types.Tool(name="schedule", description=f"Set or clear a goal's vertical and anchor date. {STEP_DATES}", input_schema=SCHEDULE_SCHEMA),
     types.Tool(name="reparent", description="Move a goal under a new parent, or detach it to the root.", input_schema=REPARENT_SCHEMA),
     types.Tool(name="delete", description="Remove a goal. Refuses a non-empty subtree unless cascade is true.", input_schema=DELETE_SCHEMA),
 ) + mcp_evidence.TOOLS + mcp_park.TOOLS + mcp_tags.TOOLS + mcp_sizes.TOOLS + mcp_due_ack.TOOLS + mcp_docs.TOOLS + mcp_comments.TOOLS + mcp_privacy.TOOLS + mcp_session.TOOLS + mcp_sources.TOOLS

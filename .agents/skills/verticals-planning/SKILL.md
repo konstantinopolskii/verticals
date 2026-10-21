@@ -29,6 +29,8 @@ Keep these decisions separate:
 2. **Priority:** the parent chain proves why it matters now.
 3. **Date:** explicit timing or capacity evidence proves it fits.
 
+A step's date decides where it shows. A step gets a date only when the owner wants to track it on the board; a date the same as its parent's puts it on the board under the parent. An agent's checklist, its working steps and tasks for sub-agents are created without a date (vertical and anchor_date null): they live inside the parent, show when it is opened, and in the Inbox. Removing a goal's date puts a parentless goal in the Inbox and keeps a step inside its parent.
+
 Every active non-value goal needs one strongest causal parent and exactly one Life value ancestor. Shared subject matter is not a causal link. Do not invent a bridge goal to repair a weak tree.
 
 Treat the user's latest manual board edit as authoritative. Never normalize, move, rename, or reschedule it from an older draft without newer approval.
