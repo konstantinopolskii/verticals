@@ -31,7 +31,7 @@
   overflow-y: auto;
 }
 /* Opened from a window (a document from the desk, a goal from the Inbox; S3.P4): over the window and its veil (280,
-   WindowStack.tsx's 285), still under the field (300). */
+   lib/windowStack.ts's 285), still under the field (300). */
 .comments-panel--over-windows { z-index: 290; }
 .comments-panel__header {
   display: flex;

@@ -5,7 +5,7 @@
   background: linear-gradient(var(--vt-desk-bg, #f5f5f7) 0, var(--vt-desk-bg, #f5f5f7) 60px, rgb(var(--vt-desk-rgb, 245 245 247) / 0) 96px); }
 .desk-head > * { pointer-events: auto; }
 .desk-head__title.t-title { margin: 0; font-size: 31px; line-height: 40px; }
-/* The app's window ×: a 16 px x in a 32 px round button, 55 % black (WindowStack.tsx). */
+/* The app's window ×: a 16 px x in a 32 px round button, 55 % black (WindowHead.tsx). */
 .desk-head__close { position: absolute; top: 22px; right: 22px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0;
   border-radius: 16px; background: transparent; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); cursor: pointer; }
 .desk-head__close:hover { background: rgb(var(--vt-text-rgb, 0 0 0) / 6%); color: var(--color-text); }

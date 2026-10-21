@@ -162,6 +162,28 @@ export function bindRef<T extends Element>(target: Ref<T | null>): (node: T | nu
   return set
 }
 
+const keyedRefs = new WeakMap<object, Map<string, (node: Element | null) => () => void>>()
+
+/** bindRef for one of the elements a ref holds by key, as a list's rows: one callback per key. */
+export function bindRefAt<T extends Element>(target: Ref<Record<string, T | null>>, key: string): (node: T | null) => () => void {
+  let byKey = keyedRefs.get(target)
+  if (!byKey) keyedRefs.set(target, byKey = new Map())
+  let set = byKey.get(key)
+  if (!set) {
+    set = (node) => {
+      target.value[key] = node as T | null
+      if (node) onRelease(node, () => {
+        if (target.value[key] === node) target.value[key] = null
+      })
+      return () => {
+        if (target.value[key] === node) target.value[key] = null
+      }
+    }
+    byKey.set(key, set)
+  }
+  return set
+}
+
 /** A component that ends lets go of its template refs, as Vue's unmount does (src/setup.ts). */
 export function releaseRefs(owner: number): void {
   for (const target of held.get(owner) ?? []) target.value = null
