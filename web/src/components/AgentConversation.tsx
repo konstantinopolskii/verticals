@@ -5,7 +5,8 @@ import { computed, nextTick, ref, watch } from '../reactivity'
 import { AgentChips } from './AgentChips'
 import { AnswerUndo } from './AnswerUndo'
 import { chipLinks, withoutChipLines } from '../lib/chipLinks'
-import { agentChat, agentOf, balloons, decide } from '../lib/agentChat'
+import { QUESTION_TOOL, agentChat, agentOf, balloons, decide } from '../lib/agentChat'
+import { AnswerSuggestions } from './AnswerSuggestions'
 import { askDetail } from '../lib/askDetail'
 import { chatMarkdown } from '../lib/chatMarkdown'
 import { scrollLook, useMessageScroll } from '../lib/messageScroll'
@@ -142,8 +143,9 @@ export const AgentConversation = tracked(function AgentConversation({ onLink, ..
                         </p>
                       ) : ask.note ? <p className="agent-balloon__ask-changes" data-role="agent-ask-note">{ask.note}</p> : null}
                       {/* The sign-in waiting for the browser may have nothing to press (docs/design/agent-sign-in.md). */}
+                      {/* A question's options are suggestions for your answer, not answers (AnswerSuggestions). */}
                       {ask.options.length ? <div className="agent-balloon__choices">
-                        {ask.options.map((option) => (
+                        {ask.tool === QUESTION_TOOL ? <AnswerSuggestions options={ask.options} /> : ask.options.map((option) => (
                           <button
                             key={option.value}
                             type="button"

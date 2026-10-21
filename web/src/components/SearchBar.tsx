@@ -21,6 +21,7 @@ import { anyMenuOpen } from '../lib/cardLift'
 import { defineKnobs, knob } from '../lib/tuning'
 import { AgentChips } from './AgentChips'
 import { AnswerUndo } from './AnswerUndo'
+import { AnswerSuggestions } from './AnswerSuggestions'
 import { CircleGame } from './CircleGame'
 import { CircleTags } from './CircleTags'
 import { chipLinks, withoutChipLines } from '../lib/chipLinks'
@@ -412,6 +413,11 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
       el.setSelectionRange(end, end)
       moved()
     }
+    /* A question's suggestion changed the words (lib/answerSuggestions.ts): the field shows them and takes the caret at their end. */
+    function onFocusAsked(): void {
+      if (input.value) input.value.value = commandFilter.text
+      focusField()
+    }
     function clear(): void {
       commandFilter.text = ''
       moved()
@@ -552,6 +558,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
       const match = /^\/search\/(.*)/.exec(location.pathname)
       if (match?.[1]) { try { commandFilter.text = decodeURIComponent(match[1]) } catch { commandFilter.text = match[1] } }
       window.addEventListener('keydown', onWindowKeyDown, true)
+      window.addEventListener('verticals:focus-field', onFocusAsked)
       window.addEventListener('resize', onResize)
       hoverQuery?.addEventListener('change', onCanHover)
       document.fonts?.addEventListener('loadingdone', onFontsLoaded)
@@ -564,6 +571,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
       chipsWatch?.disconnect()
       brushing?.stop()
       window.removeEventListener('keydown', onWindowKeyDown, true)
+      window.removeEventListener('verticals:focus-field', onFocusAsked)
       window.removeEventListener('resize', onResize)
       hoverQuery?.removeEventListener('change', onCanHover)
       document.fonts?.removeEventListener('loadingdone', onFontsLoaded)
@@ -691,7 +699,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
               {s.undoable.value && words.kind === 'answer' ? <AnswerUndo answer={words.answer} className="circle-field__answer-undo" /> : null}
               {words.kind === 'ask' && ask?.options.length ? (
                 <div ref={bindRef(s.choicesBox)} className="circle-field__answer-choices">
-                  {ask.options.map((option) => (
+                  {ask.tool === QUESTION_TOOL ? <AnswerSuggestions options={ask.options} /> : ask.options.map((option) => (
                     <button key={option.value} type="button" className="circle-field__answer-choice"
                       onClick={(event) => stopClick(event, () => void decide(openAsk.value!.requestId, option.value))}>{option.label}</button>
                   ))}

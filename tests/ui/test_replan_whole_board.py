@@ -1,6 +1,6 @@
 """Replan over the whole board (docs/design/replan-whole-board.md), through the real gateway and the fake agent: Replan in one
-box sends every carried plan of the board, each under the box it sits in; and Claude's question tool shows its questions as
-the field's asks, one at a time, the guess first, and the tap and the typed words reach the agent as its answers."""
+box sends every carried plan of the board, each under the box it sits in; and Claude's question tool shows its questions one
+at a time, their options as suggestions that fill the field, and Enter sends the field's words as the answer."""
 
 from __future__ import annotations
 
@@ -17,8 +17,9 @@ from verticals.core.board import board
 
 from tests.ui.conftest import F2_OWNER, UiSession
 from tests.ui.test_agent_conversation import (  # noqa: F401  (ui_agent is the fixture)
-    AGENT_BALLOON, ANSWER, BALLOON, CONVERSATION, _send, close_the_conversation, ui_agent,
+    AGENT_BALLOON, ANSWER, BALLOON, _send, close_the_conversation, ui_agent,
 )
+from tests.ui.views import FIELD
 
 BOXES = {"day": "Day", "week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year", "decade": "3 years"}
 CHOICE = ".circle-field__answer-choice"
@@ -76,33 +77,93 @@ def test_replan_in_the_week_box_sends_the_carried_plans_of_every_box(ui_agent: U
     assert any(line.startswith("The owner clicked Replan: sort out every plan") for line in lines)
 
 
-def test_claudes_questions_are_the_fields_asks_and_the_answers_reach_it(ui_agent: UiSession, tmp_path: Path) -> None:
+def _suggestions(where):
+    return where.locator('[data-role="answer-suggestion"]')
+
+
+def _pressed(where) -> list[str]:
+    """The suggestions whose words are in the field: the filled ones."""
+    pills = _suggestions(where)
+    return [pills.nth(i).inner_text() for i in range(pills.count()) if pills.nth(i).get_attribute("aria-pressed") == "true"]
+
+
+def test_a_questions_options_are_suggestions_that_fill_the_field_and_only_enter_answers(
+        ui_agent: UiSession, tmp_path: Path) -> None:
+    """KK 21 Oct 2026: "Let them simply add text to my field, as autocomplete." A click puts an option's words in the field (the
+    guess's mark left out) or takes them out again, several can be picked, and only Enter sends the field's words: the answer to
+    the question, after which the next one shows. An empty field sends nothing."""
     page = ui_agent.page
     page.wait_for_selector(".goal-card__row")
     _send(page, "Sort it out [question]")
     ask = page.locator('[data-role="agent-ask"]')
     expect(ask).to_contain_text("What matters most this week?", timeout=10000)
-    expect(ask.get_by_role("button")).to_have_text(["The guide (my guess)", "The launch", "Rest"])
-    # With the conversation away, the field holds the question: the agent's lines over it, the options as its buttons.
+    expect(_suggestions(ask)).to_have_text(["The guide (my guess)", "The launch", "Rest"])
+    expect(ask.locator(".agent-balloon__choice")).to_have_count(0)
+    expect(page.locator(FIELD)).to_have_attribute("aria-label", "Your answer")
+    # With the conversation away, the field holds the question and its suggestions, outlined.
     close_the_conversation(page)
     field = page.locator(ANSWER)
     expect(field).to_contain_text("What matters most this week?")
     expect(field).to_contain_text("9 plans carried over")
-    expect(field.locator(CHOICE)).to_have_text(["The guide (my guess)", "The launch", "Rest"])
-    field.locator(CHOICE, has_text="The launch").click()
-    expect(field).to_contain_text("Which stream went quiet?")
-    expect(field.locator(CHOICE)).to_have_text(["Reading (my guess)", "Sport"])
-    # Words typed while the question waits answer it: no turn of their own.
+    expect(_suggestions(field)).to_have_text(["The guide (my guess)", "The launch", "Rest"])
+    expect(_suggestions(field).first).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+    expect(field.locator(CHOICE)).to_have_count(0)
+    # A click: the words go in the field, which takes the caret; the conversation shows the question with that one filled.
+    _suggestions(field).filter(has_text="The launch").click()
+    expect(page.locator(FIELD)).to_have_value("The launch")
+    expect(page.locator(FIELD)).to_be_focused()
+    ask = page.locator('[data-role="agent-ask"]')
+    expect(_suggestions(ask).filter(has_text="The launch")).to_have_attribute("aria-pressed", "true")
+    expect(_suggestions(ask).filter(has_text="The launch")).to_have_css("background-color", "rgb(255, 255, 255)")
+    # Several, then one taken out again; the guess goes in without its mark.
+    _suggestions(ask).filter(has_text="Rest").click()
+    expect(page.locator(FIELD)).to_have_value("The launch, Rest")
+    assert _pressed(ask) == ["The launch", "Rest"]
+    _suggestions(ask).filter(has_text="The launch").click()
+    expect(page.locator(FIELD)).to_have_value("Rest")
+    _suggestions(ask).filter(has_text="The guide").click()
+    expect(page.locator(FIELD)).to_have_value("Rest, The guide")
+    expect(page.locator(FIELD)).to_be_focused()
+    assert _pressed(ask) == ["The guide (my guess)", "Rest"]
+    assert not (_workspace(tmp_path) / "decisions.log").exists(), "a click answers nothing"
+    # Enter answers with the field's words, and the next question shows.
+    page.keyboard.press("Enter")
+    expect(ask).to_contain_text("Which stream went quiet?", timeout=10000)
+    expect(_suggestions(ask)).to_have_text(["Reading (my guess)", "Sport"])
+    expect(page.locator(FIELD)).to_have_value("")
+    assert _pressed(ask) == []
+    # An empty field sends nothing.
+    page.keyboard.press("Control+k")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(500)
+    expect(ask).to_contain_text("Which stream went quiet?")
     _send(page, "Music, mostly")
-    expect(page.locator(CONVERSATION)).to_be_visible()
     expect(page.locator(AGENT_BALLOON).last).to_contain_text(
-        'Answers: "What matters most this week?"="The launch", "Which stream went quiet?"="Music, mostly".', timeout=10000)
-    expect(page.locator(f'{BALLOON}[data-who="you"]')).to_have_text(["Sort it out [question]", "Music, mostly"])
+        'Answers: "What matters most this week?"="Rest, The guide", "Which stream went quiet?"="Music, mostly".', timeout=10000)
+    expect(page.locator(f'{BALLOON}[data-who="you"]')).to_have_text(["Sort it out [question]", "Rest, The guide", "Music, mostly"])
     (decision,) = [json.loads(line) for line in (_workspace(tmp_path) / "decisions.log").read_text().splitlines()]
     assert decision["behavior"] == "allow"
-    assert decision["updatedInput"]["answers"] == {"What matters most this week?": "The launch",
+    assert decision["updatedInput"]["answers"] == {"What matters most this week?": "Rest, The guide",
                                                    "Which stream went quiet?": "Music, mostly"}
     assert [q["question"] for q in decision["updatedInput"]["questions"]] == ["What matters most this week?",
                                                                               "Which stream went quiet?"]
     received = [json.loads(line) for line in (_workspace(tmp_path) / "received.log").read_text().splitlines()]
-    assert len(received) == 1, "the typed answer went to the question, not to the agent as a new message"
+    assert len(received) == 1, "the answers went to the questions, not to the agent as new messages"
+
+
+def test_a_permission_ask_keeps_its_buttons(ui_agent: UiSession) -> None:
+    """Only a question's options are suggestions: an ask to use a tool keeps its two buttons, which answer at once."""
+    page = ui_agent.page
+    page.wait_for_selector(".goal-card__row")
+    _send(page, "Change it [ask]")
+    ask = page.locator('[data-role="agent-ask"]')
+    expect(ask.locator(".agent-balloon__choice")).to_have_text(["Allow once", "Decline"], timeout=10000)
+    expect(_suggestions(ask)).to_have_count(0)
+    expect(page.locator(FIELD)).not_to_have_attribute("aria-label", "Your answer")
+    close_the_conversation(page)
+    field = page.locator(ANSWER)
+    expect(field.locator(CHOICE)).to_have_text(["Allow once", "Decline"])
+    expect(field.locator(CHOICE).first).to_have_css("background-color", "rgb(255, 255, 255)")
+    expect(_suggestions(field)).to_have_count(0)
+    field.locator(CHOICE, has_text="Allow once").click()
+    expect(page.locator(ANSWER)).to_contain_text("Done: Change it", timeout=10000)

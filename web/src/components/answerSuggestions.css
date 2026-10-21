@@ -1,0 +1,16 @@
+/* A question's options are suggestions, not answers (docs/design/replan-whole-board.md): the ask choices' own size and type,
+   outlined on the black; one whose words are in the field is filled as a choice is. 5 px and the 1 px line make the
+   choices' 32 px. */
+.answer-suggestion {
+  max-width: 100%;
+  min-height: 32px;
+  padding: 5px 13px;
+  border: 1px solid color-mix(in srgb, var(--vt-on-black, #fff) 35%, transparent);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--vt-on-black, #fff);
+  font: 500 14px/20px var(--font-body);
+  cursor: pointer;
+}
+.answer-suggestion--picked { border-color: #fff; background: #fff; color: #000; }
+.answer-suggestion:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
