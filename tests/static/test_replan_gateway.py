@@ -90,11 +90,21 @@ def test_the_replan_context_carries_the_new_rules_and_the_old_task_keeps_its_own
                   'end with: "Say go to take my guesses, or answer like 1b 3a."',
                   "Make one document with doc_create, path replan/<today>.md, or replan/<today>-2.md (then -3 and on) when "
                   "that path is taken: never overwrite an earlier document.",
-                  '"Keep this week · 6"', "[title](#goal/<id>)", '"Say go, or move a row in the document."',
-                  "Keep with schedule (the column's scale, today's date), To Inbox with schedule (vertical and anchor_date null)",
-                  "Delete with delete (cascade true only when the plan's own steps go with it)",
+                  # The decisions carry the names of the hand-sorting pills (PR #110): one action, one name.
+                  "Keep (it's fine: into the current period of the column it carried into",
+                  "Idk (not now, not dead: to the Inbox, the date taken away, with a note)", "Fuck it (dead: deleted)",
+                  "Done (it already happened; say by what evidence)",
+                  '"Keep · N", "Idk · N", "Fuck it · N", "Done · N"', "[title](#goal/<id>)",
+                  '"Say go, or move a row in the document."',
+                  "Keep with schedule (the column's scale, today's date);",
+                  "Idk with schedule (vertical and anchor_date null), then one update of its id whose body is its notes as "
+                  "they are (read them with goal) and, after them, the line \"Needs realigning. Moved from <its planned "
+                  "period, such as the week of 5 Oct> on <today, such as 21 Oct>.\"",
+                  "Fuck it with delete (cascade true only when the plan's own steps go with it)",
                   "Done with one update of ids with done true", "Move nothing before go."):
         assert words in rules, words
+    for gone in ("To Inbox", "Delete (dead)", "Keep this week"):
+        assert gone not in rules, gone
     assert "Goal | Summary | Next step | Your comment" not in context
     # The tasks made before Replan became a request keep the rules they were made with.
     old = chat.format_context({"today": "2026-10-21", "goal": {"id": "SYNTASK1", "title": chat.REPLAN_TITLE}})
@@ -102,14 +112,15 @@ def test_the_replan_context_carries_the_new_rules_and_the_old_task_keeps_its_own
 
 
 def test_the_rules_call_the_tools_as_the_verticals_mcp_server_has_them() -> None:
-    """The rules name `board`, `doc_create`, `schedule(id, vertical, anchor_date)`, `delete(id, cascade)` and `update(ids,
-    done)`: each is a tool of the server with those arguments (verticals/mcp/tool_schemas.py, verticals/mcp/docs.py)."""
+    """The rules name `board`, `goal`, `doc_create`, `schedule(id, vertical, anchor_date)`, `delete(id, cascade)`, `update(ids,
+    done)` and `update(id, body)`: each is a tool of the server with those arguments (verticals/mcp/tool_schemas.py,
+    verticals/mcp/docs.py)."""
     from verticals.mcp import docs, tool_schemas
     assert set(tool_schemas.SCHEDULE_SCHEMA["required"]) == {"id", "vertical", "anchor_date"}
     assert None in tool_schemas.SCHEDULE_SCHEMA["properties"]["vertical"]["enum"]
     assert {"id", "cascade"} <= set(tool_schemas.DELETE_SCHEMA["properties"])
-    assert {"ids", "done"} <= set(tool_schemas.UPDATE_SCHEMA["properties"])
-    assert tool_schemas.BOARD_SCHEMA["required"] == ["date"]
+    assert {"id", "ids", "done", "body"} <= set(tool_schemas.UPDATE_SCHEMA["properties"])  # Idk's note: one id, its body
+    assert tool_schemas.BOARD_SCHEMA["required"] == ["date"] and tool_schemas.GOAL_SCHEMA["required"] == ["id"]
     assert {"path", "title", "body"} <= set(docs.DOC_CREATE_SCHEMA["properties"])
 
 
