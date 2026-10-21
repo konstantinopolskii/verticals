@@ -331,7 +331,7 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
     useGroupWash({
       card: () => (props.depth === 0 ? rootElement() : null),
       list: childrenListEl,
-      layoutSources: [() => props.children, showChildren, () => store.state.openGoalId, () => store.state.openPath, familyKids],
+      layoutSources: [() => props.children, showChildren, () => store.state.openGoalId, () => store.state.openPath, familyKids, listKids],
     })
 
     /** "Add…" at the end of an open goal's steps: the new step lives where its parent does, so it shows at once. */
