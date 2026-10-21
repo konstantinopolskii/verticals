@@ -1028,17 +1028,3 @@ body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
 }
 .goal-card--private .goal-card__text > :not(.goal-card__title) > *,
 .goal-card__children--private > .goal-detail-root > * { opacity: 0; }
-.goal-card__subtasks-toggle {
-  display: block;
-  margin: 4px 0 0;
-  padding: 2px 0;
-  border: 0;
-  background: none;
-  color: var(--vt-secondary-text, #555);
-  font: inherit;
-  font-size: 12px;
-  line-height: 18px;
-  cursor: pointer;
-}
-.goal-card__subtasks-toggle:hover { color: var(--color-text); }
-.goal-card__subtasks-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

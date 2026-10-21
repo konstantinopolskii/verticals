@@ -96,8 +96,6 @@ interface State {
   valueFilter: string | null
   /** Mount detail late, then retain it so modal close cleanup always runs. */
   hasOpenedGoal: boolean
-  /** Ids whose child lists are locally collapsed. Lists are expanded by default. */
-  collapsed: string[]
   /** COMPACT_BOARD_HANDOFF.md §3: the one expanded column (at most one, toggle), or null for
    *  all-compact. Session-only view state by ruling — never persisted, never sent anywhere. */
   expandedVertical: string | null
@@ -130,7 +128,6 @@ const state = reactive<State>({
   goalDetail: null,
   goalDetailLoading: false,
   hasOpenedGoal: false,
-  collapsed: viewState.readCollapsed(),
   expandedVertical: null,
   hoverChainId: null,
   restChainId: null,
@@ -478,10 +475,6 @@ async function parkGoal(id: string): Promise<void> {
 // update stays reachable over HTTP/MCP only (`PATCH /api/goals` with `ids[]`, S-44/S-133) — the
 // F5 manifest records that with a `null` ui_selector, the same shape `reorder` once had.
 
-// Expand/collapse (nested subgoal lists): moved to `lib/boardViewState.ts` (S-90a) — thin binds.
-const isCollapsed = (id: string): boolean => viewState.isCollapsed(state, id)
-const toggleCollapsed = (id: string): void => viewState.toggleCollapsed(state, id)
-
 // --- reparent (S-67) ---------------------------------------------------------------------------
 
 /** The menu route's target list, from `lib/boardIndex.ts` — a thin bind of the current board so
@@ -714,8 +707,6 @@ export const store = {
   parentVertical,
   boardGoalHost,
   sameVerticalParentId,
-  isCollapsed,
-  toggleCollapsed,
   reparentTargets,
   pointerDownCard,
   pointerMoveDrag,
