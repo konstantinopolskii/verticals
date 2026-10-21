@@ -28,12 +28,21 @@ the real server, as `fake_morning.py` says. Without the file, a morning ask is a
 Like the CLI, it asks its host before it calls a tool that an `ask` rule on its command line matches (`--settings`, as the
 morning turns are started with `permissions.ask`: every MCP tool), whatever `--allowedTools` says; the rule wins, as the
 docs say. The host answers allow or deny, a denied call gets an error result, and each answer is appended to `decisions.log`.
-`writer_tools` and `checker_tools` in the scenario name tools that seat tries once, besides the ones its work calls."""
+`writer_tools` and `checker_tools` in the scenario name tools that seat tries once, besides the ones its work calls.
+
+Signing in (docs/design/agent-sign-in.md): `fake-auth.json` in the agent's home (`CLAUDE_CONFIG_DIR`) says this Mac's Claude Code
+is signed out, `{"signedOut": true}`; without the file, or without that folder, it is signed in. Signed out, every message ends
+in the error the real CLI gave when its sign-in had expired; `[authfail]` ends in the same words while it is signed in.
+`claude auth status` prints `loggedIn` as JSON, and exits 1 when signed out. `claude auth login` prints the sign-in page's
+address and waits, its stdin open, until a test signs it in by writing the file again; `"login": "exit"` in the file ends it
+at once without a sign-in, `"login": "silent"` waits without the address. Each `auth` call appends its arguments, the
+`CLAUDE_CONFIG_DIR` it saw and its pid to `auth.log` in its folder."""
 import fnmatch
 import json
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -309,6 +318,41 @@ class Mcp:
 mcp = Mcp()
 
 
+# What the real CLI said in every turn once its sign-in had expired (the app's agent.log, docs/design/agent-sign-in.md).
+SIGNED_OUT = "Failed to authenticate: OAuth session expired and could not be refreshed"
+SIGN_IN_PAGE = "https://claude.ai/oauth/authorize?code=true&client_id=sample-client&state=sample-state"
+
+
+def auth_state():
+    home = os.environ.get("CLAUDE_CONFIG_DIR")
+    return (fake_morning.load(os.path.join(home, "fake-auth.json")) or {}) if home else {}
+
+
+def auth(command):
+    """`claude auth status` and `claude auth login`, as the sign-in uses them."""
+    with open("auth.log", "a") as log:
+        log.write(json.dumps({"args": sys.argv[1:], "config": os.environ.get("CLAUDE_CONFIG_DIR"), "pid": os.getpid()}) + "\n")
+    state = auth_state()
+    if command == "status":
+        signed = not state.get("signedOut")
+        print(json.dumps({"loggedIn": signed, "authMethod": "claude.ai" if signed else "none", "apiProvider": "firstParty"}))
+        sys.exit(0 if signed else 1)
+    print("Opening the browser to sign in...", flush=True)
+    if state.get("login") != "silent":
+        print(f"If the browser did not open, visit: {SIGN_IN_PAGE}", flush=True)
+    if state.get("login") == "exit":
+        sys.exit(1)
+    # A CLI that is waiting reads its stdin: one that is closed under it gives up, so the gateway must keep it open.
+    threading.Thread(target=lambda: (sys.stdin.read(), os._exit(3)), daemon=True).start()
+    while auth_state().get("signedOut"):
+        time.sleep(0.05)
+    print("Login successful.", flush=True)
+    sys.exit(0)
+
+
+if sys.argv[1:2] == ["auth"]:
+    auth(sys.argv[2] if len(sys.argv) > 2 else "")
+
 with open("argv.log", "a") as argv_log:
     argv_log.write(json.dumps(sys.argv[1:]) + "\n")
 
@@ -343,6 +387,9 @@ for msg in iter(read, None):
     text = "".join(block.get("text", "") for block in msg["message"]["content"] if block.get("type") == "text")
     with open("received.log", "a") as received_log:  # what the agent was sent, whole, one JSON string a line
         received_log.write(json.dumps(text) + "\n")
+    if auth_state().get("signedOut") or "[authfail]" in text.split("</app_context>")[-1]:
+        out({"type": "result", "is_error": True, "result": SIGNED_OUT})
+        continue
     words = text.split("</app_context>")[-1].strip()
     if "[context]" in words:
         words = "[say] " + text.split("<app_context>")[-1].split("</app_context>")[0].strip()

@@ -50,6 +50,8 @@ export interface Ask {
   /** The write the agent asks to make, as it calls it (the gateway sends it for a Claude ask): lib/askDetail.ts draws it. */
   tool?: string
   input?: Record<string, unknown>
+  /** The line under the title of an ask the app makes of its own: the sign-in's (docs/design/agent-sign-in.md). */
+  note?: string
 }
 export interface Balloon {
   key: string; who: 'you' | 'agent'; text: string; error?: boolean; ask?: Ask; pending?: boolean
@@ -143,17 +145,24 @@ export const balloons = computed<Balloon[]>(() => {
         break
       }
       case 'permission': {
-        const balloon = agentBalloon(index)
-        balloon.ask = {
+        const ask: Ask = {
           requestId: String(event.requestId), title: String(event.title ?? ''), body: String(event.body ?? ''),
           options: (event.options as Ask['options']) ?? [], done: false,
           ...(typeof event.tool === 'string' ? { tool: event.tool, input: (event.input as Ask['input']) ?? {} } : {}),
+          ...(typeof event.note === 'string' ? { note: event.note } : {}),
         }
+        // An ask sent again is that ask, changed: the sign-in's says what it waits for now (docs/design/agent-sign-in.md).
+        const same = out.find((balloon) => balloon.ask?.requestId === ask.requestId)
+        if (same) same.ask = ask
+        else agentBalloon(index).ask = ask
         break
       }
       case 'permission_done': {
-        const ask = out.map((balloon) => balloon.ask).find((a) => a?.requestId === String(event.requestId))
+        const balloon = out.find((b) => b.ask?.requestId === String(event.requestId))
+        const ask = balloon?.ask
         if (ask) { ask.done = true; ask.chosen = event.value === undefined ? undefined : String(event.value) }
+        // An ask that ends in words of its own keeps them as its message: "Signed in".
+        if (balloon && typeof event.says === 'string') balloon.text = event.says
         break
       }
       case 'done':
@@ -374,7 +383,8 @@ function follow(event: ChatEvent): void {
       touchThread({ status: 'needs-you' })
       break
     case 'permission_done':
-      if (agentChat.running) touchThread({ status: 'working' })
+      // Signed in, the message that failed goes again (`says`): the conversation works again.
+      if (agentChat.running || event.says) touchThread({ status: 'working' })
       break
     case 'goal':
       // The gateway: the agent made a goal in a conversation about no goal, so the conversation is now that goal's
@@ -393,7 +403,8 @@ function follow(event: ChatEvent): void {
       if (!event.error && reply.trim() && awaitingReplies > 0 && !agentChat.open && !commandFilter.text) {
         agentChat.answer = { text: reply, at: Date.now(), answer: typeof event.answer === 'string' ? event.answer : undefined }
       }
-      awaitingReplies = Math.max(0, awaitingReplies - 1)
+      // A turn that ended for a sign-in goes again once signed in: its answer is still awaited.
+      if (!event.signin) awaitingReplies = Math.max(0, awaitingReplies - 1)
       reply = ''
       void refreshAnswers() // what the answer wrote is its Undo now (docs/design/agent-answer-undo.md)
       break
@@ -536,6 +547,8 @@ export async function quietTurn(text: string, extra: Record<string, unknown> = {
       if (event.t === 'turn_start') words = ''
       else if (event.t === 'text_start') fresh = !!words
       else if (event.t === 'text') { words += (fresh ? '\n' : '') + String(event.text ?? ''); fresh = false }
+      // Waiting for a sign-in nobody here will see: stopped, so its message never goes again unwatched.
+      else if (event.t === 'done' && event.signin) abandon()
       else if (event.t === 'done') { void refreshAnswers(); finish(event.error ? '' : words) }
       else if (event.t === 'exit') { void refreshAnswers(); finish('') }
       else if (event.t === 'permission') abandon()

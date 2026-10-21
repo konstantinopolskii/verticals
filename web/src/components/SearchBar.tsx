@@ -222,7 +222,8 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
         return Math.max(CIRCLE, PAD_Y * 2 + chipWords.value + chipsHeight.value + (undoable.value ? UNDO_ROW : 0))
       }
       if (state.value === 'answer') {
-        const choices = Math.max(44, choicesMeasured.value + 12) // 10 px above the buttons, a row of 32 at least
+        // 10 px above the buttons and a row of 32 at least; their rows as drawn when a question's options wrap.
+        const choices = openAsk.value?.options.length ? Math.max(44, choicesMeasured.value + 12) : 0
         const ask = circleWords.value?.kind === 'ask' ? choices + (leadLines.value ? leadLines.value * 22 + 8 : 0) : 0
         return Math.max(CIRCLE, PAD_Y * 2 + answerLines.value * 22 + ask + (undoable.value ? UNDO_ROW : 0))
       }
@@ -688,7 +689,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
                 </div>
               ) : null}
               {s.undoable.value && words.kind === 'answer' ? <AnswerUndo answer={words.answer} className="circle-field__answer-undo" /> : null}
-              {words.kind === 'ask' && ask ? (
+              {words.kind === 'ask' && ask?.options.length ? (
                 <div ref={bindRef(s.choicesBox)} className="circle-field__answer-choices">
                   {ask.options.map((option) => (
                     <button key={option.value} type="button" className="circle-field__answer-choice"
