@@ -95,7 +95,7 @@ def stream_text(words):
 def question(number):
     """Claude's question tool: the call, the CLI's permission request for it, and the tool's result from the host's answer.
     The questions are QUESTION's, or the scenario's own (`questions` in scenario.json, the tool's input as Claude gives it)."""
-    use, asked_for = f"question-{number}", SCENARIO.get("questions") or QUESTION
+    use, asked_for = f"question-{number}", (SCENARIO or {}).get("questions") or QUESTION
     out({"type": "assistant", "message": {"content": [{"type": "tool_use", "id": use, "name": "AskUserQuestion", "input": asked_for}]}})
     out({"type": "control_request", "request_id": use, "request": {
         "subtype": "can_use_tool", "tool_name": "AskUserQuestion", "input": asked_for}})
