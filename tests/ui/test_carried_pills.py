@@ -105,6 +105,7 @@ def test_the_pills_come_beside_a_carried_plan_and_on_no_other_card(ui_f2: UiSess
     with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
         value = _value(conn)
         plan, _other = _plans(conn, 2, parent=value)
+        (plain,) = _plans(conn, 1, title="SYN plan with no colour")
         current = goals.create(conn, owner="t1", title="SYN plan of this week", vertical="week", anchor_date=date.today()).goal.id
     page = _open(ui_f2)
     vertical = _column_of(page, plan)
@@ -119,6 +120,13 @@ def test_the_pills_come_beside_a_carried_plan_and_on_no_other_card(ui_f2: UiSess
     b, s = box.bounding_box(), backing.bounding_box()
     assert b and s
     assert 0 <= s["x"] - (b["x"] + b["width"]) <= 16, "the pills stand right of the box, over the next column"
+    type_of = lambda el: el.evaluate(  # noqa: E731
+        "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize, s.fontWeight, s.lineHeight] }")
+    title = type_of(box.locator(f'[data-goal-id="{plan}"] > .goal-card__row .goal-card__title'))
+    for pill in backing.locator("button").all():
+        assert type_of(pill) == title, "the pills speak in the type of the plan's own title"
+        assert abs(pill.bounding_box()["height"] - 28) <= 0.5
+    assert s["width"] <= b["width"] + 24, f"the pills are {s['width']}px wide: about one column, as the plan's own level"
     assert abs(_middle(backing) - _line(page, box, plan)) <= 1.5, "level with the plan's first line"
     colour = lambda el: el.evaluate("el => getComputedStyle(el).backgroundColor")  # noqa: E731
     assert colour(backing) == colour(box), "the backing is the box's own lit colour"
@@ -144,6 +152,12 @@ def test_the_pills_come_beside_a_carried_plan_and_on_no_other_card(ui_f2: UiSess
         expect(_shown(page)).to_have_count(0)
     _row(box, plan).hover()
     expect(pills).to_be_visible()
+
+    # A plan with no colour: a white backing, never the box's grey ground, which vanished over a grey box.
+    _row(box, plain).hover()
+    expect(pills).to_have_attribute("data-for", plain)
+    page.wait_for_timeout(300)
+    assert colour(backing) == "rgb(255, 255, 255)"
 
 
 def test_keep_puts_a_plan_in_its_columns_period_with_the_columns_scale(ui_f2: UiSession) -> None:

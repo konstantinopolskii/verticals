@@ -1,6 +1,7 @@
 // Three pills beside a carried plan (docs/design/carried-pills.md, the owner, 21 Oct 2026): pointing at a plan in a carried
 // box shows "This week" (the box's column's own period: "This month", "This quarter"...), "To Inbox" and "Delete" to the
-// right of the box, level with the plan's first line, on the box's own lit colour. Each is the card menu's own action
+// right of the box, level with the plan's first line, in the type of the plan's own title, on the box's own lit colour
+// (white for a plan with no colour). Each is the card menu's own action
 // (`GoalCardTools.tsx`), so the board's history and ⌘Z, the sound and the field's Undo are the menu's. The markup is
 // `components/CarriedPills.tsx`; this keeps the rules.
 //
@@ -96,6 +97,7 @@ export function useCarriedPills(o: {
      has no gap. */
   let glide: Animation | null = null
   let last = ''
+  let lastType = ''
   function set(): HTMLElement | null {
     return (el.value?.firstElementChild as HTMLElement | null) ?? null
   }
@@ -112,7 +114,17 @@ export function useCarriedPills(o: {
     if (title) {
       const t = title.getBoundingClientRect()
       const k = title.offsetHeight ? t.height / title.offsetHeight : 1 // the box's lift scales what is in it
-      line = t.top + (parseFloat(getComputedStyle(title).lineHeight) || title.offsetHeight) * k / 2
+      const type = getComputedStyle(title)
+      line = t.top + (parseFloat(type.lineHeight) || title.offsetHeight) * k / 2
+      // The pills speak at the plan's own level: its title's type, compact or open column, as the Layout panel tunes it.
+      const now = `${type.fontFamily}|${type.fontSize}|${type.fontWeight}|${type.lineHeight}`
+      if (now !== lastType) {
+        lastType = now
+        root.style.setProperty('--carried-pill-family', type.fontFamily)
+        root.style.setProperty('--carried-pill-size', type.fontSize)
+        root.style.setProperty('--carried-pill-weight', type.fontWeight)
+        root.style.setProperty('--carried-pill-line', type.lineHeight)
+      }
     }
     const w = pills.offsetWidth
     const right = b.right + GAP + w <= window.innerWidth - GAP
