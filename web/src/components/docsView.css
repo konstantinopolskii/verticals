@@ -7,6 +7,6 @@
    head (its path, Comments, History, Delete, ×) and the history's toolbar start in that same corner, and a link out of the
    flow was drawn on top of them. Where it always stood: 16 px in, 12 px down, its chevron on the content's 20 px edge. */
 .docs-view__back { flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; height: 28px; margin: 12px 0 0 16px;
-  padding: 0 10px 0 4px; border: 0; border-radius: 8px; background: transparent; color: rgb(45 48 54 / 60%);
+  padding: 0 10px 0 4px; border: 0; border-radius: 8px; background: transparent; color: rgb(var(--vt-foreground-rgb, 45 48 54) / 60%);
   font: 500 13px/20px var(--font-body, Commissioner, system-ui, sans-serif); cursor: pointer; }
-.docs-view__back:hover { background: rgb(45 48 54 / 7%); color: #000; }
+.docs-view__back:hover { background: rgb(var(--vt-foreground-rgb, 45 48 54) / 7%); color: var(--color-text); }

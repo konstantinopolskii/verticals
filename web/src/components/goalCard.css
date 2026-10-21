@@ -261,7 +261,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   padding: 0;
   border: 0;
   background: transparent;
-  color: rgba(45, 48, 54, 0.55);
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / 0.55);
   font: inherit;
   cursor: pointer;
 }
@@ -270,7 +270,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   font-size: 13px;
   line-height: 18px;
   font-weight: 400;
-  color: rgba(45, 48, 54, 0.3);
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / 0.3);
   /* Metadata strings stay whole in the DOM; clipping is visual only. `.goal-card__text` already
      carries `min-width: 0`, which single-line ellipsis on a flex child requires. */
   max-width: 100%;
@@ -284,7 +284,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   pointer-events: none;
 }
 .goal-card__row--combine-target {
-  background: rgb(246, 246, 246);
+  background: var(--vt-control-bg, rgb(246, 246, 246));
 }
 .goal-card__row--combine-target-colored {
   background: transparent;
@@ -616,7 +616,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   border-radius: 8px;
   background: transparent;
   opacity: 1;
-  color: rgba(45, 48, 54, .52);
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / .52);
   font-size: var(--kkov-expanded-subtask-font-size);
   line-height: var(--kkov-expanded-subtask-line-height);
   font-weight: 400;
@@ -624,8 +624,8 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 }
 .goal-card__children--open > .goal-card__add-step > .subgoal-add-row:hover,
 .goal-card__children--open > .goal-card__add-step > .subgoal-add-row:focus-visible {
-  background: rgba(0, 0, 0, .04);
-  color: rgba(45, 48, 54, .8);
+  background: rgb(var(--vt-text-rgb, 0 0 0) / .04);
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / .8);
 }
 /* Its checkbox sits where a step's does against its words: a step's slot has a 4 px top margin (KK, 27 Sep 2026: "Add
    misplaced label and checkbox not aligned"; it stood 4 px higher than a step's). */
@@ -642,7 +642,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
   height: var(--kkov-expanded-subtask-checkbox-size);
   border: 0;
   border-radius: var(--kkov-expanded-subtask-checkbox-radius, 3px);
-  background: rgb(0 0 0 / 5%);
+  background: rgb(var(--vt-text-rgb, 0 0 0) / 5%);
   box-shadow: inset 0 1px 1px rgb(0 0 0 / 12%);
 }
 .goal-card__children--open > .goal-card__add-step .subgoal-add-row__text { padding: 0; }
@@ -653,8 +653,8 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 }
 /* A selection in the title is a tint of the goal's colour, the text staying black (the kit draws a black block). */
 .goal-card__title-input::selection {
-  background: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), #000 12%);
-  color: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), #000 80%);
+  background: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), var(--color-text) 12%);
+  color: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), var(--color-text) 80%);
 }
 
 .pattern-vertical-board__column:not(.pattern-vertical-board__column--active) .column-add-row__text,
@@ -724,7 +724,7 @@ body.popover-engine-open .goal-card:hover:not(.goal-card--menu-open, .goal-card-
 }
 
 /* Finding keeps the full parent path quiet and bolds only matching title characters. */
-.goal-card__title-text--context { color: #686868; }
+.goal-card__title-text--context { color: var(--vt-secondary-text, #686868); }
 .goal-card__title-text strong { font-weight: 600; }
 
 .goal-card .goal-card__title-text.goal-card__title-text--finding { font-weight: 400; }
@@ -1014,7 +1014,7 @@ body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
 .goal-card__children > .goal-detail-root > * { transition: opacity 200ms ease-out; }
 .goal-card--private .goal-card__title-text {
   color: transparent;
-  background-color: #e4e4e4;
+  background-color: var(--vt-private-bg, #e4e4e4);
   border-radius: 2px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
@@ -1023,7 +1023,7 @@ body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
 .goal-card--private .goal-card__text > :not(.goal-card__title),
 .goal-card__children--private > .goal-detail-root {
   color: transparent;
-  background-color: #e4e4e4;
+  background-color: var(--vt-private-bg, #e4e4e4);
   border-radius: 3px;
 }
 .goal-card--private .goal-card__text > :not(.goal-card__title) > *,
@@ -1034,11 +1034,11 @@ body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
   padding: 2px 0;
   border: 0;
   background: none;
-  color: #555;
+  color: var(--vt-secondary-text, #555);
   font: inherit;
   font-size: 12px;
   line-height: 18px;
   cursor: pointer;
 }
-.goal-card__subtasks-toggle:hover { color: #111; }
+.goal-card__subtasks-toggle:hover { color: var(--color-text); }
 .goal-card__subtasks-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

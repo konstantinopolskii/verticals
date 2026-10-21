@@ -7,4 +7,4 @@
    pane's `height: 100%` would squeeze a long text into a scroller of its own. */
 .doc-window .doc-detail { flex: 1 0 auto; height: auto; padding: 6px 24px 24px; }
 .doc-window .doc-detail__title.doc-detail__title { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -.012em; }
-.doc-window__note { margin: 0; padding: 24px 0; color: rgb(0 0 0 / 55%); font: 400 16px/24px var(--font-body); }
+.doc-window__note { margin: 0; padding: 24px 0; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); font: 400 16px/24px var(--font-body); }

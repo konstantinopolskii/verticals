@@ -28,7 +28,6 @@ import Cocoa
         accessory.isHidden = true
         window.addTitlebarAccessoryViewController(accessory)
         popover.behavior = .transient
-        popover.appearance = NSAppearance(named: .aqua)
         refresh()
     }
 
@@ -230,6 +229,11 @@ final class IndicatorButton: NSButton {
     override func mouseEntered(with event: NSEvent) { inside = true }
     override func mouseExited(with event: NSEvent) { inside = false }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        paint()
+    }
+
     override func mouseDown(with event: NSEvent) {
         pressed = true
         super.mouseDown(with: event)
@@ -237,7 +241,9 @@ final class IndicatorButton: NSButton {
     }
 
     private func paint() {
-        layer?.backgroundColor = NSColor.black.withAlphaComponent(pressed ? 0.14 : inside ? 0.1 : 0.06).cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(pressed ? 0.14 : inside ? 0.1 : 0.06).cgColor
+        }
     }
 }
 

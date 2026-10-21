@@ -59,7 +59,7 @@
   left: 32px;
   right: 84px;
   bottom: 24px;
-  color: #fff;
+  color: var(--vt-on-black, #fff);
   opacity: 0;
   transition: opacity 100ms ease-out;
 }
@@ -83,7 +83,7 @@
   resize: none;
   outline: none;
   background: transparent;
-  color: #fff;
+  color: var(--vt-on-black, #fff);
   caret-color: transparent;
   cursor: inherit;
   scrollbar-width: none;
@@ -120,7 +120,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: #fff;
+  color: var(--vt-on-black, #fff);
   opacity: 0;
   pointer-events: none;
   cursor: pointer;
@@ -185,7 +185,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  color: #fff;
+  color: var(--vt-on-black, #fff);
   font: 400 15px/22px var(--font-body);
   cursor: pointer;
 }
@@ -284,7 +284,7 @@
   width: 132px;
   height: 84px;
   margin: -42px 0 0 -66px;
-  color: #fff;
+  color: var(--vt-on-black, #fff);
   pointer-events: none;
 }
 

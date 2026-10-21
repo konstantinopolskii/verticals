@@ -9,6 +9,7 @@ import { flushNow } from './reactivity'
 import '@konstantinopolskii/design-system/vars.css'
 import '@konstantinopolskii/design-system/style.css'
 import './style.css'
+import './theme.css'
 
 const urlSync = createUrlSync(store.state, todayIso, {
   loadBoard: store.loadBoard,

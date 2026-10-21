@@ -9,7 +9,7 @@
   padding: 6px var(--space-4);
   border: 0;
   border-radius: 8px;
-  background: #fff;
+  background: var(--color-bg);
   color: inherit;
   font-family: inherit;
   font-size: 15px;

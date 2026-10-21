@@ -4,4 +4,4 @@
    the agent's name, and after the dot, in grey, when it moved. */
 .session-menu .session-menu__item { flex: none; white-space: nowrap; }
 .session-menu__mark { flex: none; width: 16px; height: 16px; }
-.session-menu__when { color: rgb(0 0 0 / 45%); font-weight: 400; }
+.session-menu__when { color: rgb(var(--vt-text-rgb, 0 0 0) / 45%); font-weight: 400; }

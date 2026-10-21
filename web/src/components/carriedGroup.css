@@ -14,7 +14,7 @@
   flex-direction: column;
   padding: 8px 0 6px;
   border-radius: 8px;
-  background: #f5f5f1;
+  background: var(--vt-carried-bg, #f5f5f1);
   transition: background-color 200ms var(--vt-ease-large), transform var(--motion-lift-out) var(--vt-ease-medium);
 }
 .carried-group--lit { background: rgb(var(--vt-pale)); }
@@ -36,7 +36,7 @@
 }
 .carried-group__head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 10px 4px 11px; }
 .carried-group__notice, .carried-group__replan, .carried-group__more {
-  color: rgb(45 48 54 / 52%);
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / 52%);
   font: 400 12px/16px var(--font-body);
 }
 .pattern-vertical-board__column--active .carried-group__notice,
@@ -48,7 +48,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #000;
+  background: var(--color-text);
   transition: width 160ms var(--vt-ease-large), height 160ms var(--vt-ease-large);
 }
 .pattern-vertical-board__column--active .carried-group__dot { width: 6px; height: 6px; }
@@ -81,7 +81,7 @@
   margin: 0 0 8px;
   padding: 8px 10px 8px 11px;
   border-radius: 8px;
-  background: #f5f5f1;
+  background: var(--vt-carried-bg, #f5f5f1);
   cursor: pointer;
 }
 /* Copies of what leaves the box while it changes (lib/carriedMotion.ts): laid over it where the originals stood, drawn on

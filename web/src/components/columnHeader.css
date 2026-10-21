@@ -29,7 +29,7 @@
 .column-header__sub-label {
   margin: 0 calc(-1 * var(--column-spill)) 0 0;
   overflow: hidden;
-  color: rgb(45 48 54 / 52%);
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / 52%);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -52,7 +52,7 @@
 }
 .column-header__end {
   margin-left: 10px;
-  color: #b3b4b7;
+  color: var(--vt-secondary-text, #b3b4b7);
   font-size: 17px;
   font-weight: 700;
 }

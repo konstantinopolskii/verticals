@@ -26,7 +26,7 @@
   box-sizing: border-box;
   padding: calc(var(--space-4) + var(--titlebar-height)) var(--space-5) var(--space-4) var(--space-4);
   border-left: 0.5px solid var(--color-border-strong);
-  background: #ffffff;
+  background: var(--color-bg);
   box-shadow: -2px 0 8px rgb(0 0 0 / 8%);
   overflow-y: auto;
 }

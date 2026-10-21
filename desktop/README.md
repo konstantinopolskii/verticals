@@ -54,6 +54,12 @@ View → Zoom In (⌘+, or ⌘=), Zoom Out (⌘−) and Actual Size (⌘0) chang
 editing a task or writing in the chat. The browser-style steps range from 50% to 200% and use the
 same saved setting as the developer panel. The chosen scale survives a reload and the next launch.
 
+## Appearance
+
+The window, title bar, update popover and page follow macOS light or dark appearance automatically.
+Changing appearance updates an open window immediately and keeps the current view and draft.
+There is no in-app theme switch or saved override.
+
 ## Reduce Motion
 
 View → Reduce Motion is a checkmark between Reload and Enter Full Screen. It starts as macOS's own Reduce motion

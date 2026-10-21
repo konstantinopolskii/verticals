@@ -2,10 +2,10 @@
    sight without a line. The title is the board's own column headline (`.t-title` at 31/40). */
 .desk-head { position: sticky; top: 0; z-index: 5; display: flex; align-items: flex-start; gap: 10px; box-sizing: border-box; height: 96px;
   margin: 0 -46px; padding: 18px 46px 0 22px; pointer-events: none;
-  background: linear-gradient(#f5f5f7 0, #f5f5f7 60px, rgb(245 245 247 / 0) 96px); }
+  background: linear-gradient(var(--vt-desk-bg, #f5f5f7) 0, var(--vt-desk-bg, #f5f5f7) 60px, rgb(var(--vt-desk-rgb, 245 245 247) / 0) 96px); }
 .desk-head > * { pointer-events: auto; }
 .desk-head__title.t-title { margin: 0; font-size: 31px; line-height: 40px; }
 /* The app's window ×: a 16 px x in a 32 px round button, 55 % black (WindowStack.tsx). */
 .desk-head__close { position: absolute; top: 22px; right: 22px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0;
-  border-radius: 16px; background: transparent; color: rgb(0 0 0 / 55%); cursor: pointer; }
-.desk-head__close:hover { background: rgb(0 0 0 / 6%); color: #000; }
+  border-radius: 16px; background: transparent; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); cursor: pointer; }
+.desk-head__close:hover { background: rgb(var(--vt-text-rgb, 0 0 0) / 6%); color: var(--color-text); }

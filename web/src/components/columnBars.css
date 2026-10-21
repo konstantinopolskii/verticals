@@ -66,11 +66,11 @@
   width: 2px;
   height: 11px;
   border-radius: 1px;
-  background: #d3d4d7;
+  background: var(--vt-rule-muted, #d3d4d7);
   /* instant in, smooth back: the look under the pointer comes at once and fades back with the pointer's leaving */
   transition: background-color var(--motion-bars) var(--vt-ease-large);
 }
-.column-bars__bar--ink { background: #2d3036; }
+.column-bars__bar--ink { background: var(--vt-rule-ink, #2d3036); }
 /* The sign's two light bars go and come with the column's period, as one movement with the page's own change: opacity
    only, in the title's 150 ms, so every place stays (a bar that leaves the layout would move the middle one). Their look
    under the pointer keeps its own timing and leaves this one alone. */
@@ -82,11 +82,11 @@
 /* Pressed, a bar looks as it does in a keyboard's focus: it answers at the press, on a touch screen too, where nothing
    hovers; the action itself fires on release over the same button. */
 .column-bars__button:focus-visible .column-bars__bar,
-.column-bars__button:active .column-bars__bar { background: #2d3036; transition: none; }
+.column-bars__button:active .column-bars__bar { background: var(--vt-rule-ink, #2d3036); transition: none; }
 .column-bars__button:focus-visible .column-bars__bar--outer,
 .column-bars__button:active .column-bars__bar--outer { transition: opacity var(--motion-title) var(--vt-ease-small); }
 .column-bars__button:focus-visible .column-bars__mark,
-.column-bars__button:active .column-bars__mark { background: rgb(45 48 54 / 8%); }
+.column-bars__button:active .column-bars__mark { background: rgb(var(--vt-foreground-rgb, 45 48 54) / 8%); }
 /* Nothing hovers on a touch screen, so the bars stay in view there; where a pointer can hover they come with it, all
    of them: at once, and fade back in 200 ms (none under reduced motion, where the token is 0). Held in view by a
    keyboard's focus (a mouse's leaves the pointer's way alone). */
@@ -102,7 +102,7 @@
     pointer-events: auto;
     transition: none;
   }
-  .column-bars__button:hover .column-bars__bar { background: #2d3036; transition: none; }
+  .column-bars__button:hover .column-bars__bar { background: var(--vt-rule-ink, #2d3036); transition: none; }
   .column-bars__button:hover .column-bars__bar--outer { transition: opacity var(--motion-title) var(--vt-ease-small); }
 }
 /* A search that finds nothing turns the board off, the bars with the column's names (FindingSections.tsx). */

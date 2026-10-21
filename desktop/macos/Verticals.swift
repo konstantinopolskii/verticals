@@ -79,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         config.websiteDataStore = .default()
         config.userContentController.add(self, name: "zoom")
         webView = WebView(frame: .zero, configuration: config)
+        webView.underPageBackgroundColor = .windowBackgroundColor
         let zoom = UserDefaults.standard.double(forKey: "PageZoom")
         if zoom > 0 { webView.pageZoom = zoom }
         webView.navigationDelegate = self
@@ -109,12 +110,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Verticals"
-        // The page shows through the title bar, only the window buttons stay; the UI has no dark theme.
+        // The page shows through the title bar; appearance is inherited from macOS.
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
-        window.backgroundColor = .white
-        window.appearance = NSAppearance(named: .aqua)
+        window.backgroundColor = .windowBackgroundColor
         window.contentView = content
         window.delegate = self
         window.isReleasedWhenClosed = false

@@ -27,7 +27,7 @@
   box-sizing: border-box;
   overflow: clip;
   border-radius: 24px;
-  background: #fff;
+  background: var(--color-bg);
 }
 .spans-board--float-left .spans-board__float.spans-board__float { right: auto; left: 2px; }
 /* The wide column's design over the whole window, its padding doubled: the column stands 14 px in from each side, so the

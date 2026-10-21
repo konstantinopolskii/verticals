@@ -19,11 +19,11 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #d3d4d7;
+  background: var(--vt-rule-muted, #d3d4d7);
   transition: width 200ms var(--vt-ease-large), height 200ms var(--vt-ease-large), background-color 200ms var(--vt-ease-large),
     box-shadow 200ms var(--vt-ease-large);
 }
-.column-dots__dot--middle { background: #2d3036; }
+.column-dots__dot--middle { background: var(--vt-rule-ink, #2d3036); }
 .column-dots--held { gap: 6px; }
 .column-dots--held .column-dots__dot {
   width: 9px;

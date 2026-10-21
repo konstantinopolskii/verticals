@@ -1,7 +1,7 @@
-.doc-delete-trigger { padding: 6px 4px; border: 0; background: none; color: #555; font: inherit; font-size: 13px; cursor: pointer; }
-.doc-delete-trigger:hover { color: #000; }
+.doc-delete-trigger { padding: 6px 4px; border: 0; background: none; color: var(--vt-secondary-text, #555); font: inherit; font-size: 13px; cursor: pointer; }
+.doc-delete-trigger:hover { color: var(--color-text); }
 .Menu-floating.popover-engine__surface.dropdown__popover.doc-delete-menu { padding: 16px; font: 400 14px/20px var(--font-body); }
 .doc-delete-menu p { margin: 0 0 12px; overflow-wrap: anywhere; }
 .doc-delete-menu__actions { display: flex; gap: 16px; justify-content: flex-end; }
-.doc-delete-menu__actions button { padding: 6px 0; border: 0; background: none; color: #000; font: inherit; font-weight: 500; cursor: pointer; }
-.doc-delete-menu__actions button:disabled { color: #777; cursor: default; }
+.doc-delete-menu__actions button { padding: 6px 0; border: 0; background: none; color: var(--color-text); font: inherit; font-weight: 500; cursor: pointer; }
+.doc-delete-menu__actions button:disabled { color: var(--vt-secondary-text, #777); cursor: default; }

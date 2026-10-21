@@ -31,22 +31,22 @@
   transition: transform var(--vt-dur-step) var(--vt-ease-large), background var(--vt-dur-fade) ease-out;
 }
 .doc-check__pill:active { transform: scale(.97); }
-.doc-check__pill:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+.doc-check__pill:focus-visible { outline: 2px solid var(--color-text); outline-offset: 2px; }
 /* The count is light, so Check again is the one thing that is heavy: white, with its own edge on the white foot (a hairline and
    one soft pool in the shadows' own ink). */
 .doc-check__count {
-  background: #fff;
-  color: #000;
+  background: var(--color-bg);
+  color: var(--color-text);
   box-shadow: 0 0 0 .5px rgba(var(--vt-ink), .14), 0 8px 20px -10px rgba(var(--vt-ink), .35);
 }
 .doc-check__dot { flex: none; width: 10px; height: 10px; border-radius: 5px; background: var(--color-goal-yellow, #ecce32); }
 /* Only resolved comments: grey words and no dot (60% black, 5.7 to 1 on white). */
-.doc-check__count--resolved { color: rgb(0 0 0 / 60%); }
-.doc-check__again, .doc-check__send, .doc-check__improve { background: #000; color: #fff; }
+.doc-check__count--resolved { color: rgb(var(--vt-text-rgb, 0 0 0) / 60%); }
+.doc-check__again, .doc-check__send, .doc-check__improve { background: var(--color-text); color: var(--color-bg); }
 .doc-check__send { text-decoration: none; }
 @media (hover: hover) and (pointer: fine) {
-  .doc-check__count:hover, .doc-check__count[aria-expanded='true'] { background: #f5f5f7; }
-  .doc-check__again:hover, .doc-check__send:hover, .doc-check__improve:hover { background: #2b2b2b; }
+  .doc-check__count:hover, .doc-check__count[aria-expanded='true'] { background: var(--vt-desk-bg, #f5f5f7); }
+  .doc-check__again:hover, .doc-check__send:hover, .doc-check__improve:hover { background: var(--vt-action-hover, #2b2b2b); }
 }
 /* A pill comes in from 6 px under its place, as the tags do, and the other makes room by gliding. */
 .doc-check-pill-enter-active { transition: opacity var(--vt-dur-open) var(--vt-ease-large), transform var(--vt-dur-open) var(--vt-ease-large); }

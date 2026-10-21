@@ -1,5 +1,5 @@
 /* The room the filter leaves in the box is clear; the mascot's circle is almost invisible there (KK: "even a bit more lighter"). */
-.carried-gap { --carried-ghost: rgb(45 48 54 / 20%); flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; }
+.carried-gap { --carried-ghost: rgb(var(--vt-foreground-rgb, 45 48 54) / 20%); flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; }
 .carried-gap__mascot {
   width: 100%;
   display: flex;
@@ -51,5 +51,5 @@
   transition: transform 140ms cubic-bezier(.2, 0, 0, 1);
 }
 /* The words say what is happening, so they read like the box's other words (the count, "See all"); the circle stays faint. */
-.carried-gap__words { max-width: 100%; margin: 0; color: rgb(45 48 54 / 52%); font: 400 12px/16px var(--font-body); text-align: center; text-wrap: balance; }
+.carried-gap__words { max-width: 100%; margin: 0; color: rgb(var(--vt-foreground-rgb, 45 48 54) / 52%); font: 400 12px/16px var(--font-body); text-align: center; text-wrap: balance; }
 .pattern-vertical-board__column--active .carried-gap__words { font-size: 15px; line-height: 20px; }

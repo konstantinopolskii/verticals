@@ -1,6 +1,6 @@
 /* --titlebar-height: the desktop app's transparent title bar (desktop/macos/Verticals.swift). */
 :root { --app-bar-height: 0px; --titlebar-height: 0px; --radius: 12px; }
-.app-shell { display: block; height: 100%; overflow: hidden; background: #fff; }
+.app-shell { display: block; height: 100%; overflow: hidden; background: var(--color-bg); }
 /* Under the desktop app's title bar the column strip runs on to the window's top: what sits in a column keeps below
    the bar by --board-under-bar, and what scrolls up passes under it and fades. In a browser the bar's height is 0;
    with the sample notice above it the strip stays where it is. */
@@ -10,7 +10,7 @@
 }
 .period-slide { padding-top: var(--board-under-bar, 0px); }
 .period-slide > .pattern-vertical-board__header.pattern-vertical-board__header { top: var(--board-under-bar, 0px); }
-.board-top-fade { position: fixed; inset: 0 0 auto; height: var(--titlebar-height); z-index: 299; pointer-events: none; background: linear-gradient(to top, rgba(255,255,255,0) 0, #fff 16px, #fff 100%); }
+.board-top-fade { position: fixed; inset: 0 0 auto; height: var(--titlebar-height); z-index: 299; pointer-events: none; background: linear-gradient(to top, rgb(var(--vt-surface-rgb, 255 255 255) / 0) 0, var(--color-bg) 16px, var(--color-bg) 100%); }
 .app-content { box-sizing: border-box; height: 100%; min-width: 0; padding-top: var(--titlebar-height); overflow: hidden; position: relative;
   transition: filter var(--vt-dur-sent) var(--vt-ease-large); }
 /* Out of focus (S2.P6): the board blurred until no word reads, under a light veil; only while the conversation or a
