@@ -1,17 +1,25 @@
-# The overview shows goals; an agent's checklist shows inside its task
+# A step's date decides where it shows
 
-The owner, on the Hide / Show subtasks toggle (`subtask-collapse.md`, PR #83): there are subtasks you don't need to see, used as checklists, "such really shouldn't be shown on the overview — they should be visible simply when the task is opened, automatically. But there are tasks that are sub-goals of a specific priority, and those I want to see on the overview always." Then: "agents sometimes cut checklists or spawn sub-agents: that is a checklist too, a task I don't care about. But if I created the goal, and there is a session and an agent, it must be visible." So the board decides by itself what is a checklist; there is no toggle to press.
+The owner, on the Hide / Show subtasks toggle (PR #83, which this document replaces): some steps are a checklist he doesn't need to see on the board, and some are sub-goals he wants to see always; agents cut checklists and tasks for sub-agents that he doesn't care about. Who made a step doesn't decide it. Its date does. In his words (21 Oct 2026):
 
-A goal knows who made it (`goals.origin`: human, agent, import, app). Who made it is not enough alone: most goals under the owner's priorities were typed by an agent while they planned together (on the owner's board, 22 of the open goals shown under a priority, in Month, Quarter, Year and Life, are the agent's). An agent's own working steps sit under the tasks it works on, and tasks are the Day and Week columns.
+> If the task is a subtask but has NO date, it should be sitting inside it's parent and visible when it's open. If it has SAME date as it's parent scheduled, it should be visible on horizon. Basically if u select the date specifically, it means that u want to CONTROL it and see in vertical. And if no date is selected, it's more of untracked task let's say, u don't need to control, it can stay inside, but hidden from vertical. And u can remove the date same way from the scheduled task and it will get to inbox. It should be clear from the MCP and it should be written in the agent's mc that vertical uses, so NOBODY will do same mistake again.
+
+So there is nothing to press: a date puts a step on the board, no date keeps it inside its parent.
 
 ## Behaviour
 
-- **A checklist step** is a step an agent made (`origin` agent or app) under a task in the Day or Week column, in that task's own column. On the board it is not drawn under its task. It shows when the task is opened, with the task's other steps, as steps do now.
-- **Everything else under a card stays on the board, always**: every step the owner made (`origin` human or import), in any column, with a session or without; and every step in Month, Quarter, Year, 3 years and Life, whoever typed it.
-- A task whose steps are all a checklist shows as a task without steps on the board, except that its box keeps saying how many of its steps are done (the progress it shows today), so a checklist is never invisible altogether.
-- The Hide / Show N subtasks toggle goes, with what it saved on the device (`subtask-collapse.md` is replaced by this document).
-- Nothing in the data changes: no migration, no new field, nothing an agent must remember to set.
+- **A step with a date** stands on the board in its column, as every goal does: with its parent's date, under its parent; with a date in another column, on its own there.
+- **A step with no date** (vertical and anchor date empty) is not on the board. When its parent is opened in place, it shows in the parent's list of steps, after the dated ones, drawn as they are: its box and title; it completes and opens as a step does. The Inbox lists it with its parent, as it does today.
+- **A step added inside an open goal** ("Add…") has no date: it shows in the open goal and stays inside it. Giving it a date is the menu's Reschedule.
+- **Taking a date away** (Reschedule, "To Inbox") keeps a step inside its parent and puts a parentless goal in the Inbox, as today.
+- A Life value is the one goal that doesn't list its goals with no date when opened: under a value they are its ideas, which its detail keeps apart and the Inbox shelves, as today.
+- The parent's box keeps counting all its steps, dated or not.
+- The Hide / Show N subtasks toggle goes, with what it saved on the device.
+- The rule is written where agents read it: the `create` and `schedule` tools of the MCP server and the operator, planning and morning-report skills say, in the same words: "A step gets a date only when the owner wants to track it on the board; a date the same as its parent's puts it on the board under the parent. An agent's checklist, its working steps and tasks for sub-agents are created without a date (vertical and anchor_date null): they live inside the parent, show when it is opened, and in the Inbox. Removing a goal's date puts a parentless goal in the Inbox and keeps a step inside its parent."
+- Nothing in the data changes: no migration, no new field.
+
+The open goal's undated steps come from what is loaded already: the board carries every direct child of the goals it draws, and an opened goal's detail its own (`web/src/lib/stepDates.ts`, listed by `web/src/lib/cardFamily.ts`). The words agents read live once, in `verticals/mcp/tool_schemas.py` (`STEP_DATES`).
 
 ## Done when
 
-UI tests on the sample board: an agent's step under a Week task is not on the board and shows when the task opens; an owner's step under the same task stays on the board; an agent's step under a Quarter goal stays on the board; the task's box still shows its steps' progress; no Hide / Show toggle anywhere. Before and after pictures.
+UI tests on the sample board, light and dark: an undated step is not on the board, shows when its parent opens, after the dated steps, and completes from there; a dated step under the same task shows on the board; a step added inside an open task has no date and shows in the open task, not on the board once it closes; no Hide / Show toggle anywhere. MCP and static tests: the `create` and `schedule` descriptions and the skills carry the rule. Before and after pictures: a Week task closed and opened.
