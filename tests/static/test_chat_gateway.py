@@ -40,11 +40,13 @@ def test_the_morning_prompt_carries_the_skill_and_its_three_references() -> None
 
 
 def test_replan_reaches_the_agent_with_its_plans_and_how_to_write_the_document() -> None:
+    """The whole board's carried plans, by box, and the rules (tests/static/test_replan_gateway.py has the rest)."""
     chat = _chat()
-    context = chat.format_context({"today": "2026-10-07", "replan": {
-        "column": "year", "plans": [{"id": "SYNPLN01", "title": "Plan to sort"}, {"id": "SYNPLN02", "title": "Another"}]}})
-    assert 'The owner clicked Replan on 2 plans that carried over into year: "Plan to sort" (id SYNPLN01)' in context
-    assert "replan/<today>.md" in context and "Goal | Summary | Next step | Your comment" in context
+    context = chat.format_context({"today": "2026-10-07", "replan": {"plans": [
+        {"id": "SYNPLN01", "title": "Plan to sort", "column": "year", "vertical": "year", "anchor_date": "2025-06-15"},
+        {"id": "SYNPLN02", "title": "Another", "column": "year", "vertical": "year", "anchor_date": "2025-06-15"}]}})
+    assert 'Year box (2): "Plan to sort" (id SYNPLN01, year plan for 2025-06-15)' in context
+    assert "replan/<today>.md" in context and chat.REPLAN_ASK_RULES in context
     assert "Replan" not in chat.format_context({"today": "2026-10-07"})
 
 
@@ -125,7 +127,8 @@ def test_verticals_only_is_the_default_and_keeps_claude_to_the_board() -> None:
     assert _chat().clean_settings({})["permission"] == "board"
     agent, session = _claude({"permission": "board"})
     args = agent.proc.args
-    assert args[args.index("--tools") + 1] == "" and "--strict-mcp-config" in args and "--add-dir" not in args
+    # No shell, files or web: of Claude Code's own tools only its question tool, which reaches nothing.
+    assert args[args.index("--tools") + 1] == "AskUserQuestion" and "--strict-mcp-config" in args and "--add-dir" not in args
     assert args[args.index("--permission-mode") + 1] == "manual"
     _bash(agent)
     assert not session.asked and agent.proc.sent[-1]["response"]["response"]["behavior"] == "deny"
