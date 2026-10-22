@@ -281,11 +281,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         quitting = true
         Task {
             await savePage()
+            let hidden = !window.isVisible
+            window.orderOut(nil)
             if let process = backend, process.isRunning {
                 // SIGTERM makes the launcher stop the services and shut PostgreSQL down cleanly.
-                status.stringValue = "Stopping Verticals…"
-                status.isHidden = false
-                webView.isHidden = true
                 process.terminate()
                 await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
                     DispatchQueue.global().async {
@@ -296,9 +295,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 }
             }
             if updater.readyToInstall {
-                updater.installOnQuit(relaunch: relaunching, hidden: !window.isVisible)
+                updater.installOnQuit(relaunch: relaunching, hidden: hidden)
             } else if relaunching {
-                reopenAfterQuit(hidden: !window.isVisible)
+                reopenAfterQuit(hidden: hidden)
             }
             sender.reply(toApplicationShouldTerminate: true)
         }
