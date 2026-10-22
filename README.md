@@ -135,5 +135,4 @@ Three parts keep their own terms:
 
 - `web/vendor/konstantinopolskii-design-system-2.1.1.tgz`: the Commissioner font inside it,
   under the SIL Open Font License 1.1 (its `OFL.txt` is in the archive).
-- `web/public/fonts/`: Inter, under the SIL Open Font License 1.1.
 - `desktop/chat/ui/assets/`: logos of other companies, which belong to their owners.

@@ -79,3 +79,9 @@
 @media (prefers-reduced-motion: reduce) {
   .vt-window { transition: opacity var(--vt-crossfade) linear; }
 }
+
+@media (prefers-color-scheme: dark) {
+  .vt-window.vt-shadow--lit {
+    --vt-window-bg: color-mix(in srgb, rgb(var(--vt-pale)) 15%, var(--color-bg));
+  }
+}

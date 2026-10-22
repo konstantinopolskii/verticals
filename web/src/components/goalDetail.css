@@ -418,3 +418,112 @@
   background: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), var(--color-text) 12%);
   color: color-mix(in srgb, var(--goal-hover-background, rgb(241 241 235)), var(--color-text) 80%);
 }
+
+/* The goal as a modal, and as a drawer from the bottom on a phone. */
+#goal-detail.modal {
+  z-index: 5000;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+#goal-detail .goal-detail__drawer-card { display: contents; }
+#goal-detail .modal__body {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 400px;
+  padding: 0 78px 10px 76px;
+  overflow-y: visible;
+}
+#goal-detail .goal-detail__complete {
+  position: absolute;
+  top: 10px;
+  left: 34px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+#goal-detail .goal-detail__complete .checkbox__box {
+  width: 24px;
+  height: 24px;
+}
+#goal-detail .goal-detail__header-actions {
+  position: absolute;
+  z-index: 101;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+}
+#goal-detail .goal-detail__page-link,
+#goal-detail .goal-detail__footer-action {
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+#goal-detail .goal-detail__footer {
+  position: sticky;
+  z-index: 100;
+  bottom: 0;
+  box-sizing: border-box;
+  height: 73px;
+  padding: 20px 24px;
+  border-top: 1px solid rgb(var(--vt-text-rgb, 0 0 0) / 0.08);
+  background-color: rgb(var(--vt-surface-rgb, 255 255 255));
+}
+#goal-detail .goal-detail__loading { padding: 76px; }
+@media (max-width: 693px) {
+  /* Drawer presentation belongs to the modal surface only. The inline board detail reuses the
+     drawer-plane/drawer-card node names, and an unscoped #goal-detail here out-flows the plane
+     (position: fixed) so the inline grid collapses to 0 height on any window under 694px. */
+  #goal-detail.modal .goal-detail__drawer-plane {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) 48px;
+    pointer-events: none;
+  }
+  #goal-detail.modal .goal-detail__drawer-card {
+    display: block;
+    box-sizing: border-box;
+    min-height: 487px;
+    margin-top: 5px;
+    padding-top: 8px;
+    border-radius: 8px 8px 0 0;
+    background: rgb(var(--vt-surface-rgb, 255 255 255));
+  }
+  #goal-detail .goal-detail__header {
+    height: 30px;
+    padding: 0 48px 0 16px;
+  }
+  #goal-detail .goal-detail__date {
+    font-size: 16px;
+    line-height: 20px;
+  }
+  #goal-detail .modal__body {
+    min-height: 449px;
+    padding: 12px 16px 0;
+  }
+  #goal-detail .goal-detail__complete {
+    top: 12px;
+    left: 16px;
+    width: 20px;
+    height: 20px;
+  }
+  #goal-detail .goal-detail__complete .checkbox__box {
+    width: 20px;
+    height: 20px;
+  }
+  #goal-detail .goal-detail__hero.goal-detail__hero {
+    width: calc(100% - 28px);
+    margin: 0 0 30px 28px;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 30px;
+  }
+}

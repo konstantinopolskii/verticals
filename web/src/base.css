@@ -1,0 +1,48 @@
+/* The page itself, over the kit's style.css: the whole window, no text selection outside what you edit, the surfaces'
+   shadows. */
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  margin: 0;
+  background: var(--color-bg);
+}
+
+/* Text is selectable only where it is edited; `.is-selectable` opts a read-only surface in. */
+:root { user-select: none; }
+input,
+textarea,
+[contenteditable='true'],
+.is-selectable {
+  user-select: text;
+}
+
+/* A surface's shadow by its size (S0.P1.047), grey, or its goal's light when it has --vt-tint (S0.P1.004–.009).
+   --vt-tint and --vt-pale are "r, g, b" from lib/look.ts goalLight(). */
+.vt-shadow {
+  --vt-near: var(--vt-near-big);
+  --vt-far: var(--vt-far-big);
+  --vt-grey: 1;
+  --vt-lnear: var(--vt-light-near);
+  --vt-lfar: var(--vt-light-far);
+  box-shadow: var(--vt-shadow-hair),
+    var(--vt-near) rgba(var(--vt-ink), calc(var(--vt-shadow-grey-near) * var(--vt-grey))),
+    var(--vt-far) rgba(var(--vt-ink), calc(var(--vt-shadow-grey-far) * var(--vt-grey)));
+}
+.vt-shadow--small { --vt-near: var(--vt-near-small); --vt-far: var(--vt-far-small); }
+.vt-shadow--medium { --vt-near: var(--vt-near-medium); --vt-far: var(--vt-far-medium); }
+.vt-shadow--back { --vt-near: var(--vt-near-back); --vt-far: var(--vt-far-back); }
+.vt-shadow--side { --vt-grey: var(--vt-side-grey); --vt-lnear: var(--vt-side-light-near); --vt-lfar: var(--vt-side-light-far); }
+.vt-shadow--lit {
+  box-shadow: var(--vt-shadow-hair),
+    var(--vt-near) rgba(var(--vt-tint), var(--vt-lnear)),
+    var(--vt-far) rgba(var(--vt-tint), var(--vt-lfar)),
+    var(--vt-near) rgba(var(--vt-ink), calc(var(--vt-light-black-near) * var(--vt-grey))),
+    var(--vt-far) rgba(var(--vt-ink), calc(var(--vt-light-black-far) * var(--vt-grey)));
+}
+
+/* The white inside every checkbox is black (S0.P1.048). */
+.checkbox__input:checked + .checkbox__box { color: var(--color-text); }

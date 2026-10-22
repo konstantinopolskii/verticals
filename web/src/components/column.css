@@ -131,7 +131,7 @@
   pointer-events: none;
 }
 /* Phone: one column per screen, and one swipe turns exactly one column. The boundary is the
-   phone boundary the goal drawer already uses (style.css, 693px), so every phone, 430px ones
+   phone boundary the goal drawer already uses (goalDetail.css, 693px), so every phone, 430px ones
    included, gets one column instead of seven squeezed ones. The paging is the browser's own
    scroll snap: its throw and direction lock match the rest of the phone, and vertical scrolling
    inside a column stays native. */

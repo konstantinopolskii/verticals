@@ -44,3 +44,7 @@
 .pblur__veil--side {
   background: linear-gradient(to bottom, color-mix(in srgb, var(--vt-veil-color, rgb(var(--pale))) 0%, transparent) var(--pblur-head), color-mix(in srgb, var(--vt-veil-color, rgb(var(--pale))) 60%, transparent) calc(var(--pblur-head) + 12px));
 }
+
+@media (prefers-color-scheme: dark) {
+  .pblur { --vt-veil-color: var(--vt-window-bg, var(--color-bg)); }
+}

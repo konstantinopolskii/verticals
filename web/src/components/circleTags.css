@@ -70,3 +70,7 @@
   .circle-tag { transition: none; }
   .circle-tag__name { transition: opacity var(--vt-crossfade) linear; }
 }
+
+@media (prefers-color-scheme: dark) {
+  .circle-tag { box-shadow: 0 0 0 1px rgb(255 255 255 / 14%); }
+}

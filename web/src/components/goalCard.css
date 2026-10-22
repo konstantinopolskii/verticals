@@ -1042,3 +1042,7 @@ body[data-family-moving] .pattern-vertical-board__column[data-family-lane]
 }
 .goal-card__subtasks-toggle:hover { color: var(--color-text); }
 .goal-card__subtasks-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+@media (prefers-color-scheme: dark) {
+  .goal-card__meta { color: var(--color-text-muted); }
+}

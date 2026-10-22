@@ -292,7 +292,7 @@
 /* Under the pointer (docs/design/field-hover.md): the resting circle only widens, 84 to 116 px, and keeps its round ends; its
    line grows from 3 × 24 to 5 × 46 px, stays upright and keeps its round ends; the pointer shows, as over any button. It
    comes at once: the timings above are the ones the way back takes, so settling takes 200 ms on the app's ease-out token and
-   nothing else about the circle moves. The sizes are `--vt-field-hover-*` in style.css; the buttons above grow in
+   nothing else about the circle moves. The sizes are `--vt-field-hover-*` in tokens.css; the buttons above grow in
    CircleTags.tsx. */
 @media (hover: hover) and (pointer: fine) {
   .circle-field[data-pointed] .circle-field__shape {
@@ -326,3 +326,8 @@
 .circle-field[data-holding] .circle-field__words { opacity: 0; }
 @keyframes circle-caption-fade { from { opacity: 0; } }
 @keyframes circle-caption-fade-out { to { opacity: 0; } }
+
+@media (prefers-color-scheme: dark) {
+  /* Keep the field's black identity visible against the dark board. */
+  .circle-field__surface { box-shadow: 0 0 0 1px rgb(255 255 255 / 14%); }
+}

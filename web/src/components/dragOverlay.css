@@ -13,3 +13,9 @@
   .pattern-vertical-board__drag-overlay > * { transition: opacity 120ms linear; }
   .drag-overlay--melted > * { transform: none; filter: none; }
 }
+
+@media (prefers-color-scheme: dark) {
+  .drag-overlay--lit > * {
+    background-color: color-mix(in srgb, rgb(var(--vt-pale)) 15%, var(--color-bg)) !important;
+  }
+}

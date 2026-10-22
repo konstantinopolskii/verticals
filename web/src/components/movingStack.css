@@ -63,3 +63,8 @@
 @media (prefers-reduced-motion: reduce) {
   .moving-stack__view, .moving-stack__goal, .moving-stack { transition: none; }
 }
+
+@media (prefers-color-scheme: dark) {
+  .moving-stack__goal { background: color-mix(in srgb, rgb(var(--vt-pale, 240, 240, 240)) 15%, var(--color-bg)); }
+  .moving-stack__title { color: var(--color-text); }
+}

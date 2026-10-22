@@ -1,4 +1,4 @@
-// Motion run from scripts reads the look's tokens (style.css, S0.P1): the curve for the size and physics of what moves,
+// Motion run from scripts reads the look's tokens (tokens.css, S0.P1): the curve for the size and physics of what moves,
 // the duration by name, and whether motion is reduced, asked in one place.
 
 export type Curve = 'small' | 'medium' | 'large' | 'play' | 'breath' | 'fall' | 'sway'
