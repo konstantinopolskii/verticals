@@ -82,6 +82,12 @@ function parseUrl(loc: { pathname: string; hash: string } = window.location): Ur
   return { anchor, target: { kind: 'view', view } }
 }
 
+/** The words a `/search/<q>` address puts into the field, or null for any other path. */
+export function searchWords(pathname: string): string | null {
+  const words = /^\/search\/(.*)/.exec(pathname)?.[1]
+  return words ? decodeId(words) : null
+}
+
 function fragmentOf(target: UrlState['target']): string {
   if (target.kind === 'view') return target.view === 'verticals' ? '' : `#${target.view}`
   return `#${target.kind}/${encodeURIComponent(target.id)}`

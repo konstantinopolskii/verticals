@@ -8,6 +8,7 @@ import { agentName, ago, taskSessions } from '../lib/taskSessions'
 import { fallthrough } from '../bind'
 import { tracked } from '../tracked'
 import { useSetup } from '../setup'
+import { MascotLine } from './MascotLine'
 import './sessionMark.css'
 
 interface Props {
@@ -48,7 +49,7 @@ export const SessionMark = tracked(function SessionMark(raw: Props & Record<stri
     >
       {working ? (
         <span className="session-mark__disc">
-          <span className="circle-field__pivot is-turning"><span className="circle-field__line"></span></span>
+          <MascotLine turning />
         </span>
       ) : (
         <img className="session-mark__agent" src={assetUrl(agentOf(outside!.provider).image)} alt="" />
