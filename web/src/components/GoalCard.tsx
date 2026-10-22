@@ -287,7 +287,6 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
 
     /** Column's `renderItems`, over this card's own children (`insertBeforeId: null` appends). */
     function renderChildren(): ChildRenderItem[] {
-      if (store.isCollapsed(props.id) && !isPathLine.value) return []
       const items: ChildRenderItem[] = listKids.value.map((goal) => ({ kind: 'goal', key: goal.id, goal }))
       if (!isNestedReorderHere.value) return items
       const beforeId = dragSlot.value?.insertBeforeId ?? null
@@ -332,12 +331,11 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
     useGroupWash({
       card: () => (props.depth === 0 ? rootElement() : null),
       list: childrenListEl,
-      layoutSources: [() => props.children, showChildren, () => store.state.openGoalId, () => store.state.openPath, familyKids],
+      layoutSources: [() => props.children, showChildren, () => store.state.openGoalId, () => store.state.openPath, familyKids, listKids],
     })
 
     /** "Add…" at the end of an open goal's steps: the new step lives where its parent does, so it shows at once. */
     function onAddStep(title: string): void {
-      if (store.isCollapsed(props.id)) store.toggleCollapsed(props.id)
       void store.addDetailChild(title)
     }
     function onCardEnter(): void {
@@ -583,15 +581,6 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
               >Open</button>
             ) : null}
             {contextLabel ? <p className="goal-card__meta">{contextLabel}</p> : null}
-            {props.children.length > 0 && !isPathLine && (showChildren || store.isCollapsed(id)) ? (
-              <button
-                type="button"
-                className="goal-card__subtasks-toggle"
-                data-role="subtasks-toggle"
-                aria-expanded={!store.isCollapsed(id)}
-                onClick={(event) => { event.stopPropagation(); store.toggleCollapsed(id) }}
-              >{store.isCollapsed(id) ? 'Show' : 'Hide'} {props.children.length} {props.children.length === 1 ? 'subtask' : 'subtasks'}</button>
-            ) : null}
             <Transition name="goal-part" css={css}>{isInlineDetailHost ? <GoalFacts id={id} /> : null}</Transition>
           </div>
           <GoalCardTools

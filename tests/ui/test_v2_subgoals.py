@@ -115,7 +115,7 @@ def test_drag_parent_week_to_day_cascades_subtree_and_toasts(ui_f2: UiSession) -
     assert {(row[1], row[2]) for row in rows} == {("day", "2026-08-08")}
 
 
-def test_same_vertical_subgoal_has_no_independent_schedule_or_reparent_menu(ui_f2: UiSession) -> None:
+def test_same_vertical_subgoal_has_the_menu_of_any_goal(ui_f2: UiSession) -> None:
     session = ui_f2
     with psycopg.connect(session.backend.dsn, autocommit=True) as conn:
         parent = _create(conn, "SYN UI day parent", "day")
@@ -135,14 +135,12 @@ def test_same_vertical_subgoal_has_no_independent_schedule_or_reparent_menu(ui_f
     ).click(force=True)
     menu = session.page.locator('#dropdownPortal [data-role="goal-actions-menu"]')
     expect(menu).to_be_visible()
-    # D179: same-vertical nested children have no independent schedule/detach/reparent paths: nothing to move to a day,
-    # into a goal or to the Inbox. Only its Repeat stays, under Reschedule.
-    assert menu.locator("[data-move]").count() == 0
-    assert menu.locator('[data-menu-section="move"]').count() == 0
-    assert menu.locator('[data-action="schedule"]').count() == 0
-    assert menu.locator('[data-action="inbox"]').count() == 0
-    assert menu.locator('[data-action="reparent"]').count() == 0
-    assert [t.strip() for t in menu.locator('[data-menu-section="reschedule"] [role="menuitem"]').all_inner_texts()] == ["Repeat"]
+    # D179 gave a same-vertical nested child no schedule, reparent or Inbox here, as a step taken off the board then showed
+    # nowhere. A step with no date shows inside its parent now (docs/design/checklist-steps.md), so the menu is any goal's.
+    assert [t.strip() for t in menu.locator('[data-menu-section="reschedule"] [role="menuitem"]').all_inner_texts()] == [
+        "Tomorrow", "Next week", "Date", "Repeat"]
+    assert [t.strip() for t in menu.locator('[data-menu-section="move"] [role="menuitem"]').all_inner_texts()] == [
+        "Into a goal", "To Inbox"]
 
 
 def test_same_vertical_child_drag_detaches_on_top_level_slot(ui_f2: UiSession) -> None:

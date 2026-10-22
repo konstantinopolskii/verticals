@@ -45,6 +45,10 @@ A value is a parentless Life goal. Every other active goal should inherit exactl
 - Preserve root order unless a strategy-order change is approved.
 - Do not use child colors or unrooted cards to imitate grouping.
 
+## Dates and steps
+
+A step's date decides where it shows. A step gets a date only when the owner wants to track it on the board; a date the same as its parent's puts it on the board under the parent. An agent's checklist, its working steps and tasks for sub-agents are created without a date (vertical and anchor_date null): they live inside the parent, show when it is opened, and in the Inbox. Removing a goal's date puts a parentless goal in the Inbox and keeps a step inside its parent. A step whose parent is in the same column is drawn under it; a step dated in another column stands on its own in that column.
+
 ## Propagation traps
 
 Schedule, park, and reparent writes may coerce descendants to the parent's rung or period. After each operation, verify `vertical`, `anchor_date`, `period_key`, parent ID, and direct children. A successful response is not enough.

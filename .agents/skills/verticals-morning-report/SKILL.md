@@ -24,4 +24,6 @@ Treat the reader's explicit input as controlling over earlier assistant suggesti
 
 Report writing does not authorize a new priority, date, goal, session, external message, calendar edit, PR or closure beyond the closing of tasks that sources show done. For an authorized Vertical mutation, use `$verticals-operator` when available and follow its read-before-write and verification rules; otherwise leave the proposed action pending. Keep credentials and machine-specific paths in private local configuration, never in the shared skill.
 
+A task or step a write makes follows the board's dates. A step gets a date only when the owner wants to track it on the board; a date the same as its parent's puts it on the board under the parent. An agent's checklist, its working steps and tasks for sub-agents are created without a date (vertical and anchor_date null): they live inside the parent, show when it is opened, and in the Inbox. Removing a goal's date puts a parentless goal in the Inbox and keeps a step inside its parent.
+
 Return the report link or path, a short account of actual changes, and material blockers. Show full tables in chat only if requested.

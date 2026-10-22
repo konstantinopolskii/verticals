@@ -103,8 +103,12 @@ def test_parent_open_card_nests_same_vertical_children_and_washes_cross_vertical
     assert session.page.locator('[data-role="vertical-group"]').count() == 0
     assert session.page.locator('[data-role="vertical-label"]').count() == 0
 
-    # Parked child: absent from the board entirely (R7), open or not.
-    assert session.page.locator(f'[data-goal-id="{parked.id}"]').count() == 0
+    # Parked child: it has no date, so it is a step that lives inside its parent, off the board, and the opened parent
+    # lists it after its dated steps (docs/design/checklist-steps.md; R7 kept it off the board, open or not).
+    assert session.page.locator(f'[data-goal-id="{parked.id}"]').count() == 1
+    assert session.page.locator(
+        f'[data-goal-id="{parent.id}"] + .goal-card__children > [data-goal-id="{parked.id}"]'
+    ).count() == 1
 
     session.page.keyboard.press("Escape")
     session.page.wait_for_selector('#goal-detail[data-role="inline-detail"]', state="detached")

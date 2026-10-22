@@ -87,6 +87,26 @@ export function toCardData(
   }
 }
 
+/** A step with no date as its opened parent lists it (`lib/stepDates.ts`): drawn as the parent's other steps are, with
+ *  no steps of its own under it until it is opened in turn. */
+export function toStepCard(g: GoalCard, board: BoardResponse | null): GoalCardData {
+  return {
+    id: g.id,
+    parentId: g.parent_id,
+    title: g.title,
+    done: g.done_at !== null,
+    color: g.color,
+    vertical: g.vertical,
+    repeat: g.repeat,
+    tags: g.tags,
+    foil: g.foil,
+    anchorDate: g.anchor_date,
+    progress: board?.progress[g.id],
+    subgoalCount: board?.child_counts?.[g.id] ?? 0,
+    children: [],
+  }
+}
+
 /** `BoardColumn.vertical` is `null` for exactly one column (the Maybe bucket — see `lib/api.ts`'s
  *  own note on why). `data-vertical` must read the literal string `"maybe"` there — this is the
  *  one place that translation happens, so `types.ts`'s `BoardColumnData.vertical: string` never

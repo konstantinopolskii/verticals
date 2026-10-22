@@ -7,10 +7,12 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from '../reactivity'
 import { store } from '../store'
 import type { GoalCardData } from '../types'
+import { toStepCard } from './boardProjection'
 import { DEEPEST } from './familyView'
 import { familyMoving } from './familyMotion'
 import { curve, reducedMotion } from './motion'
 import { finishLightMove } from './lightMotion'
+import { undatedSteps } from './stepDates'
 
 export function useCardFamily(props: {
   readonly id: string
@@ -75,15 +77,26 @@ export function useCardFamily(props: {
   ))
   /** A step of the deepest card: two levels in is the deepest, so it doesn't open (KK, 28 Sep 2026). */
   const isDeepestStep = computed(() => familyDepth.value >= DEEPEST)
+  /** Open here: the open goal, or a level on its way down, in this column. A goal opened straight to one of its steps
+   *  (a link, a search) has this card as the level above it, wide column or not. */
+  const isOpenHere = computed(() => isInlineDetailHost.value
+    || (store.state.openGoalVertical === props.columnVertical && store.state.openPath.includes(props.id)))
+  /** A step's date decides where it shows: one with no date is not on the board, and its parent lists it once it is
+   *  open, after the dated ones (docs/design/checklist-steps.md, `lib/stepDates.ts`). */
+  const steps = computed<GoalCardData[]>(() => {
+    if (!isOpenHere.value) return props.children
+    const undated = undatedSteps(store.state.board, props, props.columnVertical)
+    return undated.length ? [...props.children, ...undated.map((goal) => toStepCard(goal, store.state.board))] : props.children
+  })
   /** The steps a line on top or the open card lists are the ones in this column, as the column lists them (KK, 29 Sep
-   *  2026: "We show inside only those who are on the same vertical column"); the others light up where they are. A line
-   *  on top lists the next level first. */
+   *  2026: "We show inside only those who are on the same vertical column"), and its steps with no date; the others light
+   *  up where they are. A line on top lists the next level first. */
   const familyKids = computed<GoalCardData[] | null>(() => {
     if (!isPathLine.value) return null
     const next = store.state.openPath[familyDepth.value + 1]
-    return [...props.children.filter((k) => k.id === next), ...props.children.filter((k) => k.id !== next)]
+    return [...steps.value.filter((k) => k.id === next), ...steps.value.filter((k) => k.id !== next)]
   })
-  const listKids = computed(() => familyKids.value ?? props.children)
+  const listKids = computed(() => familyKids.value ?? steps.value)
   /** The open family's light on this goal (`lib/familyView.ts`); null while nothing is open, and for a goal turned off,
    *  which the board's veil covers: opening a goal re-renders its family, not the whole board. */
   const familyLit = computed(() => store.familyLight.value?.get(props.id) ?? null)
@@ -101,7 +114,7 @@ export function useCardFamily(props: {
   })
   onBeforeUnmount(() => { lightMoveToken++ })
   /* An open goal always has a list: its steps end with "Add…", and its notes follow them inside the same piece. */
-  const showChildren = computed(() => isInlineDetailHost.value || isPathLine.value || (!store.isCollapsed(props.id) && listKids.value.length > 0 && (
+  const showChildren = computed(() => isInlineDetailHost.value || isPathLine.value || (listKids.value.length > 0 && (
     inWideColumn.value
       ? (props.depth < 1 && familyDepth.value < 0) || isFocus.value
       : props.depth < 1 || isOpenRelated.value

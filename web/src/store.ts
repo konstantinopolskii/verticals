@@ -28,6 +28,7 @@ import { createFamilyView } from './lib/familyView'
 import { bindBoardHistory, track } from './lib/boardHistory'
 import { createGoalDelete, SAMPLE_TAG } from './lib/goalDelete'
 import { noteOccurrence } from './lib/repeatSteps'
+import { detailStep } from './lib/stepDates'
 import { trackedWrites } from './lib/trackedWrites'
 import { createDocsView, createInitialDocsState, type DocsState } from './lib/docsView'
 import { createCommentsPanel, createInitialCommentsState, type CommentsState } from './lib/comments'
@@ -96,8 +97,6 @@ interface State {
   valueFilter: string | null
   /** Mount detail late, then retain it so modal close cleanup always runs. */
   hasOpenedGoal: boolean
-  /** Ids whose child lists are locally collapsed. Lists are expanded by default. */
-  collapsed: string[]
   /** COMPACT_BOARD_HANDOFF.md §3: the one expanded column (at most one, toggle), or null for
    *  all-compact. Session-only view state by ruling — never persisted, never sent anywhere. */
   expandedVertical: string | null
@@ -130,7 +129,6 @@ const state = reactive<State>({
   goalDetail: null,
   goalDetailLoading: false,
   hasOpenedGoal: false,
-  collapsed: viewState.readCollapsed(),
   expandedVertical: null,
   hoverChainId: null,
   restChainId: null,
@@ -237,8 +235,8 @@ function parentVertical(id: string): VerticalScale | undefined {
   return placementParentVertical(state.board, id)
 }
 
-/** Same-vertical children are visually nested, but may be scheduled down into another vertical.
- * Reparent/detach still stays blocked: scheduling changes time scale, not family identity. */
+/** The parent a goal is drawn under in its own column, or null. The drag reads it to tell a step that outgrows its
+ *  parent (D242) and the colour a drop gives it; it blocks nothing any more (D241, docs/design/checklist-steps.md). */
 function sameVerticalParentId(id: string): string | null {
   const goal = findGoalById(id)
   if (!goal?.parent_id || !goal.vertical) return null
@@ -297,7 +295,7 @@ const completionVersions = new Map<string, number>()
 
 /** Optimistic one-PATCH completion with stale-response protection and rollback. */
 async function completeGoal(id: string, done: boolean): Promise<void> {
-  const goal = findGoalById(id)
+  const goal = findGoalById(id) ?? detailStep(id) // an undated step of an undated step is known from its parent's detail
   if (!goal) return
   const version = (completionVersions.get(id) ?? 0) + 1
   completionVersions.set(id, version)
@@ -432,10 +430,9 @@ async function scheduleGoalQuick(id: string, scale: VerticalScale, periodKey: st
 }
 
 async function moveGoalToInbox(id: string): Promise<void> {
-  // D179's one surviving block (D241 unglued drag detach/reparent): Inbox on a nested child
-  // would clear its schedule while the server keeps parent_id, and a parented, unscheduled row
-  // renders NOWHERE on the board (MAYBE_PREDICATE needs parent_id NULL) — a vanish, not a move.
-  if (sameVerticalParentId(id)) return
+  // Cleared, a parentless goal goes to the Inbox, and a step stays inside its parent, listed when it opens and in the
+  // Inbox (docs/design/checklist-steps.md). D179 kept a step under a parent of its own vertical out of here, as it then
+  // showed nowhere; it shows inside its parent now.
   const placement = schedulePlacement(
     state.board,
     id,
@@ -477,10 +474,6 @@ async function parkGoal(id: string): Promise<void> {
 // incumbent's behaviour); click-to-select plus the bulk bar was this board's own invention. Bulk
 // update stays reachable over HTTP/MCP only (`PATCH /api/goals` with `ids[]`, S-44/S-133) — the
 // F5 manifest records that with a `null` ui_selector, the same shape `reorder` once had.
-
-// Expand/collapse (nested subgoal lists): moved to `lib/boardViewState.ts` (S-90a) — thin binds.
-const isCollapsed = (id: string): boolean => viewState.isCollapsed(state, id)
-const toggleCollapsed = (id: string): void => viewState.toggleCollapsed(state, id)
 
 // --- reparent (S-67) ---------------------------------------------------------------------------
 
@@ -714,8 +707,6 @@ export const store = {
   parentVertical,
   boardGoalHost,
   sameVerticalParentId,
-  isCollapsed,
-  toggleCollapsed,
   reparentTargets,
   pointerDownCard,
   pointerMoveDrag,

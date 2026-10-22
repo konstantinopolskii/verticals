@@ -21,6 +21,10 @@ Read [mcp-operations.md](references/mcp-operations.md) before writing. Read [evi
 8. On conflict, reread and reconsider. Never overwrite or blindly retry.
 9. Verify both raw state and the user-facing board after propagation.
 
+## A step's date
+
+A step's date decides where it shows. A step gets a date only when the owner wants to track it on the board; a date the same as its parent's puts it on the board under the parent. An agent's checklist, its working steps and tasks for sub-agents are created without a date (vertical and anchor_date null): they live inside the parent, show when it is opened, and in the Inbox. Removing a goal's date puts a parentless goal in the Inbox and keeps a step inside its parent.
+
 ## Read sequence
 
 Use the smallest sufficient calls:

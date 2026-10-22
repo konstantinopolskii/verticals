@@ -18,31 +18,12 @@ export interface BoardViewState {
   expandedVertical: string | null
   hoverChainId: string | null
   restChainId: string | null
-  /** Child lists hidden on this device. Saved locally; new tasks start expanded. */
-  collapsed: string[]
 }
 
-// --- expand / collapse (nested subgoal lists) ---------------------------------------------------
-//
-// Local presentation only: the goal hierarchy and completion state stay on the server.
-
-export function isCollapsed(view: BoardViewState, id: string): boolean {
-  return view.collapsed.includes(id)
-}
-
-export function readCollapsed(): string[] {
-  try {
-    const saved: unknown = JSON.parse(localStorage.getItem('verticals:collapsed-subtasks') ?? '[]')
-    return Array.isArray(saved) ? [...new Set(saved.filter((id): id is string => typeof id === 'string'))] : []
-  } catch { return [] }
-}
-
-export function toggleCollapsed(view: BoardViewState, id: string): void {
-  const at = view.collapsed.indexOf(id)
-  if (at === -1) view.collapsed.push(id)
-  else view.collapsed.splice(at, 1)
-  try { localStorage.setItem('verticals:collapsed-subtasks', JSON.stringify(view.collapsed)) } catch { /* session-only */ }
-}
+// No list under a card folds by hand any more: a step's date decides whether it shows on the board or inside its parent
+// (docs/design/checklist-steps.md). The Hide / Show subtasks toggle that came before it saved the lists it folded on the
+// device; they go with it.
+try { localStorage.removeItem('verticals:collapsed-subtasks') } catch { /* no storage here: nothing was saved */ }
 
 /** Header click: expand this column, collapsing whichever was expanded; a second click on the
  *  expanded column returns the board to all-compact. */

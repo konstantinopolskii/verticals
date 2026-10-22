@@ -13,6 +13,7 @@
 import { createGoal, getGoal, patchGoal, type BoardResponse, type GoalDetail } from './api'
 import { ancestorIds, boardGoalHost, findGoal, isPending } from './boardIndex'
 import { noteOccurrence } from './repeatSteps'
+import { noteDetail } from './stepDates'
 import { asOneHistoryStep } from './urlState'
 import type { DragState } from './drag'
 
@@ -60,6 +61,7 @@ export function createDetailSurface(
   async function fetchGoalDetail(id: string, prefetch = false): Promise<GoalDetail> {
     const detail = await getGoal(id, prefetch)
     detailCache.set(id, detail)
+    noteDetail(detail) // its undated steps, for when it opens (lib/stepDates.ts)
     return detail
   }
 
@@ -176,16 +178,15 @@ export function createDetailSurface(
     }
   }
 
-  /** The new step lives where its parent does, so it shows on the board at once. Without a vertical the server kept it
-   *  as an unscheduled idea, which the board doesn't draw: an added step vanished (found 27 Sep 2026). */
+  /** The new step has no date: a step's date decides where it shows, and one added inside an open goal stays inside it,
+   *  listed there and in the Inbox, off the board (docs/design/checklist-steps.md). It used to take its parent's date, as
+   *  an undated step then showed nowhere (found 27 Sep 2026); its parent lists it now. A date is the menu's Reschedule. */
   async function addDetailChild(title: string): Promise<string | null> {
     const openId = state.openGoalId
     const trimmed = title.trim()
     if (!openId || !trimmed) return null
-    const parent = state.goalDetail?.id === openId ? state.goalDetail : null
-    const place = parent?.vertical && parent.anchor_date ? { vertical: parent.vertical, anchor_date: parent.anchor_date } : {}
     try {
-      const created = await createGoal({ title: trimmed, parent_id: openId, ...place })
+      const created = await createGoal({ title: trimmed, parent_id: openId })
       state.goalDetail = await fetchGoalDetail(openId)
       await deps.reloadBoard()
       return created.id
