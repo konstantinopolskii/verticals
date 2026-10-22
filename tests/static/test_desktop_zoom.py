@@ -77,6 +77,16 @@ class DesktopZoomTests(unittest.TestCase):
         self.assertEqual(self.observed["draft"], "Keep my draft")
         self.assertEqual(self.observed["pageKnowsZoom"], 1.5)
 
+    def test_appearance_choice_reaches_the_page_and_is_kept(self):
+        self.assertEqual(self.observed["appearances"], ["System", "Light", "Dark"])
+        self.assertEqual(self.observed["dark"], {"dark": True, "saved": "NSAppearanceNameDarkAqua",
+                                                 "checked": ["Dark"], "draft": "Keep my draft"})
+        self.assertEqual(self.observed["light"], {"dark": False, "saved": "NSAppearanceNameAqua",
+                                                  "checked": ["Light"], "draft": "Keep my draft"})
+        self.assertEqual(self.observed["system"]["saved"], "")
+        self.assertEqual(self.observed["system"]["checked"], ["System"])
+        self.assertTrue(self.observed["systemFollowsMacOS"])
+
 
 if __name__ == "__main__":
     unittest.main()

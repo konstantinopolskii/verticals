@@ -76,6 +76,26 @@ import WebKit
         result["draft"] = js("document.getElementById('draft').value") as? String ?? ""
         result["pageKnowsZoom"] = js("window.verticalsPageZoom") as? Double ?? 0
 
+        // View → Appearance: the page's prefers-color-scheme follows the choice, and the checkmark shows it.
+        defer { defaults.removeObject(forKey: "Appearance") }
+        let choices = view.items.first { $0.title == "Appearance" }!.submenu!
+        result["appearances"] = choices.items.map(\.title)
+        func choose(_ title: String) -> [String: Any] {
+            let choice = choices.items.first { $0.title == title }!
+            choices.performActionForItem(at: choices.index(of: choice))
+            let dark = "matchMedia('(prefers-color-scheme: dark)').matches"
+            let wanted = title == "System" ? js(dark) as? Bool : title == "Dark"
+            spin { js(dark) as? Bool == wanted }
+            choices.items.forEach { _ = delegate.validateMenuItem($0) }
+            return ["dark": js(dark) as? Bool ?? false, "saved": defaults.string(forKey: "Appearance") ?? "",
+                    "checked": choices.items.filter { $0.state == .on }.map(\.title),
+                    "draft": js("document.getElementById('draft').value") as? String ?? ""]
+        }
+        result["dark"] = choose("Dark")
+        result["light"] = choose("Light")
+        result["system"] = choose("System")
+        result["systemFollowsMacOS"] = NSApp.appearance == nil
+
         // Zoom never owns the typing, clipboard, undo, or Reduce Motion shortcuts.
         result["commandCHandledByZoom"] = press("c")
         let data = try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])

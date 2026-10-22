@@ -73,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             updater.installOnQuit(relaunch: true)
             exit(0)
         }
+        applyAppearance()
         buildMenu()
         buildTray()
         let config = WKWebViewConfiguration()
@@ -110,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Verticals"
-        // The page shows through the title bar; appearance is inherited from macOS.
+        // The page shows through the title bar; appearance is the app's (View → Appearance).
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
@@ -723,6 +724,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let motionItem = item("Reduce Motion", #selector(toggleReduceMotion(_:)), "")
         motionItem.target = self
         view.addItem(motionItem)
+        let appearance = NSMenu(title: "Appearance")
+        for (title, name) in Self.appearances {
+            let choice = item(title, #selector(chooseAppearance(_:)), "")
+            choice.target = self
+            choice.representedObject = name?.rawValue
+            appearance.addItem(choice)
+        }
+        let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+        appearanceItem.submenu = appearance
+        view.addItem(appearanceItem)
         view.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
         let win = NSMenu(title: "Window")
         win.addItem(item("Minimize", #selector(NSWindow.miniaturize(_:)), "m"))
@@ -760,10 +771,32 @@ extension AppDelegate: NSMenuItemValidation {
     // The checkmark is read when the menu opens, so it follows macOS while the person has not chosen.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(toggleReduceMotion(_:)) { item.state = reduceMotion ? .on : .off }
+        if item.action == #selector(chooseAppearance(_:)) {
+            item.state = item.representedObject as? String == appearanceChoice ? .on : .off
+        }
         if item.action == #selector(zoomIn(_:)) { return webView != nil && webView.pageZoom < 2 }
         if item.action == #selector(zoomOut(_:)) { return webView != nil && webView.pageZoom > 0.5 }
         if item.action == #selector(actualSize(_:)) { return webView != nil }
         return true
+    }
+}
+
+// MARK: Appearance (View menu)
+//
+// System follows macOS; Light or Dark is kept in the app's defaults (`Appearance`). The whole app takes it, and the page's
+// `prefers-color-scheme` follows the web view's appearance (web/src/theme.css), so the page needs no switch of its own.
+extension AppDelegate {
+    static let appearances: [(String, NSAppearance.Name?)] = [("System", nil), ("Light", .aqua), ("Dark", .darkAqua)]
+
+    var appearanceChoice: String? { UserDefaults.standard.string(forKey: "Appearance") }
+
+    func applyAppearance() {
+        NSApp.appearance = appearanceChoice.flatMap { NSAppearance(named: NSAppearance.Name($0)) }
+    }
+
+    @objc func chooseAppearance(_ sender: NSMenuItem) {
+        UserDefaults.standard.set(sender.representedObject as? String, forKey: "Appearance")
+        applyAppearance()
     }
 }
 

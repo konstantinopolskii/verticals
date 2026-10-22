@@ -56,9 +56,11 @@ same saved setting as the developer panel. The chosen scale survives a reload an
 
 ## Appearance
 
-The window, title bar, update popover and page follow macOS light or dark appearance automatically.
-Changing appearance updates an open window immediately and keeps the current view and draft.
-There is no in-app theme switch or saved override.
+View → Appearance chooses System, Light or Dark. System follows macOS; Light or Dark is kept in the app's defaults
+(`Appearance`: `defaults delete app.verticals.desktop Appearance` hands it back to macOS). The window, title bar,
+update popover and page take the choice: the app sets its own appearance, and the page's `prefers-color-scheme`
+follows the web view's (`web/src/theme.css`). A change updates an open window immediately and keeps the current view
+and draft.
 
 ## Reduce Motion
 

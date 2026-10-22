@@ -16,7 +16,7 @@ Agents write almost all of the code; two of us hold the bar and aim for an Apple
 Most of what you see we still don't like, so tell us what you hate. For now, expect things to break.
 
 It runs on your Mac and keeps your data there. You need Claude Code or Codex, signed in.
-The light and dark appearance follows macOS automatically, including changes while the app is open.
+The light and dark appearance follows macOS, including changes while the app is open, or stays Light or Dark from View → Appearance.
 Dark appearance uses soft grey text while keeping task and document text readable.
 The app is in [Releases](https://github.com/konstantinopolskii/verticals/releases); it still
 carries its old name, Verticals. Open source under the GNU Affero General Public License v3.0,
