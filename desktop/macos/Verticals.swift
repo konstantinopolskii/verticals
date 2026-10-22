@@ -80,14 +80,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         config.websiteDataStore = .default()
         config.userContentController.add(self, name: "zoom")
         webView = WebView(frame: .zero, configuration: config)
-        webView.underPageBackgroundColor = .windowBackgroundColor
+        webView.underPageBackgroundColor = Self.pageColor
         let zoom = UserDefaults.standard.double(forKey: "PageZoom")
         if zoom > 0 { webView.pageZoom = zoom }
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.isHidden = true
 
-        status = NSTextField(labelWithString: "Starting Verticals…")
+        status = NSTextField(labelWithString: "")
+        status.isHidden = true
         status.font = .systemFont(ofSize: 15)
         status.textColor = .secondaryLabelColor
         status.alignment = .center
@@ -115,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
-        window.backgroundColor = .windowBackgroundColor
+        window.backgroundColor = Self.pageColor
         window.contentView = content
         window.delegate = self
         window.isReleasedWhenClosed = false
@@ -206,8 +207,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             return fail("Could not start Verticals: \(error.localizedDescription)")
         }
         backend = process
-        status.stringValue = "Starting Verticals… (the first launch sets up the database, about a minute)"
-        waitForBackend(attempts: 240)
+        // A usual start takes about a second and shows only the board's colour; words appear only when it runs long.
+        let firstLaunch = !FileManager.default.fileExists(atPath: stateDir.appendingPathComponent("postgres").path)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            guard !self.serving, self.backend === process, process.isRunning else { return }
+            self.status.stringValue = firstLaunch ? "Setting up Verticals… the first launch takes about a minute" : "Starting Verticals…"
+            self.status.isHidden = false
+        }
+        waitForBackend(attempts: 1200)
     }
 
     func waitForBackend(attempts: Int) {
@@ -216,7 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             guard attempts > 0, self.backend?.isRunning == true else {
                 return self.fail("Verticals did not start. See \(self.logPath).")
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.waitForBackend(attempts: attempts - 1) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.waitForBackend(attempts: attempts - 1) }
         }
     }
 
@@ -224,6 +231,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         serving = true
         tray.button?.appearsDisabled = false
         status.isHidden = true
+        // The page fades in once it has loaded (webView(_:didFinish:)), not as an empty frame.
+        webView.alphaValue = 0
         webView.isHidden = false
         let reopen = UserDefaults.standard.string(forKey: "ReopenPage").flatMap { URL(string: $0) }
         UserDefaults.standard.removeObject(forKey: "ReopenPage")
@@ -586,6 +595,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     // MARK: web view
+
+    // The board's own background (web/src/theme.css), so the window and the page are one colour from the first frame.
+    static let pageColor = NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(srgbRed: 0x1c / 255.0, green: 0x1c / 255.0, blue: 0x1e / 255.0, alpha: 1) : .white
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { reveal() }
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { reveal() }
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { reveal() }
+
+    func reveal() {
+        guard webView.alphaValue < 1 else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.2
+            webView.animator().alphaValue = 1
+        }
+    }
 
     // Links that leave the app (target=_blank or another origin) open in the default browser.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
