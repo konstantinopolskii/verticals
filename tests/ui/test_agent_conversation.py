@@ -255,6 +255,7 @@ def test_the_morning_report_is_asked_once_a_day_by_the_server(ui_agent: UiSessio
     # The same browser with nothing in its storage, and another browser altogether: the day is taken, they ask nothing.
     page.evaluate("() => { localStorage.clear(); sessionStorage.clear() }")
     other = ui_agent.context.browser.new_context(viewport=VIEWPORT, reduced_motion="reduce")
+    other.add_init_script("try { localStorage.setItem('vt-chat:access-chosen', 'true') } catch {}")
     try:
         second = other.new_page()
         second.clock.set_fixed_time(PINNED_CLOCK_ISO)
@@ -280,10 +281,8 @@ def _flag(args: list[str], name: str) -> str:
     return args[args.index(name) + 1]
 
 
-def test_the_morning_turn_gets_its_guide_and_asks_first_whatever_mode_the_chat_is_in(ui_agent: UiSession, tmp_path: Path) -> None:
-    """Fixes 1, 4 and 5 through the real gateway: the morning ask reaches the CLI with the morning guide and the ask-first
-    mode though the chat is set to "Bypass permissions"; an ordinary message in the same chat keeps the owner's mode;
-    and both carry the same instructions on length, titles and the seven columns."""
+def test_the_morning_turn_gets_its_guide_and_honors_full_access(ui_agent: UiSession, tmp_path: Path) -> None:
+    """Morning and ordinary turns retain the chosen full access and their respective instructions."""
     page = ui_agent.page
     page.wait_for_selector(".goal-card__row")
     page.evaluate("() => localStorage.setItem('vt-chat:agent-prefs', JSON.stringify({ claude: { permission: 'bypassPermissions' } }))")
@@ -292,7 +291,7 @@ def test_the_morning_turn_gets_its_guide_and_asks_first_whatever_mode_the_chat_i
     page.reload()
     expect(page.locator('[data-role="circle-answer"]')).to_contain_text("Make my morning report", timeout=15000)
     (morning,) = _cli_starts(tmp_path)
-    assert _flag(morning, "--permission-mode") == "manual" and "--add-dir" not in morning and _flag(morning, "--tools") == ""
+    assert _flag(morning, "--permission-mode") == "bypassPermissions" and "--add-dir" in morning and "--tools" not in morning
     assert "## This turn: the morning report" in _flag(morning, "--append-system-prompt")
     page.locator(".circle-field__shape").click()
     _send(page, "Hello")

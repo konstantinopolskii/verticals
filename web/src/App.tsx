@@ -1,4 +1,5 @@
 import { Board } from './components/Board'
+import { AgentAccess } from './components/AgentAccess'
 import { GoalCard } from './components/GoalCard'
 import { InboxView } from './components/InboxView'
 import { DocsView } from './components/DocsView'
@@ -38,6 +39,7 @@ export const App = tracked(function App() {
   return (
     <CardDnd>
       <div className="app-shell">
+        <AgentAccess />
         {store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !unfocused
           ? <div className="board-top-fade" aria-hidden="true"></div> : null}
         <div className={cx('app-veil', { 'is-shown': unfocused, 'app-veil--window': windowOpen })} data-role="out-of-focus"

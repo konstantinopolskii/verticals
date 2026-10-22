@@ -141,8 +141,8 @@ def test_another_mode_gives_claude_its_tools_and_asks_in_the_chat() -> None:
     assert session.asked == ["Allow Claude to use Bash?"]
 
 
-def test_the_morning_turn_keeps_its_own_rules_in_any_mode() -> None:
-    agent, session = _claude({"permission": "bypassPermissions", "sources": "connected"})
+def test_the_morning_turn_keeps_its_rules_without_full_access() -> None:
+    agent, session = _claude({"permission": "manual", "sources": "connected"})
     args = agent.proc.args
     assert args[args.index("--tools") + 1] == "" and "--add-dir" not in args
     _bash(agent)  # it has no shell, files or web: a request for one is declined, and nobody is asked about it
@@ -199,11 +199,9 @@ def test_the_app_ships_every_skill_the_chat_reads() -> None:
         assert (ROOT / ".agents" / "skills" / skill.name / "SKILL.md").is_file()
 
 
-def test_the_morning_turn_asks_first_whatever_mode_the_chat_is_in() -> None:
-    """Fix 4: a chat set to "Bypass permissions" or "Auto" made its own decisions for every tool, so the morning turn,
-    which nobody watches, could send or delete in the owner's other tools. In the morning turn the mode is always the
-    ask-first one, and each tool of another server comes to the gateway to be judged."""
-    for mode in ("manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions", "board"):
+def test_restricted_morning_modes_ask_the_gateway_first() -> None:
+    """Without full access, automatic turns retain the gateway's source and report boundaries."""
+    for mode in ("manual", "acceptEdits", "plan", "auto", "dontAsk", "board"):
         agent, _ = _claude({"permission": mode, "sources": "connected"})
         assert _flag(agent, "--permission-mode") == "manual", mode
         assert _flag(agent, "--tools") == "" and "--add-dir" not in agent.proc.args, mode
@@ -225,7 +223,7 @@ def test_the_morning_turn_calls_the_tools_its_sources_declare_and_asks_for_every
     """docs/design/morning-quality.md: a tool was judged by its name (a chat server's `list_messages` was declined). Each source's
     document now declares the tools that read it, inside the check the owner approved; the turn allows exactly those on the
     command line and asks the reader about any other, and about nothing it was already told to allow."""
-    agent, session = _claude({"permission": "bypassPermissions", "sources": "connected"}, sources=SOURCES)
+    agent, session = _claude({"permission": "manual", "sources": "connected"}, sources=SOURCES)
     allowed = _flag(agent, "--allowedTools").split(",")
     for tool in (*TEAM_CHAT, "mcp__mail__search_mail", "mcp__mail__get_mail"):
         assert tool in allowed, tool
@@ -245,7 +243,7 @@ def test_the_morning_turn_calls_the_tools_its_sources_declare_and_asks_for_every
 def test_the_morning_turn_writes_in_verticals_only_what_the_report_needs() -> None:
     """Fix 4, as docs/design/morning-quality.md leaves it: the report's own writes and the evidence of what it closes run by
     themselves; closing a task is told apart by what it is called with; any other write is asked of the reader."""
-    agent, session = _claude({"permission": "bypassPermissions", "sources": "connected"}, sources=SOURCES)
+    agent, session = _claude({"permission": "manual", "sources": "connected"}, sources=SOURCES)
     allowed = _flag(agent, "--allowedTools").split(",")
     for tool in ("doc_create", "doc_save", "doc_link", "evidence_update", "board", "doc_get", "sources"):
         assert f"mcp__verticals__{tool}" in allowed, tool
@@ -269,7 +267,7 @@ def test_the_morning_turn_keeps_the_owners_settings_and_asks_the_gateway_about_e
     judged. Cutting the settings off (`--setting-sources`) would also cut the owner's own servers, the sources' tools, so the
     morning turns keep them and carry one `ask` rule for every MCP tool on the command line, where `--settings` ranks above the
     user settings. The CLI evaluates deny, then ask, then allow. The owner's other turns carry no rule."""
-    for mode in ("board", "manual", "bypassPermissions", "auto"):
+    for mode in ("board", "manual", "auto"):
         morning, _ = _claude({"permission": mode, "sources": "connected"}, sources=[])
         assert "--setting-sources" not in morning.proc.args and "--strict-mcp-config" not in morning.proc.args, mode
         assert json.loads(_flag(morning, "--settings"))["permissions"] == {"ask": ["mcp__*"]}, mode
@@ -300,7 +298,7 @@ def test_a_whole_days_board_reaches_an_agent_that_cannot_open_files_in_one_answe
 def test_every_mcp_tool_comes_to_the_gateway_and_a_declared_one_runs_with_no_question_to_the_reader() -> None:
     """With the ask rule the CLI puts a declared tool to the gateway too. The tools the approved sources declare, Verticals'
     reading tools and the report's own writes run with no question; any other tool is asked of the reader."""
-    agent, session = _claude({"permission": "bypassPermissions", "sources": "connected"}, sources=SOURCES)
+    agent, session = _claude({"permission": "manual", "sources": "connected"}, sources=SOURCES)
     for tool in (*TEAM_CHAT, "mcp__mail__search_mail", "mcp__mail__get_mail", "mcp__verticals__board", "mcp__verticals__doc_get",
                  "mcp__verticals__sources", "mcp__verticals__doc_create", "mcp__verticals__doc_save", "mcp__verticals__doc_link",
                  "mcp__verticals__evidence_update"):
@@ -358,10 +356,10 @@ def test_a_declared_tool_names_its_source_in_the_step_the_field_shows() -> None:
     assert [event.get("step") for event in tools] == ["Reading Team chat", None, None]
 
 
-def test_the_morning_turn_of_codex_reads_whatever_mode_the_chat_is_in() -> None:
+def test_restricted_codex_morning_modes_remain_read_only() -> None:
     """Fix 4, Codex: its sandbox is read-only in the morning turn (it can reach only Verticals, and its files not at all)."""
     chat = _chat()
-    for mode in ("full-access", "auto-review", "default", "read-only"):
+    for mode in ("auto-review", "default", "read-only"):
         settings = chat.clean_settings({"provider": "codex", "permission": mode, "sources": "connected"})
         assert chat.codex_mode(settings) == "read-only", mode
         assert chat.codex_policy(chat.codex_mode(settings), "/work")["sandboxPolicy"]["type"] == "readOnly", mode
@@ -556,3 +554,32 @@ def test_the_agent_is_told_to_link_what_it_made_and_to_name_the_rest_by_title() 
     assert "The app draws those lines as chips under your words" in prompt
     assert "Mention any other goal by its title, with no link" in prompt
     assert "Link board dates inside a sentence as [label](/h/YYYY-MM-DD)" in prompt
+
+
+def test_full_access_keeps_shell_and_tools_in_the_morning_without_asking() -> None:
+    agent, session = _claude({"permission": "bypassPermissions", "sources": "connected"})
+    assert _flag(agent, "--permission-mode") == "bypassPermissions"
+    assert "--tools" not in agent.proc.args and "--strict-mcp-config" not in agent.proc.args
+    assert "permissions" not in json.loads(_flag(agent, "--settings"))
+    for tool in ("Bash", "Read", "Edit", "mcp__verticals__doc_save", "mcp__mail__search"):
+        _tool(agent, tool)
+        assert _decision(agent) == "allow", tool
+    assert not session.asked
+    assert "## This turn: the morning report" in _system_prompt(agent)
+    assert "Do not ask for tool permissions" in _system_prompt(agent)
+
+
+def test_codex_full_access_is_not_replaced_with_read_only_for_morning() -> None:
+    chat = _chat()
+    settings = chat.clean_settings({"provider": "codex", "permission": "full-access", "sources": "connected"})
+    assert chat.codex_policy(chat.codex_mode(settings), "/work") == {
+        "approvalPolicy": "never", "approvalsReviewer": "user", "sandboxPolicy": {"type": "dangerFullAccess"}}
+    assert "Do not ask for tool permissions" in chat.codex_instructions(settings)
+
+
+def test_changing_codex_access_restarts_the_tools_and_instructions() -> None:
+    chat = _chat()
+    normal = chat.clean_settings({"provider": "codex"})
+    full = {**normal, "permission": "full-access"}
+    assert chat.CodexAgent.signature_of(normal) != chat.CodexAgent.signature_of(full)
+    assert chat.CodexAgent.signature_of(full) != chat.CodexAgent.signature_of({**full, "sources": "connected"})

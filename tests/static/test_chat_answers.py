@@ -256,7 +256,7 @@ def test_codex_is_given_its_conversation_in_the_environment_its_proxy_reads(tmp_
             pass
 
     chat_module.RpcProcess, chat_module.which = Rpc, lambda provider: "codex"
-    chat_module.codex_args = lambda chat: ["codex", "app-server"]
+    chat_module.codex_args = lambda chat, settings=None, reads=None: ["codex", "app-server"]
     chat = chat_module.Chat(tmp_path, "http://127.0.0.1:8281/mcp", "tok")
     session = types.SimpleNamespace(id=SESSION, settings={}, emit=lambda event: None)
 
@@ -329,3 +329,47 @@ def test_the_proxy_without_a_conversation_sends_none(tmp_path: Path) -> None:
         standin.stop()
 
     assert "x-verticals-session" not in standin.requests[0]["headers"], "an agent outside the app is nobody's answer"
+
+
+def test_codex_full_access_keeps_connected_tools_and_approves_their_calls(tmp_path, monkeypatch):
+    module = _chat()
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    (home / "config.toml").write_text('''[mcp_servers.notes]
+command = "notes-server"
+default_tools_approval_mode = "prompt"
+[mcp_servers.notes.tools.read]
+approval_mode = "prompt"
+[plugins.sample]
+enabled = true
+''')
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    module.which = lambda _: "codex"
+    host = module.Chat(tmp_path, "http://127.0.0.1:9/mcp", "synthetic-token")
+    script = tmp_path / "codex"
+    script.write_text("#!/usr/bin/env python3\nimport json\nprint(json.dumps([{'name': 'verticals_desktop', 'enabled': True}]))\n")
+    script.chmod(0o755)
+    module.which = lambda _: str(script)
+    made = []
+    requests = []
+    class Rpc:
+        def __init__(self, argv, *rest):
+            made.append(argv)
+        def request(self, method, params):
+            requests.append((method, params))
+            return {"thread": {"id": "thread-1"}} if method == "thread/start" else {}
+        def notify(self, *args):
+            pass
+    module.RpcProcess = Rpc
+    session = types.SimpleNamespace(id=SESSION, settings={}, emit=lambda event: None)
+    module.CodexAgent(host, session, module.clean_settings({"provider": "codex", "permission": "full-access"}), None)
+    args = made[0]
+    assert "mcp_servers.notes.enabled=false" not in args
+    assert "plugins.sample.enabled=false" not in args
+    assert 'mcp_servers.verticals_desktop.default_tools_approval_mode="approve"' in args
+    assert 'mcp_servers.notes.default_tools_approval_mode="approve"' in args
+    assert 'mcp_servers.notes.tools.read.approval_mode="approve"' in args
+    assert "features.shell_tool=false" not in args
+    start = next(params for method, params in requests if method == "thread/start")
+    assert start["approvalPolicy"] == "never" and start["sandbox"] == "danger-full-access"
+    assert start["config"]["features.shell_tool"] is True

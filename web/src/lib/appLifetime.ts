@@ -2,12 +2,12 @@
    read, the morning report, and the goal windows an address opens. */
 import { store, todayIso } from '../store'
 import { startHistoryKeys } from './boardHistory'
-import { startAgentChat } from './agentChat'
+import { agentChat, startAgentChat } from './agentChat'
 import { loadInbox } from './inbox'
 import { ensureMorning } from './morning'
 import { startSessionWatch } from './taskSessions'
 import { frontWindow, openWindow } from './windows'
-import { onMounted, onUnmounted } from '../reactivity'
+import { onMounted, onUnmounted, watch } from '../reactivity'
 
 export function useAppLifetime(): void {
   let stopDayRollover: (() => void) | null = null
@@ -26,6 +26,8 @@ export function useAppLifetime(): void {
   async function morningCheck(): Promise<void> {
     await ensureMorning(todayIso())
   }
+
+  watch(() => agentChat.accessChosen, (chosen) => { if (chosen) void morningCheck() })
 
   onMounted(() => {
     stopDayRollover = store.startDayRollover()

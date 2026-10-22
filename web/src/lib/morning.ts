@@ -50,7 +50,7 @@ export function morningAsk(today: string, taskId: string, landed: LandedComment[
 }
 
 /** Why the app may ask now: an agent is there and you are not busy with it. */
-const free = () => agentChat.available && !agentChat.running && !agentChat.open && !commandFilter.text
+const free = () => agentChat.available && agentChat.accessChosen && !agentChat.running && !agentChat.open && !commandFilter.text
 
 function ask(today: string, taskId: string, landed: LandedComment[]): void {
   newThread()

@@ -60,6 +60,7 @@ export interface Balloon {
 }
 
 const KEY = {
+  access: 'vt-chat:access-chosen',
   threads: 'vt-chat:threads',
   current: 'vt-chat:current',
   events: (id: string) => `vt-chat:events:${id}`,
@@ -83,6 +84,7 @@ function save(key: string, value: unknown): void {
 }
 
 export const agentChat = reactive({
+  accessChosen: load<boolean>(KEY.access, false) === true,
   /** The gateway answered and at least one agent is installed. */
   available: false,
   checked: false,
@@ -246,12 +248,28 @@ export async function loadProbe(provider: string, force = false): Promise<void> 
 export function choose(change: Partial<Selection>): void {
   if (!agentChat.selection) return
   if (change.provider && change.provider !== agentChat.selection.provider) {
-    agentChat.selection = { ...defaultSelection(change.provider), fast: false, permission: agentOf(change.provider).defaultPermission }
+    agentChat.selection = { ...defaultSelection(change.provider), fast: false }
     void loadProbe(change.provider)
   }
   const { provider: _provider, ...rest } = change
   Object.assign(agentChat.selection, rest)
   saveSelection()
+}
+
+export function chooseInitialAccess(full: boolean): void {
+  const prefs = load<Record<string, { fast?: boolean; permission?: string }>>(KEY.prefs, {})
+  for (const agent of agentChat.agents) {
+    const permission = full ? (agent.id === 'codex' ? 'full-access' : 'bypassPermissions') : agent.defaultPermission
+    prefs[agent.id] = { ...prefs[agent.id], permission }
+    for (const thread of agentChat.threads) {
+      if (thread.selection?.provider === agent.id) thread.selection.permission = permission
+    }
+  }
+  save(KEY.prefs, prefs)
+  saveThreads()
+  if (agentChat.selection) choose({ permission: prefs[agentChat.selection.provider]?.permission })
+  save(KEY.access, true)
+  agentChat.accessChosen = true
 }
 
 export async function refreshAgents(): Promise<void> {
@@ -497,7 +515,7 @@ export async function reportKind(words: string): Promise<ReportVerdict> {
  *  adds to the agent's for this turn: the morning report's `{ sources: 'connected' }` (lib/morning.ts). */
 export async function send(text: string, extra: Record<string, unknown> = {}, settings: Record<string, unknown> = {}): Promise<void> {
   const words = text.trim()
-  if (!words || !agentChat.available) return
+  if (!words || !agentChat.available || !agentChat.accessChosen) return
   if (!agentChat.current) newThread()
   const goal = currentThread.value?.goal ?? pendingGoal ?? undefined
   if (!currentThread.value) {
@@ -525,7 +543,7 @@ export async function send(text: string, extra: Record<string, unknown> = {}, se
 /** A turn nobody watches (the Inbox's warm-up): its own session, never a thread of yours, no balloon and nothing in the
  *  circle. Resolves with the agent's last words, or '' when it fails, stops or takes longer than `limit` ms. */
 export async function quietTurn(text: string, extra: Record<string, unknown> = {}, limit = 180_000): Promise<string> {
-  if (!agentChat.available || typeof EventSource === 'undefined') return ''
+  if (!agentChat.available || !agentChat.accessChosen || typeof EventSource === 'undefined') return ''
   const session = crypto.randomUUID()
   const settings = agentChat.selection ?? defaultSelection(load(KEY.lastAgent, 'claude'))
   return new Promise<string>((resolve) => {

@@ -4,6 +4,7 @@ A morning report is only as good as what it read. It reads every source, places 
 
 ## Behaviour
 
+- **Access is chosen once in the app before the first automatic run.** Full access applies to Claude and Codex, including report writing and checking; the checker's instructions still require it to only read. Restricted modes keep their existing tool boundaries. Changing access in the agent menu takes effect on the next turn, including a new Codex process when its tool configuration changes.
 - **Every source, from where the last report stopped.** The report reads each source by its document (`sources.md`) and starts each one at the last report's own cut-off for it.
 - **Everything first, the rows second.** Every request the owner made, in a voice note, a chat or a call, becomes its own item with what comes out of it and who does it; "probably create…" counts as asked. Every other message gets a place too: a task, the Inbox, done by newer news, put off by the owner, context, or a gap. The report's end counts them per source, so a miss shows as a number.
 - **A second agent checks it before it's ready,** with the raw sources and ten checks: every source covered, every input covered, continuity with the last report, the Inbox, the changes allowed, the current state, names, hierarchy and dates, where each item went, the published copy. Each check passes, fails or finds a gap. A gap is never a pass, and a fail sends the report back to be fixed. The checker may run at a lower effort than the report.
