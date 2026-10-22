@@ -2,6 +2,8 @@
 import { defineKnobs, type Knob } from './tuning'
 import { devPaletteFor, rgbaFromHex } from './devPalette'
 import { goalWashAlpha, goalWashInk, NEUTRAL_LIGHT } from './goalColor'
+import { devGoalLayout } from './devGoalLayout'
+import { levelTints } from './familyView'
 
 const ms = (key: string, label: string, value: number, max = 1000): Knob =>
   ({ key, label, value, min: 0, max, step: 10, unit: 'ms' })
@@ -87,6 +89,21 @@ export function goalHoverBackground(color: string | null | undefined): string {
   const wash = card ? rgbaFromHex(card.color, card.opacity)
     : color ? `rgb(${goalWashInk(color).washRgb})` : `rgb(${NEUTRAL_LIGHT.join(', ')})`
   return `color-mix(in srgb, ${wash} var(--vt-goal-wash), var(--color-bg))`
+}
+
+/** A goal card's light as custom properties: its row's hover colour and its family's faint and farthest tints, found
+ *  from its colour (flow 4, lib/familyView.ts). */
+export function goalCardLight(color: string | null | undefined): Record<string, string> {
+  const card = devPaletteFor(color)?.card
+  const [rgb, alpha] = card
+    ? [[1, 3, 5].map((i) => Number.parseInt(card.color.slice(i, i + 2), 16)), card.opacity]
+    : [color ? goalWashInk(color).washRgb.split(',').map(Number) : NEUTRAL_LIGHT, 1]
+  const tints = levelTints(rgb, alpha, Number(devGoalLayout['--kkov-light-tint']), Number(devGoalLayout['--kkov-far-tint']))
+  return {
+    '--goal-hover-background': goalHoverBackground(color),
+    '--goal-faint-tint': String(tints.faint),
+    '--goal-far-tint': String(tints.far),
+  }
 }
 
 /** A goal's checkbox square and its tick. A colourless square reads a shade darker than the add row's (D225). */

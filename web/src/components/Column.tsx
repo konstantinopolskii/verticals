@@ -11,6 +11,7 @@ import { InlineAdd } from './InlineAdd'
 import { FindingSections } from './FindingSections'
 import { CarriedGroup } from './CarriedGroup'
 import { ColumnDots } from './ColumnDots'
+import { DropSlot } from './DropSlot'
 import type { SpanScale } from '../lib/spans'
 import { store } from '../store'
 import { playSound } from '../lib/sound'
@@ -19,7 +20,8 @@ import type { PeriodDirection } from '../lib/periodNavigation'
 import type { GoalCardData, NameForm } from '../types'
 import { filterActive } from '../lib/commandFilter'
 import { reducedMotion } from '../lib/motion'
-import { bindRef, cx, fallthrough, sx } from '../bind'
+import { slideGoals, withSlot, type SlotItem } from '../lib/reorderSlot'
+import { bindRef, cx, fallthrough } from '../bind'
 import { tracked } from '../tracked'
 import { listen, useSetup, withDefaults } from '../setup'
 import './column.css'
@@ -61,9 +63,7 @@ const DEFAULTS = {
   periodKey: null, periodDirection: 1 as PeriodDirection, periodSwapId: 0, span: false, end: '', floating: false, away: false,
 }
 
-type RenderItem =
-  | { kind: 'goal'; key: string; goal: GoalCardData }
-  | { kind: 'slot'; key: '__dnd-placeholder__' | '__dnd-destination__'; settling: boolean }
+type GoalItem = { kind: 'goal'; key: string; goal: GoalCardData }
 
 type SlideState = 'outgoing' | 'incoming' | 'current'
 interface PeriodSlide {
@@ -141,24 +141,6 @@ export const Column = tracked(function Column(raw: Props & Record<string, unknow
     const isSourceSlot = computed(() => isReorderHere.value
       && store.state.drag.sourceVertical === props.vertical
       && (store.state.drag.sourcePeriodKey ?? null) === (props.periodKey ?? null))
-    const indicatorStyle = computed(() => {
-      const drag = store.state.drag
-      if (isSourceSlot.value) return { height: `${drag.slotHeight}px` }
-      return {
-        height: `${drag.previewHeight + drag.tailHeight}px`,
-        marginLeft: `${drag.slotInsetLeft}px`,
-        marginRight: `${drag.slotInsetRight}px`,
-      }
-    })
-    const sourceRowTargetStyle = computed(() => {
-      const drag = store.state.drag
-      return {
-        top: `${drag.slotInsetTop}px`,
-        right: `${drag.slotInsetRight}px`,
-        bottom: `${drag.slotInsetBottom}px`,
-        left: `${drag.slotInsetLeft}px`,
-      }
-    })
 
     let slideId = 0
     function snapshot(state: SlideState): PeriodSlide {
@@ -173,19 +155,10 @@ export const Column = tracked(function Column(raw: Props & Record<string, unknow
       }
     }
 
-    function renderItems(slide: PeriodSlide): RenderItem[] {
-      const items: RenderItem[] = slide.goals.filter(goal => !goal.ghost).map((goal) => ({ kind: 'goal', key: goal.id, goal }))
+    function renderItems(slide: PeriodSlide): (GoalItem | SlotItem)[] {
+      const items = slide.goals.filter(goal => !goal.ghost).map((goal): GoalItem => ({ kind: 'goal', key: goal.id, goal }))
       if (slide.state === 'outgoing' || !isTopLevelReorderHere.value) return items
-      const beforeId = dragSlot.value?.insertBeforeId ?? null
-      const found = beforeId === null
-        ? items.length
-        : items.findIndex((item) => item.kind === 'goal' && item.goal.id === beforeId)
-      items.splice(found < 0 ? items.length : found, 0, {
-        kind: 'slot',
-        key: store.state.drag.settling ? '__dnd-destination__' : '__dnd-placeholder__',
-        settling: store.state.drag.settling !== null,
-      })
-      return items
+      return withSlot(items)
     }
 
     function carriedGoals(slide: PeriodSlide): GoalCardData[] {
@@ -313,33 +286,16 @@ export const Column = tracked(function Column(raw: Props & Record<string, unknow
       if (!isTopLevelReorderHere.value) return undefined
       return dragSlot.value?.insertBeforeId ?? null
     })
-    watch(insertionSlot, async () => {
-      if (reducedMotion()) return // the gap simply opens, the goals below stand where they land
-      const selector = ':scope > [data-role="period-track"] > [data-state]:not([data-state="outgoing"]) [data-goal-id]'
-      const before = new Map(
-        [...(columnRoot.value?.querySelectorAll<HTMLElement>(selector) ?? [])]
-          // A hidden card (a goal's subtasks flying with it) has no place to slide from.
-          .filter((element) => element.getClientRects().length > 0)
-          .map((element) => [element.dataset.goalId, element.getBoundingClientRect().top]),
-      )
-      await nextTick()
-      for (const element of columnRoot.value?.querySelectorAll<HTMLElement>(selector) ?? []) {
-        const oldTop = before.get(element.dataset.goalId)
-        if (oldTop === undefined) continue
-        const delta = oldTop - element.getBoundingClientRect().top
-        if (Math.abs(delta) < 0.5) continue
-        element.animate(
-          [{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }],
-          { duration: 200, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
-        )
-      }
-    })
+    watch(insertionSlot, () => slideGoals(
+      () => columnRoot.value,
+      ':scope > [data-role="period-track"] > [data-state]:not([data-state="outgoing"]) [data-goal-id]',
+    ))
 
     onBeforeUnmount(() => swapAnimation?.cancel())
 
     return {
-      onAdd, onHeaderClick, accessibleName, dragging, pinned, paging, cardProps, isSourceSlot, indicatorStyle,
-      sourceRowTargetStyle, renderItems, carriedGoals, onReplan, columnRoot, periodTrack, slides, onForm, formOf, nameOf,
+      onAdd, onHeaderClick, accessibleName, dragging, pinned, paging, cardProps, isSourceSlot, renderItems,
+      carriedGoals, onReplan, columnRoot, periodTrack, slides, onForm, formOf, nameOf,
       onWords, wordsEnd,
     }
   })
@@ -415,25 +371,7 @@ export const Column = tracked(function Column(raw: Props & Record<string, unknow
                 {carried.length ? <CarriedGroup vertical={vertical} goals={carried} onReplan={s.onReplan} /> : null}
                 <KCardStack dense data-section="planned">
                   {s.renderItems(slide).map((item) => item.kind === 'slot' ? (
-                    <div
-                      key={item.key}
-                      className="pattern-vertical-board__drop-indicator"
-                      data-role={item.settling ? 'drop-destination' : 'drop-indicator'}
-                      data-dnd-placeholder={item.settling ? undefined : ''}
-                      data-dnd-destination={item.settling ? '' : undefined}
-                      data-box={s.isSourceSlot.value ? 'card' : 'row'}
-                      data-tail={store.state.drag.tailHeight || undefined}
-                      aria-hidden="true"
-                      style={sx(s.indicatorStyle.value)}
-                    >
-                      {s.isSourceSlot.value ? (
-                        <div
-                          className="pattern-vertical-board__drop-row-target"
-                          data-role="drop-row-target"
-                          style={sx(s.sourceRowTargetStyle.value)}
-                        />
-                      ) : null}
-                    </div>
+                    <DropSlot key={item.key} settling={item.settling} source={s.isSourceSlot.value} />
                   ) : (
                     <GoalCard key={item.key} {...s.cardProps(item.goal)} />
                   ))}
