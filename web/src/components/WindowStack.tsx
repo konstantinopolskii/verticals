@@ -6,6 +6,7 @@ import { ProgressiveBlur } from './ProgressiveBlur'
 import { GoalWindowBody } from './GoalWindowBody'
 import { PageWindowBody } from './PageWindowBody'
 import { DocWindowBody } from './DocWindowBody'
+import { InstructionsWindowBody } from './InstructionsWindowBody'
 import { WindowHead } from './WindowHead'
 import { agentChat } from '../lib/agentChat'
 import { focusWindow, windows, type VtWindow } from '../lib/windows'
@@ -102,6 +103,8 @@ export const WindowStack = tracked(function WindowStack(attrs: Record<string, un
                     <GoalWindowBody id={win.target} front={front} />
                   ) : win.kind === 'doc' ? (
                     <DocWindowBody id={win.target} part={win.part} />
+                  ) : win.kind === 'instructions' ? (
+                    <InstructionsWindowBody />
                   ) : (
                     <PageWindowBody url={win.target} />
                   )}

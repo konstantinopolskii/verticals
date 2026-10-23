@@ -1,9 +1,10 @@
 /* The agent tag above the field: the agent's mark and a chevron, its menu the agent picker (agent, model, effort, speed,
-   permissions, usage) with "New conversation" on top. */
+   permissions, usage) with "New conversation" and "Instructions" on top. */
 import type { KeyboardEvent } from 'react'
 import { computed, onBeforeUnmount, ref } from '../reactivity'
 import { AppIcon } from './AppIcon'
 import { agentChat, agentOf, assetUrl, choose, loadProbe, newThread, refreshAgents, type ModelChoice, type Probe } from '../lib/agentChat'
+import { openInstructions } from '../lib/agentMemory'
 import { bindRef, fallthrough, sx } from '../bind'
 import { tracked } from '../tracked'
 import { useSetup } from '../setup'
@@ -45,8 +46,12 @@ export const AgentTag = tracked(function AgentTag(attrs: Record<string, unknown>
       agentChat.history = []
       close()
     }
+    function showInstructions(): void {
+      close()
+      openInstructions(root.value)
+    }
     onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside, true))
-    return { open, root, hoverDetail, selection, agent, probe, models, footer, toggle, close, startNew }
+    return { open, root, hoverDetail, selection, agent, probe, models, footer, toggle, close, startNew, showInstructions }
   })
 
   const selection = agentChat.available && s.selection.value
@@ -82,6 +87,9 @@ export const AgentTag = tracked(function AgentTag(attrs: Record<string, unknown>
         <div className="agent-picker vt-shadow vt-shadow--small" role="dialog" aria-label="Agent settings" onKeyDown={onEsc}>
           <button type="button" className="agent-picker__new" data-role="new-conversation" onClick={s.startNew}>
             <AppIcon name="plus" size={14} />{' New conversation '}
+          </button>
+          <button type="button" className="agent-picker__new" data-role="agent-instructions" onClick={s.showInstructions}>
+            <AppIcon name="file" size={14} />{' Instructions '}
           </button>
           <div className="agent-picker__columns">
             <section>

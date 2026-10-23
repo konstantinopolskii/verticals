@@ -1,0 +1,20 @@
+.agent-memory { padding: 8px 48px 48px; color: var(--color-text); font: 400 16px/24px var(--font-body); }
+.agent-memory__lead { margin: 0 0 24px; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); }
+.agent-memory__note { margin: 0; color: rgb(var(--vt-text-rgb, 0 0 0) / 55%); }
+.agent-memory__layer + .agent-memory__layer { margin-top: 40px; }
+.agent-memory__title { margin: 0 0 12px; font: 700 22px/28px var(--font-body); letter-spacing: -.01em; }
+.agent-memory__label { margin: 0 0 8px; color: rgb(var(--vt-text-rgb, 0 0 0) / 45%); font: 500 13px/20px var(--font-body); }
+.agent-memory__yours { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.agent-memory__text { width: 100%; padding: 0; }
+.agent-memory__edit {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font: 500 14px/20px var(--font-body);
+  cursor: pointer;
+}
+.agent-memory__built-in { margin-bottom: 20px; }
+.agent-memory__built-in summary { cursor: pointer; }
+.agent-memory__built-in .agent-memory__text { color: rgb(var(--vt-text-rgb, 0 0 0) / 70%); }

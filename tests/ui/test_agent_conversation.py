@@ -312,6 +312,41 @@ def test_the_morning_turn_gets_its_guide_and_asks_first_whatever_mode_the_chat_i
     assert "Make my morning report" not in log and "Hello" not in log and "Done:" not in log
 
 
+def test_the_memory_shows_after_the_built_in_instructions_and_ends_the_next_turns_prompt(
+    ui_agent: UiSession, tmp_path: Path,
+) -> None:
+    """docs/design/agent-memory.md: Instructions in the agent menu shows each layer's built-in text and the memory after it.
+    Write makes the memory document, and what it says ends the prompt of the agent's next turn."""
+    page = ui_agent.page
+    page.wait_for_selector(".goal-card__row")
+    page.locator(".circle-field__shape").hover()
+    page.locator('[data-tag="agent"]').click()
+    page.locator('[data-role="agent-instructions"]').click()
+    window = page.locator('[data-window="instructions"]')
+    expect(window.locator(".agent-memory__layer")).to_have_count(2)
+    every = window.locator('[data-layer="every"]')
+    expect(every.locator('[data-role="agent-memory-yours"]')).to_contain_text("None yet.")
+    expect(every.locator('[data-role="agent-memory-built-in"]')).to_contain_text('skill "verticals-operator"')
+    every.locator('[data-role="agent-memory-edit"]').click()
+    expect(page.locator('[data-window="doc"]')).to_have_count(1)
+    page.keyboard.press("Escape")
+    with psycopg.connect(ui_agent.backend.dsn, autocommit=True) as conn:
+        doc = core_docs.get_by_path(conn, owner=F2_OWNER, path="memory/AGENTS.md")
+        core_docs.save(conn, owner=F2_OWNER, id=doc.id, expected_revision=doc.revision, body="Answer like a pirate.")
+
+    page.locator(".circle-field__shape").hover()
+    page.locator('[data-tag="agent"]').click()
+    page.locator('[data-role="agent-instructions"]').click()
+    expect(every.locator('[data-role="agent-memory-yours"]')).to_contain_text("Answer like a pirate.")
+    expect(every.locator('[data-role="agent-memory-edit"]')).to_have_text("Edit")
+    page.keyboard.press("Escape")
+    _send(page, "Hello")
+    _answered(page, "Done: Hello")
+    prompt = _flag(_cli_starts(tmp_path)[-1], "--append-system-prompt")
+    assert "## Memory" in prompt and "### memory/AGENTS.md" in prompt
+    assert prompt.rstrip().endswith("Answer like a pirate.")
+
+
 def _morning_tasks(conn: psycopg.Connection) -> list[tuple]:
     """The open "Morning report" tasks of the owner: id, scale, day, author."""
     return conn.execute(

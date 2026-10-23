@@ -19,7 +19,9 @@ launcher has its own ports, database, state directory and UI build.
   `codex app-server`), `mcp_proxy.py` (stdio → HTTP MCP relay for Codex), `prompt-intro.md`
   (the system prompt is this intro plus `.agents/skills/verticals-operator`, read at startup; the morning report's
   turn adds `prompt-morning.md` and `.agents/skills/verticals-morning-report`; `morning_flow.py` runs its turns: the
-  writing one, a second agent's check with `prompt-check.md`, and one fixing turn if a check fails),
+  writing one, a second agent's check with `prompt-check.md`, and one fixing turn if a check fails; the agent's
+  memory, `memory/AGENTS.md` and, in the morning report's turns, `memory/morning-report.md`, ends the prompt,
+  read at every turn and written by the owner and the agent: docs/design/agent-memory.md),
   `ui/assets/` (the agents' and models' marks). The conversation itself is drawn by the app
   (`web/src/lib/agentChat.ts`, `AgentConversation.tsx`). A conversation belongs to a goal when Discuss with agent began
   it, or when the agent makes its first goal in it: the gateway reads the new goal's id from what the `create` tool answers
@@ -255,7 +257,8 @@ To roll back, quit Vertical, move `postgres/` aside, copy a backup to `postgres/
 matching `.dmg` from the release page.
 
 - Chat bar at the bottom (⌘K); the conversation list opens on the left; agent picker with
-  Agent / Model / Effort / Speed / Permissions; Enter queues while the agent works, ⌘Enter sends now.
+  Agent / Model / Effort / Speed / Permissions and Instructions (the built-in text and the agent's memory after it);
+  Enter queues while the agent works, ⌘Enter sends now.
 - Each goal card gets a "discuss" button (on hover, next to the "…" menu) that opens a new
   conversation bound to that goal; the agent receives its id and link with every message.
 - Agents see the screen context and use only the Vertical MCP tools (Claude runs with no built-in

@@ -323,6 +323,8 @@ def make_gateway(token, chat):
                 return self.send_json({"conversations": chat.goal_conversations(goal)})
             if self.command == "GET" and path == "/__chat/sessions":
                 return self.send_json(chat.sessions_state())
+            if self.command == "GET" and path == "/__chat/instructions":
+                return self.send_json(chat.instructions())
             if self.command == "GET" and path == "/__chat/probe":
                 try:
                     return self.send_json(chat.probe(parse_qs(urlparse(self.path).query).get("provider", [""])[0]))
