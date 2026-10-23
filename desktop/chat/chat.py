@@ -543,9 +543,9 @@ class ClaudeAgent:
             args += ["--model", settings["model"]]
         if effort and effort != "default":
             args += ["--effort", "xhigh" if effort == "ultracode" else effort]
-        if rebuild_prompt:
-            # A session that began outside Verticals recorded its own system prompt on its first request, and a resume keeps
-            # that one unless told to build it again (code.claude.com/docs/en/cli-reference, "--system-prompt-snapshot").
+        if resume_id or rebuild_prompt:
+            # A resume otherwise keeps the first request's system prompt. Always rebuild it from the current turn's mode:
+            # a human continuing an unattended report must not inherit its report-only rules (including after a restart).
             args += ["--system-prompt-snapshot", "off"]
         env = child_env()
         env.setdefault("MAX_MCP_OUTPUT_TOKENS", MCP_OUTPUT_TOKENS)
@@ -775,11 +775,20 @@ class CodexAgent:
             result = self.proc.request("thread/start", params)
         self.thread_id = result["thread"]["id"]
         self.session_id = self.thread_id
+        if resume_id and self.thread_id == resume_id:
+            # A resumed rollout still contains its original developer message. Make this turn's instructions visible
+            # after that message too; changing thread configuration alone leaves the old morning rules in its history.
+            try:
+                self.proc.request("thread/inject_items", {"threadId": self.thread_id, "items": [
+                    {"type": "message", "role": "developer", "content": [
+                        {"type": "input_text", "text": params["developerInstructions"]}]}]})
+            except ChatError as e:
+                self.proc.close()
+                raise ChatError("Could not refresh this conversation's instructions. Update Codex and try again.") from e
         s.emit({"t": "ready", "provider": "codex", "model": result.get("model") or settings.get("model")})
 
     def signature(self):
-        # Codex takes model, effort, speed and permissions per turn: only the agent itself matters.
-        return {}
+        return self.signature_of(self.settings)
 
     def send(self, text):
         settings = self.settings = self.s.settings
@@ -1690,7 +1699,9 @@ class Chat:
 
 
 ClaudeAgent.signature_of = staticmethod(lambda settings: settings)
-CodexAgent.signature_of = staticmethod(lambda settings: {})
+# Model, effort, speed and sandbox are per-turn settings. The instructions and available tools are thread settings: when
+# the turn changes between unattended report, check and human work, resume the same thread with the current instructions.
+CodexAgent.signature_of = staticmethod(lambda settings: {key: settings.get(key) for key in ("sources", "role")})
 
 
 def clean_settings(raw):
