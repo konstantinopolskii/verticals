@@ -66,7 +66,7 @@ PROMPT = load_prompt()
 # "Verticals only" keeps a Claude turn to the board; every other permission mode is Claude Code's own: its tools, the
 # owner's MCP servers and the home folder, each action outside Verticals asked in the chat unless the mode allows it.
 BOARD_ONLY = "board"
-ASK_FIRST = "manual"  # Claude Code's mode that asks for every tool it was not told to allow
+ASK_FIRST = "default"  # Claude Code's CLI name for asking about tools not already allowed
 ACCESS_PROMPT = {
     False: "In this conversation Verticals is all you reach: you have no shell, files or web.",
     True: "In this conversation you also have Claude Code's own tools (shell, files, web) and the owner's other MCP "
@@ -531,8 +531,8 @@ class ClaudeAgent:
             report_prompt(getattr(chat, "state_dir", None), self.full) + "\n" + ACCESS_PROMPT[self.full])
         args = [which("claude"), "--print", "--verbose", "--include-partial-messages",
                 "--input-format", "stream-json", "--output-format", "stream-json",
-                "--permission-mode", ASK_FIRST if mode == BOARD_ONLY else mode,
-                "--permission-prompts", "host", "--permission-prompt-tool", "stdio",
+                "--permission-mode", ASK_FIRST if mode in (BOARD_ONLY, "manual") else mode,
+                "--permission-prompt-tool", "stdio",
                 *([] if self.connected or self.full else ["--strict-mcp-config"]), "--mcp-config", str(chat.claude_config(getattr(s, "id", None))),
                 "--settings", json.dumps(claude_settings),
                 *(["--add-dir", str(Path.home())] if self.full else ["--tools", ""]),
