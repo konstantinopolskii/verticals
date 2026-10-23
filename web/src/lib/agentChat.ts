@@ -256,6 +256,12 @@ export function choose(change: Partial<Selection>): void {
 
 export async function refreshAgents(): Promise<void> {
   try {
+    const saved = await api<{ threads: Thread[] }>('quick-entry-sessions')
+    const known = new Set(agentChat.threads.map((thread) => thread.id))
+    agentChat.threads = [...saved.threads.filter((thread) => !known.has(thread.id)), ...agentChat.threads]
+    saveThreads()
+  } catch { /* Web-only and older gateways have no Quick Entry. */ }
+  try {
     const { agents } = await api<{ agents?: unknown }>('agents')
     agentChat.agents = Array.isArray(agents) ? agents as AgentInfo[] : []
   } catch {
@@ -581,3 +587,16 @@ export async function startAgentChat(): Promise<void> {
   void refreshAnswers()
   openThread(agentChat.current ?? crypto.randomUUID())
 }
+
+// Native Quick Entry opens the conversation belonging to its newly created task.
+window.addEventListener('verticals-quick-entry', ((event: CustomEvent) => {
+  const { result, text, selection } = event.detail
+  if (!result?.session) return
+  const thread: Thread = { id: result.session, title: text.slice(0, 80),
+    provider: selection?.provider ?? 'claude', updatedAt: Date.now(), status: 'working',
+    ...(result.goal ? { goal: { id: result.goal, title: result.title ?? text.slice(0, 250) } } : {}),
+    ...(selection ? { selection } : {}) }
+  agentChat.threads = [thread, ...agentChat.threads.filter((item) => item.id !== thread.id)]
+  saveThreads()
+  openThread(thread.id, thread.goal ?? null, thread.provider)
+}) as EventListener)

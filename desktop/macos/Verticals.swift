@@ -8,10 +8,12 @@ import Cocoa
 import ServiceManagement
 import WebKit
 
-let uiURL = URL(string: "http://127.0.0.1:8288/")!
-let healthURL = URL(string: "http://127.0.0.1:8288/healthz")!
-let busyURL = URL(string: "http://127.0.0.1:8288/__chat/busy")!
-let mcpURL = "http://127.0.0.1:8281/mcp"
+let uiPort = UserDefaults.standard.integer(forKey: "UIPort") == 0 ? 8288 : UserDefaults.standard.integer(forKey: "UIPort")
+let uiURL = URL(string: "http://127.0.0.1:\(uiPort)/")!
+let healthURL = uiURL.appendingPathComponent("healthz")
+let busyURL = uiURL.appendingPathComponent("__chat/busy")
+let mcpPort = UserDefaults.standard.integer(forKey: "MCPPort") == 0 ? 8281 : UserDefaults.standard.integer(forKey: "MCPPort")
+let mcpURL = "http://127.0.0.1:\(mcpPort)/mcp"
 // `-ReleasesAPI <url>` on the command line points the updater elsewhere (tests).
 let releasesAPI = URL(string: UserDefaults.standard.string(forKey: "ReleasesAPI")
     ?? "https://api.github.com/repos/konstantinopolskii/verticals/releases/latest")!
@@ -42,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     var indicator: UpdateIndicator!
     var relaunching = false
     var tray: NSStatusItem!
+    var quickEntry: QuickEntry!
     var serving = false
     // Opened at login or relaunched by an update made while the window was closed: menu bar only.
     var startHidden = false
@@ -140,6 +143,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         healthy { up in
             if up { self.showUI() } else { self.startBackend() }
         }
+        quickEntry = QuickEntry(state: stateDir, base: uiURL, web: webView)
+        quickEntry.openMain = { [weak self] in self?.showWindow(nil) }
         indicator = UpdateIndicator(window: window, updater: updater)
         indicator.restart = { [unowned self] in restartToUpdate() }
         indicator.cancelRestart = { [unowned self] in
@@ -179,6 +184,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         var env = ProcessInfo.processInfo.environment.merging(agentEnvironment) { _, chosen in chosen }
         env["PATH"] = agentPath
         env["VERTICALS_DESKTOP_STATE"] = stateDir.path
+        for (setting, variable) in [("UIPort", "UI"), ("APIPort", "API"), ("MCPPort", "MCP"), ("PGPort", "PG")] {
+            let port = UserDefaults.standard.integer(forKey: setting)
+            if port > 0 { env["VERTICALS_DESKTOP_\(variable)_PORT"] = String(port) }
+        }
         env["VERTICALS_DESKTOP_PYTHONPATH"] = "\(res):\(res)/site"
         env["VERTICALS_PG_BIN"] = (try? String(contentsOf: resources.appendingPathComponent("pg/BINDIR"), encoding: .utf8))
             .map { "\(res)/pg/" + $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
@@ -228,6 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     func showUI() {
+        quickEntry?.loadIfNeeded()
         serving = true
         tray.button?.appearsDisabled = false
         status.isHidden = true
@@ -376,6 +386,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         installWhenIdle()
     }
 
+    @objc func showQuickEntry(_ sender: Any?) { quickEntry?.show() }
+
     @objc func showWindow(_ sender: Any?) {
         NSApp.setActivationPolicy(.regular)
         window.makeKeyAndOrderFront(nil)
@@ -417,6 +429,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             return i
         }
         menu.addItem(item("Open Verticals", #selector(showWindow(_:))))
+        menu.addItem(item("Quick Entry", #selector(showQuickEntry(_:))))
         menu.addItem(.separator())
         let state = item(serving ? "Board and MCP are running" : backend?.isRunning == true ? "Starting…" : "Stopped, see app.log", nil)
         state.isEnabled = false

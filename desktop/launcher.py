@@ -227,6 +227,8 @@ def framable(url):
 
 
 def make_gateway(token, chat):
+    from quick_entry import QuickEntry
+    quick_entry = QuickEntry(STATE, chat)
     class Gateway(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -309,6 +311,10 @@ def make_gateway(token, chat):
                 return self.static(asset)
             if not self.allowed():
                 return
+            if self.command == "GET" and path == "/__chat/quick-entry-sessions":
+                return self.send_json({"threads": quick_entry.conversations()})
+            if self.command == "GET" and path == "/__chat/quick-entry-binding":
+                return self.send_json(quick_entry.binding())
             if self.command == "GET" and path == "/__chat/events":
                 return self.chat_events()
             if self.command == "GET" and path == "/__chat/agents":
@@ -333,6 +339,10 @@ def make_gateway(token, chat):
             try:
                 body = self.json_body()
                 action = path.removeprefix("/__chat/")
+                if action == "quick-entry-binding":
+                    return self.send_json(quick_entry.binding(body.get("binding")))
+                if action == "quick-entry":
+                    return self.send_json(quick_entry.capture(body))
                 if action == "send":
                     chat.send(body.get("session"), body.get("text"), body.get("context"), body.get("settings"),
                               "now" if body.get("mode") == "now" else "send")
@@ -409,7 +419,7 @@ def make_gateway(token, chat):
             self.send_response(200)
             self.send_header("Content-Type", TYPES.get(path.suffix, "application/octet-stream"))
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "no-store" if path.name == "index.html"
+            self.send_header("Cache-Control", "no-store" if path.suffix == ".html"
                              else "public, max-age=31536000, immutable")
             self.end_headers()
             if self.command != "HEAD":
@@ -549,6 +559,11 @@ def main():
         threading.Thread(target=gateway.serve_forever, daemon=True).start()
         running["gateway"] = gateway  # only a served server can be shut down; before that shutdown() would wait forever
         wait_healthy()
+        from quick_entry import QuickEntry
+        try:
+            QuickEntry(STATE, chat).onboard()
+        except (ChatError, OSError):
+            log("Quick Entry onboarding will retry on the next launch")
         write_mcp_config(cfg["token"])
         print(f"\nVerticals desktop is up\n  UI:  http://127.0.0.1:{UI_PORT}/\n  {mcp_instructions()}\n"
               f"Ctrl-C stops everything; data stays in {STATE}.\n", flush=True)

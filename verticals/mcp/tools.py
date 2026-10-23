@@ -60,6 +60,7 @@ from verticals.mcp import due_ack as mcp_due_ack
 from verticals.mcp import evidence as mcp_evidence
 from verticals.mcp import park as mcp_park
 from verticals.mcp import privacy as mcp_privacy
+from verticals.mcp import quick_entry as mcp_quick_entry
 from verticals.mcp import session as mcp_session
 from verticals.mcp import sizes as mcp_sizes
 from verticals.mcp import sources as mcp_sources
@@ -108,7 +109,7 @@ TOOLS: tuple[types.Tool, ...] = (
     types.Tool(name="schedule", description="Set or clear a goal's vertical and anchor date.", input_schema=SCHEDULE_SCHEMA),
     types.Tool(name="reparent", description="Move a goal under a new parent, or detach it to the root.", input_schema=REPARENT_SCHEMA),
     types.Tool(name="delete", description="Remove a goal. Refuses a non-empty subtree unless cascade is true.", input_schema=DELETE_SCHEMA),
-) + mcp_evidence.TOOLS + mcp_park.TOOLS + mcp_tags.TOOLS + mcp_sizes.TOOLS + mcp_due_ack.TOOLS + mcp_docs.TOOLS + mcp_comments.TOOLS + mcp_privacy.TOOLS + mcp_session.TOOLS + mcp_sources.TOOLS
+) + mcp_evidence.TOOLS + mcp_park.TOOLS + mcp_tags.TOOLS + mcp_sizes.TOOLS + mcp_due_ack.TOOLS + mcp_docs.TOOLS + mcp_comments.TOOLS + mcp_privacy.TOOLS + mcp_session.TOOLS + mcp_sources.TOOLS + mcp_quick_entry.TOOLS
 
 _SCHEMAS: dict[str, dict[str, Any]] = {t.name: t.input_schema for t in TOOLS}
 
@@ -659,7 +660,7 @@ _HANDLERS: dict[str, Any] = {
     "source": mcp_sources.handle_source,
 }
 # Handlers that are also told where the desktop app is (`Config.gateway_url`): the link of a session to a task is the app's to keep.
-_GATEWAY_HANDLERS: dict[str, Any] = {"session_link": mcp_session.handle_session_link}
+_GATEWAY_HANDLERS: dict[str, Any] = {"session_link": mcp_session.handle_session_link, "quick_entry_binding": mcp_quick_entry.handle}
 
 
 # --- entrypoint --------------------------------------------------------------------------------

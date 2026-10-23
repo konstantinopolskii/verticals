@@ -33,6 +33,7 @@ export default defineConfig(({ mode }) => {
     build: {
       // Keep the artifact deterministic and easy to serve statically (nginx, WP-29).
       outDir: 'dist',
+      rollupOptions: { input: { main: 'index.html', quickEntry: 'quick-entry.html' } },
       assetsDir: 'assets',
     },
     server: { proxy },

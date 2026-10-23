@@ -1228,13 +1228,14 @@ class Chat:
                 "movedAt": max(turn, stat[1] if stat else 0), "outside": outside,
                 "working": bool(live and live.running) or (outside and bool(stat) and now - stat[1] < agent_sessions.WORKING_SECONDS)}
 
-    def api(self, method, path, body=None, timeout=20):
+    def api(self, method, path, body=None, timeout=20, idempotency_key=None):
         """One call to the Verticals API as the owner's app, answered as JSON. Raises ChatError with what the server said."""
         if not self.api_url:
             raise ChatError("The Verticals API is not known to the gateway")
         request = urllib.request.Request(
             self.api_url + path, method=method, data=None if body is None else json.dumps(body).encode(),
-            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"})
+            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json",
+                     **({"Idempotency-Key": idempotency_key} if idempotency_key else {})})
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.loads(response.read() or b"{}")

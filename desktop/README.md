@@ -325,3 +325,15 @@ MVP. Codex support follows the `app-server` protocol. Verified with Codex CLI
 and a read-only board query returning sample goals through the local MCP relay. This checks
 the backend flow; it does not establish every provider/model or packaged-app combination.
 No Developer ID signing or notarization yet.
+
+## Quick Entry
+
+Press Command+Shift+Space to open a small black field above another application. The bubble shares SearchBar’s CSS and Commissioner font. Return saves an undated Inbox task and returns focus; ⌘Return creates a task, opens it in the same app and starts a linked agent conversation. Shift+Return adds a line. There are no action buttons. Escape discards input. Failed submissions keep the text.
+
+Command+Shift+Space is the only default shortcut and uses Carbon without Accessibility permission. The tray’s Quick Entry command is also available. A custom modifier-only binding requires Accessibility; the app never prompts automatically.
+
+Ask the agent to change the binding using `quick_entry_binding`; no binding settings are shown in the UI. Read with no arguments, or set `binding` to `cmd+shift+key:49`, `fn`, `key:49` (Space), or a macOS virtual key code prefixed with `ctrl+`, `alt+`, `shift+`, `cmd+`. Native registration is acknowledged, persisted, and the previous binding is retained on failure. Registration cannot prove that no other app also observes the gesture.
+
+For an isolated native test copy, give it its own bundle identifier and set its defaults `StateDir`, `UIPort`, `APIPort`, `MCPPort`, and `PGPort`; the native launcher forwards the ports to its bundled backend. Point `ReleasesAPI` at an inert local URL to keep test copies out of release updates.
+
+On first launch, a single Inbox task explains Quick Entry and changing the binding through the agent in that task. A saved marker keeps completed or deleted onboarding from returning.

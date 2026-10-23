@@ -1,0 +1,19 @@
+html, body { background: transparent !important; margin: 0; overflow: hidden; }
+.quick-entry.circle-field { position: relative; left: auto; bottom: auto; transform: none; width: 100%; }
+.quick-entry .circle-field__shape { width: 100%; height: 84px; cursor: text; transition: none; }
+.quick-entry .circle-field__words { right: 32px; opacity: 1; transition: none; }
+.quick-entry .circle-field__words textarea { caret-color: white; cursor: text; overflow-y: auto; }
+.quick-entry textarea::placeholder { color: rgb(255 255 255 / 50%); }
+
+.quick-entry__feedback { position: absolute; inset: 24px 32px; display: none; align-items: center; gap: 20px; color: #fff; }
+.quick-entry__status { margin: 0; font: 400 28px/36px var(--font-body); overflow-wrap: anywhere; }
+.quick-entry:is([data-phase='working'], [data-phase='success']) .quick-entry__feedback { display: flex; }
+.quick-entry:is([data-phase='working'], [data-phase='success']) .circle-field__words { opacity: 0; pointer-events: none; }
+.quick-entry[data-phase='error'] .quick-entry__feedback { display: block; inset: auto 32px 16px; }
+.quick-entry[data-phase='error'] .quick-entry__status { font: 400 14px/20px var(--font-body); }
+
+.quick-entry[data-phase='success'] .quick-entry__status { animation: quick-entry-confirm 100ms var(--ease-out); }
+@keyframes quick-entry-confirm { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .quick-entry[data-phase='success'] .quick-entry__status { animation: none; }
+}
