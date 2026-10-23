@@ -532,7 +532,13 @@ export async function quietTurn(text: string, extra: Record<string, unknown> = {
     let words = ''
     let fresh = false
     const events = new EventSource(`/__chat/events?session=${encodeURIComponent(session)}&since=0&boot=`)
-    const finish = (value: string) => { events.close(); clearTimeout(timer); resolve(value) }
+    // Nobody comes back to this session: its agent is closed as soon as its answer is in.
+    const finish = (value: string) => {
+      events.close()
+      clearTimeout(timer)
+      void api('reset', { session }).catch(() => undefined)
+      resolve(value)
+    }
     // Asked for a permission nobody will see, or too slow: stopped, so it never waits in the background.
     const abandon = () => { void api('stop', { session }).catch(() => undefined); finish('') }
     const timer = setTimeout(abandon, limit)

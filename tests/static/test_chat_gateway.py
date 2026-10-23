@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import types
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -548,6 +549,41 @@ def test_a_goal_made_in_a_conversation_survives_the_gateway_starting_again(scrat
         assert [c["session"] for c in second.goal_conversations("SYN00001")] == [SESSION]
     finally:
         second.shutdown()
+
+
+class _Agent:
+    provider = "claude"
+
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def test_an_agent_no_turn_used_for_ten_minutes_is_closed_and_a_busy_one_is_not(scratch_dir) -> None:
+    """Each conversation's agent is a CLI process that held its memory until the app quit: every Inbox warm-up and every Check
+    again left one more. One idle for `IDLE_SECONDS` is closed now, and the moment is kept with the conversation (close_agent)."""
+    chat = _chat()
+    gateway = chat.Chat(scratch_dir, "http://127.0.0.1:9/mcp", "tok", watch_every=0)
+    try:
+        gateway.update(SESSION, provider="claude")
+        idle, busy, asking = gateway.session(SESSION), gateway.session(OTHER_SESSION), gateway.session(str(uuid.uuid4()))
+        for s in (idle, busy, asking):
+            s.agent, s.ended_at = _Agent(), 1000.0
+        agents = [idle.agent, busy.agent, asking.agent]
+        busy.running = True
+        asking.asks["1"] = asking.agent
+
+        gateway.close_idle(now=1000.0 + chat.IDLE_SECONDS - 1)
+        assert not any(a.closed for a in agents) and idle.agent is agents[0]
+
+        gateway.close_idle(now=1000.0 + chat.IDLE_SECONDS)
+        assert agents[0].closed and idle.agent is None and gateway.load()[SESSION]["closedAt"]
+        assert not agents[1].closed and not agents[2].closed
+    finally:
+        gateway.shutdown()
+    assert "agent_idle_close provider=claude" in (scratch_dir / "agent.log").read_text()
 
 
 def test_the_agent_is_told_to_link_what_it_made_and_to_name_the_rest_by_title() -> None:

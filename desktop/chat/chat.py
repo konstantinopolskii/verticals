@@ -233,6 +233,7 @@ def closes_only(tool_input):
 MAX_EVENTS = 5000
 WATCH_SECONDS = 2  # how often the files of the sessions of tasks are looked at (a stat each)
 MISSING_SECONDS = 20  # how long a session with no file is left alone before it is searched for again
+IDLE_SECONDS = 600  # how long an agent waits for the next message before it is closed; the next one resumes its session
 HANDOFF_CHARS = 12000
 # Parent-session variables must not leak into the agents (credentials excepted).
 ENV_KEEP = {"CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_USE_BEDROCK",
@@ -953,6 +954,8 @@ class Session:
         self.reply = ""                  # text of the agent's current reply, for handoffs
         self.tools = {}                  # tool call id -> (name, input) until its result comes
         self.answer = None               # id of the answer the running turn is: what its writes are kept under
+        self.ended_at = 0.0              # when the last turn ended: an agent idle since then for long is closed
+        self.gate = threading.Lock()     # a turn starting and an idle agent closing: one at a time
 
     # -- events
 
@@ -1022,7 +1025,7 @@ class Session:
         self.tools.clear()
         ms = int((time.time() - (self.started_at or time.time())) * 1000)
         self.chat.record(self.id, "assistant", self.reply)
-        at = time.time()
+        at = self.ended_at = time.time()
         self.chat.update(self.id, lastTurnAt=at)
         answer, self.answer = self.answer, None
         # The answer ends at the MCP server before the page is told: it asks for the answer as soon as it hears of its end.
@@ -1290,12 +1293,29 @@ class Chat:
                 self.update(key, seen=now_seen, outside=True)
                 self.log.info("outside provider=%s session=%s", entry["provider"], str(key)[:8])
 
+    def close_idle(self, now=None):
+        """Closes the agents no turn has used for `IDLE_SECONDS`: each one is a CLI process holding its memory until the app quits.
+        The next message of the conversation starts its agent again from the session's file (`start_turn`)."""
+        now = time.time() if now is None else now
+        for s in list(self.sessions.values()):
+            with s.gate:
+                if s.agent is None or s.running or s.asks or s.flow is not None or self.signin.holds(s.id):
+                    continue
+                if now - max(s.started_at or 0, s.ended_at) < IDLE_SECONDS:
+                    continue
+                self.log.info("agent_idle_close provider=%s session=%s", s.agent.provider, str(s.id)[:8])
+                self.close_agent(s)
+
     def _watch(self, every):
         while not self.stopping.wait(every):
             try:
                 self.look()
             except Exception as e:  # noqa: BLE001 - one bad file must not stop the watch
                 self.log.warning("look_failed %s", clip(e))
+            try:
+                self.close_idle()
+            except Exception as e:  # noqa: BLE001 - the watch goes on
+                self.log.warning("idle_close_failed %s", clip(e))
 
     def link_session(self, goal, provider, session=None, cwd=None):
         """A session begun in Claude or Codex, tied to a task by the agent that is in it (the link tool,
@@ -1542,7 +1562,8 @@ class Chat:
         # A later turn of the morning report (the fixing turn, `stage`) goes on with the answer the ask began: its writes join
         # that answer, which ends when the report is told (docs/design/morning-quality.md: the whole morning's changes are
         # taken back at once from the report's answer).
-        s.running, s.reply = True, ""
+        with s.gate:
+            s.running, s.reply = True, ""
         if stage is None:
             s.turn = (text, context, settings)
             s.started_at = time.time()
