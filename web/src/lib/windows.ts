@@ -4,7 +4,7 @@
 import { computed, reactive } from '../reactivity'
 import { agentChat } from './agentChat'
 
-export type WindowKind = 'goal' | 'doc' | 'page'
+export type WindowKind = 'goal' | 'doc' | 'page' | 'instructions'
 export interface VtWindow {
   key: string
   kind: WindowKind

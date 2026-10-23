@@ -621,6 +621,119 @@ def test_a_morning_ask_nobody_answers_is_declined_and_a_chats_ask_waits(scratch_
     assert "morning ask unanswered" in (scratch_dir / "agent.log").read_text()
 
 
+def _memory_gateway(chat, scratch_dir, docs):
+    """A gateway whose API holds the documents `docs` ({path: body}), as `GET /api/docs` and `GET /api/docs/{id}` answer."""
+    gateway = chat.Chat(scratch_dir, "http://127.0.0.1:9/mcp", "tok", api_url="http://127.0.0.1:9", watch_every=0)
+    ids = {f"DOC{i:05d}": (path, body) for i, (path, body) in enumerate(docs.items())}
+
+    def api(method, path, body=None, timeout=20):
+        if path == "/api/docs":
+            return {"docs": [{"id": id, "path": p} for id, (p, _) in ids.items()]}
+        return {"body": ids[path.rsplit("/", 1)[1]][1]}
+
+    gateway.api = api
+    return gateway
+
+
+def test_the_memory_comes_after_the_built_in_instructions_and_only_the_morning_turn_reads_its_own(scratch_dir) -> None:
+    """docs/design/agent-memory.md: the built-in instructions stay in the app, and every release updates them; the memory
+    documents are added after them, every conversation's always and the morning report's in its turns only."""
+    chat = _chat()
+    gateway = _memory_gateway(chat, scratch_dir, {chat.EVERY_MEMORY: "Answer like a pirate.",
+                                                 chat.MORNING_MEMORY: "Leave password notices out.", "notes/other.md": "Not memory."})
+    try:
+        every = gateway.owner_memory({"provider": "claude"})
+        morning = gateway.owner_memory({"provider": "claude", "sources": "connected"})
+        assert every.startswith("## Memory") and "### memory/AGENTS.md\n\nAnswer like a pirate." in every
+        assert "password" not in every and "Not memory." not in every
+        assert every.rstrip() in morning and morning.rstrip().endswith("Leave password notices out.")
+        layers = {layer["id"]: layer for layer in gateway.instructions()["layers"]}
+        assert layers["every"]["builtIn"] == chat.PROMPT and layers["morning"]["builtIn"] == chat.MORNING_PROMPT
+        assert layers["every"]["memory"]["body"] == "Answer like a pirate." and layers["every"]["memory"]["path"] == chat.EVERY_MEMORY
+    finally:
+        gateway.shutdown()
+    empty = _memory_gateway(chat, scratch_dir, {})
+    try:
+        assert empty.owner_memory({"provider": "claude"}) == ""
+        assert {layer["memory"]["id"] for layer in empty.instructions()["layers"]} == {None}
+    finally:
+        empty.shutdown()
+
+
+def test_a_conversation_resumed_after_the_memory_changed_renders_its_prompt_again(scratch_dir) -> None:
+    """Claude keeps the prompt a conversation recorded first, on every resume: with a new memory it is told to render it again."""
+    chat = _chat()
+    started = []
+
+    class _Started:
+        provider, session_id = "claude", "11111111-1111-4111-8111-111111111111"
+
+        def __init__(self, chat_, s, settings, resume, cwd=None, rebuild_prompt=False):
+            started.append((resume, rebuild_prompt))
+            self.settings = settings
+
+        def send(self, text):
+            pass
+
+        def close(self):
+            pass
+
+    chat.AGENT_CLASSES["claude"] = _Started
+    chat.which = lambda provider: "claude"
+    gateway = _memory_gateway(chat, scratch_dir, {chat.EVERY_MEMORY: "Answer like a pirate."})
+    gateway.open_answer = lambda *a: None
+    try:
+        gateway.update(SESSION, provider="claude", sessionId=_Started.session_id, memoryHash=chat.NO_MEMORY)
+        s = gateway.session(SESSION)
+        gateway.start_turn(s, "Hello", {}, chat.clean_settings({}))
+        s.running, s.agent = False, None
+        gateway.start_turn(s, "Again", {}, chat.clean_settings({}))
+        assert started == [(_Started.session_id, True), (_Started.session_id, False)]
+    finally:
+        gateway.shutdown()
+
+
+def test_the_agent_writes_its_memory_without_asking_and_nothing_else(scratch_dir) -> None:
+    """docs/design/agent-memory.md: making or editing a memory document runs without a question, in a chat and in a morning
+    turn; any other document, a move out of memory, or the second agent's write is put to the owner or declined."""
+    chat = _chat()
+    gateway = _memory_gateway(chat, scratch_dir, {chat.EVERY_MEMORY: "Answer like a pirate.", "notes/other.md": "Not memory."})
+    try:
+        assert gateway.memory_write("doc_create", {"path": chat.MORNING_MEMORY})
+        assert gateway.memory_write("doc_save", {"id": "DOC00000", "expected_revision": 1, "body": "Answer briefly."})
+        assert not gateway.memory_write("doc_save", {"id": "DOC00000", "expected_revision": 1, "path": "notes/kept.md"})
+        assert not gateway.memory_write("doc_save", {"id": "DOC00001", "expected_revision": 1, "body": "x"})
+        assert not gateway.memory_write("doc_create", {"path": "notes/new.md"})
+        assert not gateway.memory_write("doc_delete", {"id": "DOC00000"})
+    finally:
+        gateway.shutdown()
+    chat.JsonProcess, chat.which = _Proc, lambda provider: "claude"
+    host = types.SimpleNamespace(claude_config=lambda session_id=None: Path("mcp.json"), workdir=Path("."), log=None,
+                                 memory_write=lambda tool, args: args.get("path") == chat.EVERY_MEMORY)
+    for settings, decided in (({}, "allow"), ({"sources": "connected", "role": "checker"}, "deny")):
+        s = _Session()
+        agent = chat.ClaudeAgent(host, s, {**chat.clean_settings({}), **settings}, None)
+        agent.handle({"type": "control_request", "request_id": "r1", "request": {
+            "subtype": "can_use_tool", "tool_name": "mcp__verticals__doc_create", "input": {"path": chat.EVERY_MEMORY}}})
+        assert agent.proc.sent[-1]["response"]["response"]["behavior"] == decided
+    s = _Session()
+    agent = chat.ClaudeAgent(host, s, chat.clean_settings({}), None)
+    agent.handle({"type": "control_request", "request_id": "r2", "request": {
+        "subtype": "can_use_tool", "tool_name": "mcp__verticals__doc_create", "input": {"path": "notes/new.md"}}})
+    assert s.asked
+
+
+def test_the_memory_ends_claudes_prompt_and_a_new_one_starts_codex_again() -> None:
+    chat = _chat()
+    chat.JsonProcess, chat.which = _Proc, lambda provider: "claude"
+    host = types.SimpleNamespace(claude_config=lambda session_id=None: Path("mcp.json"), workdir=Path("."), log=None)
+    memory = "## Memory\n\nAnswer like a pirate.\n"
+    prompt = _system_prompt(chat.ClaudeAgent(host, _Session(), {**chat.clean_settings({}), "memory": memory}, None))
+    assert prompt.startswith(chat.PROMPT) and prompt.endswith(memory)
+    assert chat.codex_instructions({"memory": "Answer like a pirate."}).endswith("Answer like a pirate.")
+    assert chat.CodexAgent.signature_of({"memory": "a"}) != chat.CodexAgent.signature_of({"memory": "b"})
+
+
 def test_the_agent_is_told_to_link_what_it_made_and_to_name_the_rest_by_title() -> None:
     """docs/design/agent-chips.md: the chips come from the links in the agent's words, so the agent links what it made or
     changed, each on a line of its own, and names any other goal by its title."""

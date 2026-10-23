@@ -108,6 +108,23 @@ def load_check_prompt():
 MORNING_PROMPT = load_morning_prompt()
 CHECK_PROMPT = load_check_prompt()
 
+# The agent's memory (docs/design/agent-memory.md): the owner's settings and what the agent learned from them, a document
+# each, read at every turn and added after the built-in text, which stays in the app and is never a document. Every
+# conversation, then the morning report's turns. The agent writes these two without asking; the owner edits them too.
+EVERY_MEMORY = "memory/AGENTS.md"
+MORNING_MEMORY = "memory/morning-report.md"
+MEMORY = (EVERY_MEMORY, MORNING_MEMORY)
+NO_MEMORY = hashlib.sha256(b"").hexdigest()[:16]
+
+
+def memory_text(memory):
+    """The memory documents as the end of an agent's prompt: after everything built in, and above it where they differ."""
+    parts = [f"### {path}\n\n{body.strip()}" for path, body in memory if body.strip()]
+    if not parts:
+        return ""
+    return ("## Memory\n\nThe owner's settings and what you learned in earlier conversations. They come after everything "
+            "above and win wherever they differ from it.\n\n" + "\n\n".join(parts) + "\n")
+
 
 # ---------------------------------------------------------------- reports (docs/design/bug-reports.md)
 
@@ -538,7 +555,7 @@ class ClaudeAgent:
                 "--settings", json.dumps(claude_settings),
                 *(["--add-dir", str(Path.home())] if self.full else ["--tools", ""]),
                 "--allowedTools", ",".join(self.allowed),
-                *system_prompt_args(chat, prompt if prompt is not None else PROMPT + "\n" + brief),
+                *system_prompt_args(chat, prompt if prompt is not None else PROMPT + "\n" + brief + settings.get("memory", "")),
                 "--resume" if resume_id else "--session-id", self.session_id]
         if settings.get("model") and settings["model"] != "default":
             args += ["--model", settings["model"]]
@@ -610,6 +627,11 @@ class ClaudeAgent:
             req, rid = msg["request"], msg.get("request_id")
             tool, tool_input = req.get("tool_name", ""), req.get("input", {})
             self.pending[rid] = tool_input
+            # A write to the agent's memory runs without a question. A morning turn's writer may write documents anyway, and
+            # the second agent writes nothing.
+            if not self.connected and tool in ("mcp__verticals__doc_create", "mcp__verticals__doc_save") \
+                    and self.chat.memory_write(short(tool), tool_input):
+                return self.decide(rid, "accept")
             if self.connected:
                 # Every MCP tool of a morning turn comes here (`MORNING_ASKS`). What the seat may run is what is on its command
                 # line: Verticals' reading tools, the tools its approved sources declare, and for the agent that writes the
@@ -668,6 +690,7 @@ def codex_instructions(settings, state_dir=None):
     the reports' instructions), and Verticals under the name Codex knows its server by."""
     morning = CHECK_PROMPT if settings.get("role") == CHECKER else MORNING_PROMPT
     text = PROMPT + ("\n" + morning if settings.get("sources") == CONNECTED else "\n" + report_prompt(state_dir))
+    text += settings.get("memory", "")
     return text.replace('server "verticals"', 'server "verticals_desktop"')
 
 
@@ -742,6 +765,7 @@ class CodexAgent:
 
     def __init__(self, chat, s, settings, resume_id, cwd=None, rebuild_prompt=False):
         self.chat, self.s, self.settings = chat, s, settings
+        self.memory = settings.get("memory", "")  # given once, with the thread's instructions: new memory starts the agent again
         self.cwd = cwd or agent_workdir(chat, settings.get("sources") == CONNECTED)  # `rebuild_prompt` is Claude's: Codex is given its instructions at every thread/resume
         self.thread_id, self.turn_id = None, None
         self.approvals = {}      # request id -> [(label, response)]
@@ -779,8 +803,8 @@ class CodexAgent:
         s.emit({"t": "ready", "provider": "codex", "model": result.get("model") or settings.get("model")})
 
     def signature(self):
-        # Codex takes model, effort, speed and permissions per turn: only the agent itself matters.
-        return {}
+        # Codex takes model, effort, speed and permissions per turn: only the agent itself and its memory matter.
+        return {"memory": self.memory}
 
     def send(self, text):
         settings = self.settings = self.s.settings
@@ -890,8 +914,12 @@ class CodexAgent:
                 (call.get("server") == "verticals_desktop" and call.get("tool") in allowed)
                 or f"mcp__{call.get('server')}__{call.get('tool')}" in self.reads for call in candidates)
             full = self.settings.get("permission") == "full-access" and self.settings.get("role") != CHECKER
+            memory = self.settings.get("role") != CHECKER and candidates and all(
+                call.get("server") == "verticals_desktop" and call.get("tool") in ("doc_create", "doc_save")
+                and self.chat.memory_write(call.get("tool"), call.get("arguments") or {})
+                for call in candidates)
             if (p.get("mode") == "form" and meta.get("codex_approval_kind") == "mcp_tool_call"
-                    and (full or morning_read)):
+                    and (full or morning_read or memory)):
                 return self.proc.reply(rid, {"action": "accept", "content": {}, "_meta": None})
             options = [("Allow once", {"action": "accept", "content": {}, "_meta": None})]
             options += [("Allow for this session" if k == "session" else "Always allow",
@@ -1247,6 +1275,40 @@ class Chat:
         except (OSError, ValueError) as e:
             raise ChatError(f"{method} {path.split('?')[0]}: {e}") from e
 
+    def memory_docs(self):
+        """The memory documents by path, as `{path: {"id", "body"}}`; a path with no document is left out. Nothing when
+        the server cannot be asked: the turn goes on with the built-in instructions."""
+        try:
+            docs = {d["path"]: d["id"] for d in self.api("GET", "/api/docs", timeout=5).get("docs", [])
+                    if d.get("path") in MEMORY}
+            return {path: {"id": id, "body": self.api("GET", f"/api/docs/{id}", timeout=5).get("body") or ""}
+                    for path, id in docs.items()}
+        except ChatError as e:
+            self.log.warning("memory_unread %s", clip(e))
+            return {}
+
+    def owner_memory(self, settings):
+        if not self.api_url:
+            return ""
+        docs = self.memory_docs()
+        paths = [EVERY_MEMORY] + ([MORNING_MEMORY] if settings.get("sources") == CONNECTED else [])
+        return memory_text([(path, docs[path]["body"]) for path in paths if path in docs])
+
+    def memory_write(self, tool, args):
+        """Whether a Verticals write only makes or edits a memory document, which the agent does without asking."""
+        if tool == "doc_create":
+            return args.get("path") in MEMORY
+        if tool != "doc_save" or args.get("path") not in (None, *MEMORY):
+            return False
+        return any(doc["id"] == args.get("id") for doc in self.memory_docs().values())
+
+    def instructions(self):
+        """What the instructions window shows: each layer's built-in text, and its memory document over it, if there is one."""
+        docs = self.memory_docs() if self.api_url else {}
+        layers = [("every", "Every conversation", PROMPT, EVERY_MEMORY), ("morning", "Morning report", MORNING_PROMPT, MORNING_MEMORY)]
+        return {"layers": [{"id": key, "title": title, "builtIn": text, "memory": {"path": path, **docs.get(path, {"id": None})}}
+                           for key, title, text, path in layers]}
+
     def describe(self, context):
         """What an agent is told about the screen and the day, as `format_context` writes it."""
         return format_context(context)
@@ -1582,9 +1644,11 @@ class Chat:
             s.turn = (text, context, settings)
             s.started_at = time.time()
             s.answer = secrets.token_hex(8)  # this turn is one answer, and what its writes change is kept under this id
+        settings = {**settings, "memory": self.owner_memory(settings)}
         s.settings = settings
         stored = self.load().get(s.id, {})
         provider = settings["provider"]
+        memory_hash = hashlib.sha256(settings["memory"].encode()).hexdigest()[:16]
         handoff, fresh = "", False
         try:
             agent = s.agent
@@ -1615,10 +1679,11 @@ class Chat:
                     folder = Path(stored["cwd"]) if resume and stored.get("cwd") and Path(stored["cwd"]).is_dir() else self.workdir
                     if folder == self.workspace:
                         folder = self.workdir
-                agent = AGENT_CLASSES[provider](self, s, settings, resume, cwd=folder,
-                                                rebuild_prompt=bool(resume and stored.get("external")))
+                # A resumed Claude session keeps the prompt it recorded first: new memory has it rendered again.
+                rebuild = bool(resume and (stored.get("external") or stored.get("memoryHash", NO_MEMORY) != memory_hash))
+                agent = AGENT_CLASSES[provider](self, s, settings, resume, cwd=folder, rebuild_prompt=rebuild)
                 s.agent, fresh = agent, resume is None
-                self.update(s.id, provider=provider, sessionId=agent.session_id, cwd=str(folder))
+                self.update(s.id, provider=provider, sessionId=agent.session_id, cwd=str(folder), memoryHash=memory_hash)
                 self.missing.pop((provider, agent.session_id), None)
             if stored.get("outside"):
                 self.update(s.id, outside=None)  # Verticals drives it again: it is no longer "continued outside"
@@ -1704,7 +1769,7 @@ class Chat:
 
 
 ClaudeAgent.signature_of = staticmethod(lambda settings: settings)
-CodexAgent.signature_of = staticmethod(lambda settings: {})
+CodexAgent.signature_of = staticmethod(lambda settings: {"memory": settings.get("memory", "")})
 
 
 def clean_settings(raw):
