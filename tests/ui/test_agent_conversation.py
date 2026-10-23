@@ -26,7 +26,7 @@ from tests.ui.conftest import (
     F2_OWNER, PINNED_CLOCK_ISO, PINNED_DAY, REPO_ROOT, TEST_TOKEN, VIEWPORT, Server, UiSession, _backend, _free_port,
     _make_ui_session, _shutdown, _wait_http_ok,
 )
-from tests.ui.views import FIELD
+from tests.ui.views import FIELD, switch_view
 
 
 @contextmanager
@@ -310,6 +310,36 @@ def test_the_morning_turn_gets_its_guide_and_asks_first_whatever_mode_the_chat_i
     assert "send provider=claude permission=bypassPermissions morning=False" in log
     assert log.count("turn_start") == 2 and log.count("done error=False") == 2 and "agent_start" in log
     assert "Make my morning report" not in log and "Hello" not in log and "Done:" not in log
+
+
+def test_the_memory_is_last_on_the_desk_and_ends_the_next_turns_prompt(ui_agent: UiSession, tmp_path: Path) -> None:
+    """docs/design/agent-memory.md: Documents shows the agent's memory as its own group, last, both pages there before
+    anything is written, and what the memory says ends the prompt of the agent's next turn."""
+    page = ui_agent.page
+    page.wait_for_selector(".goal-card__row")
+    switch_view(page, "docs")
+    groups = page.locator(".docs-desk__group")
+    expect(groups.last).to_have_attribute("data-group", "memory")
+    expect(groups.last).to_contain_text("Agent memory")
+    expect(groups.last).to_contain_text("2 documents")
+    with psycopg.connect(ui_agent.backend.dsn, autocommit=True) as conn:
+        memory = core_docs.get_by_path(conn, owner=F2_OWNER, path="memory/AGENTS.md")
+        assert memory.body == ""
+        core_docs.save(conn, owner=F2_OWNER, id=memory.id, expected_revision=memory.revision, body="Answer like a pirate.")
+        core_docs.create(conn, owner=F2_OWNER, path="notes/plan.md", title="Plan", body="A plan.")
+    switch_view(page, "verticals")
+    switch_view(page, "docs")
+    expect(page.locator('[data-group="no-goal"]')).not_to_contain_text("Memory")
+    groups.last.locator('[data-stack="memory"]').click()
+    page.locator('[data-role="docs-open"] .docs-open__page').first.click()
+    expect(page.locator('[data-window="doc"]')).to_contain_text("Answer like a pirate.")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    _send(page, "Hello")
+    _answered(page, "Done: Hello")
+    prompt = _flag(_cli_starts(tmp_path)[-1], "--append-system-prompt")
+    assert "## Memory" in prompt and "### memory/AGENTS.md" in prompt
+    assert prompt.rstrip().endswith("Answer like a pirate.")
 
 
 def _morning_tasks(conn: psycopg.Connection) -> list[tuple]:

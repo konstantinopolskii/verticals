@@ -571,7 +571,7 @@ export interface DeskDoc {
 }
 export interface DeskStack { goal_id: string; goal_title: string; docs: string[] }
 export interface DeskValue { id: string | null; title: string | null; color: string | null; stacks: DeskStack[] }
-export interface DocsDesk { docs: Record<string, DeskDoc>; no_goal: string[]; values: DeskValue[] }
+export interface DocsDesk { docs: Record<string, DeskDoc>; no_goal: string[]; values: DeskValue[]; memory: string[] }
 
 export function fetchDocsDesk(): Promise<DocsDesk> {
   return request('/api/docs/desk')
