@@ -160,7 +160,7 @@ class Morning:
 @pytest.fixture
 def morning(f2_dsn: str, tmp_path: Path) -> Iterator[Morning]:
     with _backend(f2_dsn, F2_OWNER, tmp_path) as backend:
-        with _agent_gateway(backend, tmp_path, env={"VERTICALS_TEST_CHECK_LIMIT": "6"}) as base:
+        with _agent_gateway(backend, tmp_path, env={"VERTICALS_TEST_CHECK_LIMIT": "6", "VERTICALS_TEST_ASK_LIMIT": "8"}) as base:
             yield Morning(backend, base, tmp_path)
 
 
@@ -296,6 +296,25 @@ def test_every_mcp_tool_comes_to_the_gateway_a_declared_read_is_not_asked_and_an
     assert ("writer", "mcp__chat__send_message", "deny") in decided, "the reader declined it"
     assert ("checker", "mcp__chat__send_message", "deny") in decided and ("checker", "mcp__verticals__doc_save", "deny") in decided
     assert not [d for d in decided if d[0] == "checker" and d[2] == "allow" and d[1] in ("mcp__chat__send_message", "mcp__verticals__doc_save")]
+    assert first_line(morning.report()) == "Checked against the sources by a second agent: all 10 passed."
+
+
+def test_an_ask_nobody_answers_is_declined_and_the_report_is_made_without_it(morning: Morning) -> None:
+    """The morning report runs while the owner may be asleep. A tool no source lists is asked of the reader, and when no answer
+    comes in time it is declined, and the report is written, checked and told as when the reader declines it."""
+    morning.sources()
+    morning.last_report()
+    task = morning.task()
+    morning.scenario(writer_tools=["mcp__chat__send_message"])
+    session = morning.send(task)
+    events = morning.events(session)
+    asks = [e for e in events if e["t"] == "permission"]
+    assert len(asks) == 1 and asks[0]["tool"] == "mcp__chat__send_message"
+    done = [e for e in events if e["t"] == "permission_done" and e["requestId"] == asks[0]["requestId"]]
+    assert done and done[0]["says"].startswith("No answer in") and done[0]["value"] == "decline"
+    assert events[-1]["t"] == "done" and events[-1]["error"] is False and "[Morning report" in "".join(
+        e["text"] for e in events if e["t"] == "text")
+    assert ("writer", "mcp__chat__send_message", "deny") in [(d["seat"], d["tool"], d["behavior"]) for d in morning.decisions()]
     assert first_line(morning.report()) == "Checked against the sources by a second agent: all 10 passed."
 
 

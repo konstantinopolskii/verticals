@@ -233,7 +233,8 @@ def closes_only(tool_input):
 MAX_EVENTS = 5000
 WATCH_SECONDS = 2  # how often the files of the sessions of tasks are looked at (a stat each)
 MISSING_SECONDS = 20  # how long a session with no file is left alone before it is searched for again
-IDLE_SECONDS = 600  # how long an agent waits for the next message before it is closed; the next one resumes its session
+AGENT_IDLE_TIMEOUT = 10 * 60
+MORNING_PERMISSION_TIMEOUT = 10 * 60
 HANDOFF_CHARS = 12000
 # Parent-session variables must not leak into the agents (credentials excepted).
 ENV_KEEP = {"CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_USE_BEDROCK",
@@ -997,6 +998,20 @@ class Session:
         self.emit({"t": "permission", "requestId": key, "title": title, "body": body,
                    "options": [{"label": label, "value": value} for label, value in options],
                    **({"tool": tool, "input": tool_input or {}} if tool else {}), **({"note": note} if note else {})})
+        if self.settings.get("sources") == CONNECTED and agent is not self.chat.signin:
+            decline = next((value for _, value in options if value == "decline"), options[-1][1])
+            timer = threading.Timer(MORNING_PERMISSION_TIMEOUT, self.unanswered, args=(key, decline))
+            timer.daemon = True
+            timer.start()
+
+    def unanswered(self, key, decline):
+        agent = self.asks.pop(key, None)
+        if agent is None:
+            return
+        agent.decide(key, decline)
+        self.emit({"t": "permission_done", "requestId": key, "value": decline,
+                   "says": f"No answer in {round(MORNING_PERMISSION_TIMEOUT / 60)} minutes: declined."})
+        self.chat.log.info("morning ask unanswered session=%s", str(self.id)[:8])
 
     def resolve(self, key, label):
         if key is not None and self.asks.pop(str(key), None):
@@ -1294,14 +1309,13 @@ class Chat:
                 self.log.info("outside provider=%s session=%s", entry["provider"], str(key)[:8])
 
     def close_idle(self, now=None):
-        """Closes the agents no turn has used for `IDLE_SECONDS`: each one is a CLI process holding its memory until the app quits.
-        The next message of the conversation starts its agent again from the session's file (`start_turn`)."""
+        """Each agent is a CLI process held until the app quits; the next message starts a closed one again (`start_turn`)."""
         now = time.time() if now is None else now
         for s in list(self.sessions.values()):
             with s.gate:
                 if s.agent is None or s.running or s.asks or s.flow is not None or self.signin.holds(s.id):
                     continue
-                if now - max(s.started_at or 0, s.ended_at) < IDLE_SECONDS:
+                if now - max(s.started_at or 0, s.ended_at) < AGENT_IDLE_TIMEOUT:
                     continue
                 self.log.info("agent_idle_close provider=%s session=%s", s.agent.provider, str(s.id)[:8])
                 self.close_agent(s)

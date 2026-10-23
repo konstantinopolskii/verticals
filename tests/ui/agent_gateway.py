@@ -49,6 +49,9 @@ def main() -> None:
     if os.environ.get("VERTICALS_TEST_CHECK_LIMIT"):
         import morning_flow
         morning_flow.CHECK_LIMIT = float(os.environ["VERTICALS_TEST_CHECK_LIMIT"])
+    # Nor for an ask of the morning turn nobody answers.
+    if os.environ.get("VERTICALS_TEST_ASK_LIMIT"):
+        sys.modules["chat"].MORNING_PERMISSION_TIMEOUT = float(os.environ["VERTICALS_TEST_ASK_LIMIT"])
     server = ThreadingHTTPServer(("127.0.0.1", int(ui_port)), launcher.make_gateway(token, chat))
     print("ready", flush=True)
     try:

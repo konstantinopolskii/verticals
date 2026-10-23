@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import sys
+import time
 import types
 import uuid
 from pathlib import Path
@@ -563,7 +564,7 @@ class _Agent:
 
 def test_an_agent_no_turn_used_for_ten_minutes_is_closed_and_a_busy_one_is_not(scratch_dir) -> None:
     """Each conversation's agent is a CLI process that held its memory until the app quit: every Inbox warm-up and every Check
-    again left one more. One idle for `IDLE_SECONDS` is closed now, and the moment is kept with the conversation (close_agent)."""
+    again left one more. One idle for ten minutes is closed now, and the moment is kept with the conversation (close_agent)."""
     chat = _chat()
     gateway = chat.Chat(scratch_dir, "http://127.0.0.1:9/mcp", "tok", watch_every=0)
     try:
@@ -575,15 +576,49 @@ def test_an_agent_no_turn_used_for_ten_minutes_is_closed_and_a_busy_one_is_not(s
         busy.running = True
         asking.asks["1"] = asking.agent
 
-        gateway.close_idle(now=1000.0 + chat.IDLE_SECONDS - 1)
+        gateway.close_idle(now=1000.0 + chat.AGENT_IDLE_TIMEOUT - 1)
         assert not any(a.closed for a in agents) and idle.agent is agents[0]
 
-        gateway.close_idle(now=1000.0 + chat.IDLE_SECONDS)
+        gateway.close_idle(now=1000.0 + chat.AGENT_IDLE_TIMEOUT)
         assert agents[0].closed and idle.agent is None and gateway.load()[SESSION]["closedAt"]
         assert not agents[1].closed and not agents[2].closed
     finally:
         gateway.shutdown()
     assert "agent_idle_close provider=claude" in (scratch_dir / "agent.log").read_text()
+
+
+class _Asking:
+    def __init__(self):
+        self.decided = []
+
+    def decide(self, key, option):
+        self.decided.append((key, option))
+
+
+def test_a_morning_ask_nobody_answers_is_declined_and_a_chats_ask_waits(scratch_dir) -> None:
+    """The morning report runs while the owner may be asleep: an ask for a tool beyond its list waited for a click that never came,
+    and the report with it. Now it is declined in time and the turn goes on; an ordinary chat's ask still waits,
+    and an ask the owner answered in time is not declined after."""
+    chat = _chat()
+    chat.MORNING_PERMISSION_TIMEOUT = 0.2
+    gateway = chat.Chat(scratch_dir, "http://127.0.0.1:9/mcp", "tok", watch_every=0)
+    try:
+        morning, talk = gateway.session(SESSION), gateway.session(OTHER_SESSION)
+        morning.settings, talk.settings = {"provider": "claude", "sources": "connected"}, {"provider": "claude"}
+        agent = _Asking()
+        options = [("Allow once", "accept"), ("Decline", "decline")]
+        morning.ask(agent, "1", "Allow Claude to use send?", "", options)
+        morning.ask(agent, "2", "Allow Claude to use post?", "", options)
+        talk.ask(agent, "3", "Allow Claude to use send?", "", options)
+        gateway.decide(SESSION, "2", "accept")
+        time.sleep(0.5)
+        assert agent.decided == [("2", "accept"), ("1", "decline")]
+        assert "3" in talk.asks and "1" not in morning.asks
+        done = [e for _, e in morning.events if e["t"] == "permission_done" and e["requestId"] == "1"]
+        assert done == [{"t": "permission_done", "requestId": "1", "value": "decline", "says": "No answer in 0 minutes: declined."}]
+    finally:
+        gateway.shutdown()
+    assert "morning ask unanswered" in (scratch_dir / "agent.log").read_text()
 
 
 def test_the_agent_is_told_to_link_what_it_made_and_to_name_the_rest_by_title() -> None:
