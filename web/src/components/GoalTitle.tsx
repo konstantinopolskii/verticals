@@ -1,7 +1,7 @@
 /* A goal card's title (components/GoalCard.tsx): its words with the filter's matches in bold and the repeat mark, or,
    while it is edited in place (lib/inlineTitleEdit.ts), the field they are edited in. */
 import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, type SyntheticEvent } from 'react'
-import { computed, type Ref } from '../reactivity'
+import { computed, nextTick, type Ref } from '../reactivity'
 import { RepeatMark } from './RepeatMark'
 import { cx, valueOf } from '../bind'
 import { tracked } from '../tracked'
@@ -45,8 +45,15 @@ export const GoalTitle = tracked(function GoalTitle(raw: Props) {
       if (event.key !== 'Enter' && event.key !== 'Escape') return
       event.preventDefault()
       event.stopPropagation()
+      // The keys go back to the goal, so the next arrow or key carries on from it.
+      const input = event.currentTarget as HTMLElement
+      const row = input.closest<HTMLElement>('.goal-card__row')
       if (event.key === 'Enter') props.onCommit()
       else props.onCancel()
+      void nextTick(() => {
+        const now = document.activeElement
+        if (row?.isConnected && (!now || now === document.body || now === input)) row.focus({ preventScroll: true })
+      })
     }
     return { finding, onPress, onInput, onKeyDown }
   })
