@@ -34,6 +34,10 @@ def away(page):
     page.evaluate('() => document.activeElement?.blur()')
 
 
+def add_row(page, vertical):
+    return column(page, vertical).locator('[data-role="column-add"]')
+
+
 def loaded(page):
     page.wait_for_selector('.goal-card__row')
     away(page)
@@ -93,11 +97,11 @@ def test_a_created_goal_leaves_the_keys_in_its_column(ui_f2: UiSession):
     page.keyboard.type('Made from the keyboard')
     page.keyboard.press('Enter')
     expect(page.locator('[data-vertical="day"] .goal-card__title-text').filter(has_text='Made from the keyboard')).to_have_count(1)
-    expect(column(page, 'day')).to_be_focused()
+    expect(add_row(page, 'day')).to_be_focused()
     page.keyboard.press('n')
     expect(page.locator('[data-vertical="day"] [data-role="column-add-editor"]')).to_be_focused()
     page.keyboard.press('Escape')
-    expect(column(page, 'day')).to_be_focused()
+    expect(add_row(page, 'day')).to_be_focused()
     expect(page.locator(FIELD)).to_have_value('')
 
 
@@ -153,15 +157,15 @@ def test_an_empty_board_takes_the_keys(ui_empty: UiSession):
     page = ui_empty.page
     page.wait_for_selector('[data-keyboard-column]')
     page.keyboard.press('ArrowDown')
-    expect(column(page, 'day')).to_be_focused()
+    expect(add_row(page, 'day')).to_be_focused()
     page.keyboard.press('ArrowRight')
-    expect(column(page, 'week')).to_be_focused()
+    expect(add_row(page, 'week')).to_be_focused()
     page.keyboard.press('Enter')
     page.keyboard.type('First goal')
     page.keyboard.press('Enter')
-    expect(column(page, 'week')).to_be_focused()
+    expect(add_row(page, 'week')).to_be_focused()
     expect(first_row(page, 'week')).to_contain_text('First goal')
-    page.keyboard.press('ArrowDown')
+    page.keyboard.press('ArrowUp')
     expect(first_row(page, 'week')).to_be_focused()
 
 
@@ -214,3 +218,57 @@ def test_escape_from_a_goal_title_edit_returns_to_the_goal(ui_f2: UiSession):
     expect(first_row(page, 'day')).to_be_focused()
     page.keyboard.press('ArrowDown')
     expect(column(page, 'day').locator('.goal-card__row').nth(1)).to_be_focused()
+
+
+def test_arrows_leave_an_add_row_a_checkbox_and_the_period_bars(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    add = add_row(page, 'week')
+    add.focus()
+    page.keyboard.press('ArrowUp')
+    expect(column(page, 'week').locator('.goal-card__row').last).to_be_focused()
+    page.keyboard.press('ArrowDown')
+    expect(add).to_be_focused()
+    assert add.evaluate('el => getComputedStyle(el).outlineStyle') == 'none'
+    page.keyboard.press('ArrowLeft')
+    expect(column(page, 'day').locator('.goal-card__row, [data-role="column-add"]').nth(4)).to_be_focused()
+    first_row(page, 'month').locator('input[type="checkbox"]').first.focus()
+    page.keyboard.press('ArrowDown')
+    expect(column(page, 'month').locator('.goal-card__row').nth(1)).to_be_focused()
+    column(page, 'week').locator('.column-bars button').first.focus()
+    page.keyboard.press('ArrowDown')
+    expect(first_row(page, 'week')).to_be_focused()
+
+
+def test_ctrl_backslash_puts_the_field_away_until_pressed_again(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    circle = page.locator('.circle-field')
+    page.keyboard.press('Control+Backslash')
+    expect(circle).to_have_css('visibility', 'hidden')
+    page.keyboard.press('h')
+    page.keyboard.press('Control+k')
+    page.keyboard.press('ArrowDown')
+    page.keyboard.press('f')
+    expect(page.locator(FIELD)).to_have_value('')
+    expect(page.locator(FIELD)).not_to_be_focused()
+    expect(first_row(page, 'day')).to_be_focused()
+    page.reload()
+    page.wait_for_selector('.goal-card__row')
+    expect(circle).to_have_css('visibility', 'hidden')
+    page.keyboard.press('Control+Backslash')
+    expect(circle).to_have_css('visibility', 'visible')
+    away(page)
+    page.keyboard.press('h')
+    expect(page.locator(FIELD)).to_have_value('h')
+
+
+def test_hiding_the_field_while_typing_in_it_drops_the_caret(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('h')
+    expect(page.locator(FIELD)).to_be_focused()
+    page.keyboard.press('Control+Backslash')
+    expect(page.locator(FIELD)).not_to_be_focused()
+    page.keyboard.press('ArrowDown')
+    expect(first_row(page, 'day')).to_be_focused()
