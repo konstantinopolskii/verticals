@@ -70,7 +70,7 @@ export const KeyboardGuide = tracked(function KeyboardGuide() {
       <header className="keyboard-guide__head"><h2 id="keyboard-guide-title">Keyboard shortcuts</h2>
         <button type="button" aria-label="Close keyboard shortcuts" autoFocus onClick={close}><AppIcon name="x" size={20} /></button>
       </header>
-      <p className="keyboard-guide__context" id="keyboard-guide-context">On the board · {board ? 'Focus a goal to use these keys.' : 'Switch to the board to use these keys.'}</p>
+      <p className="keyboard-guide__context" id="keyboard-guide-context">On the board · {board ? 'Press an arrow key to pick a goal.' : 'Switch to the board to use these keys.'}</p>
       {!board && store.state.activeView === 'inbox' ? <p className="keyboard-guide__context">In Inbox, Enter opens a goal.</p> : null}
       {commandFilter.text ? <p className="keyboard-guide__context">Clear the filter to create a new goal.</p> : null}
       <div className="keyboard-guide__grid"><div>{group('Navigate')}{group('History')}</div><div>{group('Goals')}
