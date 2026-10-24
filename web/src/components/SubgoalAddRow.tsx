@@ -1,6 +1,7 @@
 /* "Add..." under an open goal's steps: a row that turns into a field, the checkbox
    staying while the step is typed. One root for both states, so the open goal's <Transition> plays the row coming and
    going, not the switch to typing. */
+import { keyboardHelpOpen } from '../lib/keyboard'
 import type { KeyboardEvent, Ref as ReactRef } from 'react'
 import { nextTick, ref, type Ref } from '../reactivity'
 import { fallthrough, model } from '../bind'
@@ -38,6 +39,7 @@ export const SubgoalAddRow = tracked(function SubgoalAddRow(raw: Props) {
       editing.value = false
     }
     function onBlur() {
+      if (keyboardHelpOpen.value) return
       if (!draft.value.trim()) cancelEditor()
     }
     listen(editor, 'blur', onBlur)

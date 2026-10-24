@@ -188,3 +188,18 @@ def test_composition_does_not_run_shortcuts_or_submit_creation(ui_f2: UiSession)
     expect(editor).to_be_visible()
     assert not any(r['method'] == 'POST' and r['url'].endswith('/api/goals') for r in ui_f2.request_log)
     page.keyboard.press('Escape')
+
+
+def test_help_preserves_an_empty_subgoal_editor(ui_f2: UiSession):
+    page = ui_f2.page
+    start(page)
+    page.keyboard.press('Space')
+    page.locator('[data-role="subgoal-add"]').click()
+    editor = page.locator('[data-role="subgoal-add-editor"]')
+    expect(editor).to_be_focused()
+    page.get_by_role('button', name='Keyboard shortcuts', exact=True).click()
+    expect(page.locator(GUIDE)).to_be_visible()
+    page.keyboard.press('Escape')
+    expect(editor).to_be_visible()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_value('')
