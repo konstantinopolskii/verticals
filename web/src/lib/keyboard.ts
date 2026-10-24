@@ -1,4 +1,6 @@
 import { ref } from '../reactivity'
+import { store } from '../store'
+import { outOfFocus } from './windows'
 
 export const keyboardHelpOpen = ref(false)
 export const keyboardModifier = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'
@@ -33,6 +35,32 @@ function rows(column: HTMLElement): HTMLElement[] {
     !row.closest('[data-state="outgoing"], [data-ghost], [inert], [aria-hidden="true"]') && row.getClientRects().length > 0)
 }
 
+/* The goal or column the keys last stood on: an arrow pressed on the background comes back to it. */
+let lastTarget: HTMLElement | null = null
+export function rememberBoardTarget(target: HTMLElement): void { lastTarget = target }
+
+function shown(target: HTMLElement | null): target is HTMLElement {
+  if (!target?.isConnected || target.getClientRects().length === 0) return false
+  return !target.closest('[data-state="outgoing"], [data-ghost], [inert], [aria-hidden="true"]')
+}
+
+/** Where the keys start on the board: the goal they last stood on, else the first goal of the leading column. */
+function boardStart(): HTMLElement | null {
+  if (shown(lastTarget) && boardKeyTarget(lastTarget)) return lastTarget
+  const strip = document.querySelector<HTMLElement>('[data-role="column-strip"]')
+  const lead = strip?.querySelector<HTMLElement>('.pattern-vertical-board__column--deck-main[data-keyboard-column]')
+    ?? strip?.querySelector<HTMLElement>('[data-keyboard-column]')
+  return lead ? rows(lead)[0] ?? lead : null
+}
+
+/** A key pressed with nothing in focus, or on the plain board, when the board is the view on show. */
+function onBackground(event: KeyboardEvent): boolean {
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if (target && target !== document.body && target.closest(
+    'a, input, textarea, select, button, [tabindex], [contenteditable="true"], [role="dialog"], [role="menu"], dialog')) return false
+  return store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus.value
+}
+
 export function focusBoardTarget(target: HTMLElement): void {
   target.focus({ preventScroll: true })
   target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
@@ -40,9 +68,22 @@ export function focusBoardTarget(target: HTMLElement): void {
 
 /** Runs before background typing, only for the surface that owns focus. */
 export function boardKey(event: KeyboardEvent, focusField: () => void): boolean {
-  const target = boardKeyTarget(event.target)
-  if (!target || event.defaultPrevented || event.isComposing || event.keyCode === 229
+  if (event.defaultPrevented || event.isComposing || event.keyCode === 229
     || event.metaKey || event.ctrlKey || event.altKey) return false
+  const target = boardKeyTarget(event.target)
+  if (!target) {
+    // On the background an arrow picks up the board where the keys left it, and ? opens the guide; letters stay the field's.
+    if (!onBackground(event)) return false
+    if (event.key === '?') keyboardHelpOpen.value = true
+    else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) && !event.shiftKey) {
+      const start = boardStart()
+      if (!start) return false
+      focusBoardTarget(start)
+    } else return false
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    return true
+  }
   const column = target.closest<HTMLElement>('[data-keyboard-column]')
   if (!column) return false
   const arrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
