@@ -1,6 +1,6 @@
 /* The keys of the field (components/SearchBar.tsx): the field's own while it has the caret, and the board's that reach it
    from anywhere. */
-import { boardKey, keyboardHelpOpen } from './keyboard'
+import { boardKey, boardKeyTarget, keyboardHelpOpen } from './keyboard'
 import type { Ref } from '../reactivity'
 import { store } from '../store'
 import { commandFilter } from './commandFilter'
@@ -86,6 +86,7 @@ export function fieldKeys(field: Field) {
   function firstLetter(event: KeyboardEvent): boolean {
     if (event.metaKey || event.ctrlKey || event.altKey || event.key.length !== 1 || event.key === ' ') return false
     const target = event.target instanceof HTMLElement ? event.target : null
+    if (event.key === '/' && boardKeyTarget(target)) return false // a goal's menu (GoalCard.tsx)
     if (target?.closest('a, input, textarea, select, button, [contenteditable="true"], [role="dialog"], [role="menu"]')) return false
     return !anyMenuOpen() && !store.state.drag.id && !store.state.drag.pending
   }
