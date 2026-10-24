@@ -49,6 +49,31 @@ export function boardFocused(target: HTMLElement): void {
   lastTarget = target
 }
 
+/* The same goal or column drawn anew: a goal's row is replaced when the server confirms it or its period redraws. */
+function redrawn(target: HTMLElement): HTMLElement | null {
+  const column = target.closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical
+  const id = target.closest<HTMLElement>('[data-goal-id]')?.dataset.goalId
+  const home = column ? document.querySelector<HTMLElement>(`[data-role="column-strip"] > [data-keyboard-column][data-vertical="${column}"]`) : null
+  if (!home) return null
+  if (!id) return home
+  return [...home.querySelectorAll<HTMLElement>(`[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)].find(shown) ?? null
+}
+
+/* Keeps the keys' place when the board redraws it: a focused goal or column whose element is replaced takes the focus
+   back on its new element, instead of leaving it on the page. A blur the person made (the element stays) drops it. */
+let held: HTMLElement | null = null
+document.addEventListener('focusin', (event) => { held = boardKeyTarget(event.target) })
+document.addEventListener('focusout', (event) => {
+  const left = event.target
+  queueMicrotask(() => { if (left === held && left instanceof Node && left.isConnected) held = null })
+})
+new MutationObserver(() => {
+  if (!held || held.isConnected || (document.activeElement && document.activeElement !== document.body)) return
+  const again = redrawn(held)
+  held = null
+  if (again) focusBoardTarget(again)
+}).observe(document.body, { childList: true, subtree: true })
+
 function shown(target: HTMLElement | null): target is HTMLElement {
   if (!target?.isConnected || target.getClientRects().length === 0) return false
   return !target.closest('[data-state="outgoing"], [data-ghost], [inert], [aria-hidden="true"]')
