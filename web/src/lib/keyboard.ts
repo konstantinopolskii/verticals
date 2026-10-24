@@ -37,7 +37,17 @@ function rows(column: HTMLElement): HTMLElement[] {
 
 /* The goal or column the keys last stood on: an arrow pressed on the background comes back to it. */
 let lastTarget: HTMLElement | null = null
-export function rememberBoardTarget(target: HTMLElement): void { lastTarget = target }
+/* A press of the pointer, not a key, moved the focus last. */
+let pointed = false
+window.addEventListener('pointerdown', () => { pointed = true }, true)
+window.addEventListener('keydown', () => { pointed = false }, true)
+
+/** A goal or column took the focus. A click on a column's empty space leaves the background its typing, so it gives the
+ * focus back instead of keeping it. */
+export function boardFocused(target: HTMLElement): void {
+  if (pointed && target.matches('[data-keyboard-column]')) { target.blur(); return }
+  lastTarget = target
+}
 
 function shown(target: HTMLElement | null): target is HTMLElement {
   if (!target?.isConnected || target.getClientRects().length === 0) return false
