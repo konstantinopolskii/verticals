@@ -1,0 +1,78 @@
+import { ref } from '../reactivity'
+
+export const keyboardHelpOpen = ref(false)
+export const keyboardModifier = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'
+
+export const keyboardGroups = [
+  { name: 'Navigate', bindings: [
+    { label: 'Change column', keys: ['←', '→'] },
+    { label: 'Change goal', keys: ['↑', '↓'] },
+    { label: 'Next control', keys: ['Tab'] },
+    { label: 'Previous control', keys: ['Shift', 'Tab'] },
+  ] },
+  { name: 'History', bindings: [
+    { label: 'Undo', keys: [keyboardModifier, 'Z'] },
+    { label: 'Redo', keys: [keyboardModifier, 'Shift', 'Z'] },
+  ] },
+  { name: 'Goals', bindings: [
+    { label: 'New goal in this column', keys: ['N'] },
+    { label: 'Rename goal', keys: ['Enter'] },
+    { label: 'Open details', keys: ['Space'] },
+    { label: 'More actions', keys: ['/'] },
+    { label: 'Find or ask', keys: ['F'] },
+  ] },
+]
+
+export function boardKeyTarget(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement) || !target.matches('.goal-card__row, [data-keyboard-column]')) return null
+  return target.closest('[data-role="column-strip"]') ? target : null
+}
+
+function rows(column: HTMLElement): HTMLElement[] {
+  return [...column.querySelectorAll<HTMLElement>('.goal-card__row')].filter((row) =>
+    !row.closest('[data-state="outgoing"], [data-ghost], [inert], [aria-hidden="true"]') && row.getClientRects().length > 0)
+}
+
+export function focusBoardTarget(target: HTMLElement): void {
+  target.focus({ preventScroll: true })
+  target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+}
+
+/** Runs before background typing, only for the surface that owns focus. */
+export function boardKey(event: KeyboardEvent, focusField: () => void): boolean {
+  const target = boardKeyTarget(event.target)
+  if (!target || event.defaultPrevented || event.isComposing || event.keyCode === 229
+    || event.metaKey || event.ctrlKey || event.altKey) return false
+  const column = target.closest<HTMLElement>('[data-keyboard-column]')
+  if (!column) return false
+  const arrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+  if (event.shiftKey && event.key !== '?') return false
+  if (!arrow && !['n', 'f', '?'].includes(event.key)) return false
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  if (!arrow && event.repeat) return true
+  if (event.key === '?') keyboardHelpOpen.value = true
+  else if (event.key === 'f') focusField()
+  else if (event.key === 'n') {
+    const editor = column.querySelector<HTMLElement>('.period-slide:not([data-state="outgoing"]) [data-role="column-add-editor"]')
+    if (editor) editor.focus()
+    else column.querySelector<HTMLElement>('.period-slide:not([data-state="outgoing"]) [data-role="column-add"]')?.click()
+  } else {
+    const own = rows(column)
+    const index = own.indexOf(target)
+    let next: HTMLElement | undefined
+    if (event.key === 'ArrowUp') next = own[index < 0 ? own.length - 1 : Math.max(0, index - 1)]
+    else if (event.key === 'ArrowDown') next = own[Math.min(own.length - 1, index + 1)]
+    else {
+      const columns = [...column.parentElement!.querySelectorAll<HTMLElement>(':scope > [data-keyboard-column]')]
+      const at = columns.indexOf(column) + (event.key === 'ArrowLeft' ? -1 : 1)
+      const adjacent = columns[at]
+      if (adjacent) {
+        const visible = rows(adjacent)
+        next = visible[Math.min(Math.max(index, 0), visible.length - 1)] ?? adjacent
+      }
+    }
+    if (next) focusBoardTarget(next)
+  }
+  return true
+}

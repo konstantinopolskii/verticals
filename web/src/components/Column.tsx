@@ -314,6 +314,8 @@ export const Column = tracked(function Column(raw: Props & Record<string, unknow
         }),
         'data-vertical': vertical,
         'data-period-key': periodKey ?? '',
+        'data-keyboard-column': span ? undefined : '',
+        tabIndex: span ? undefined : 0,
         role: 'group',
         'aria-label': s.accessibleName.value,
       }, attrs)}

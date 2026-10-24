@@ -2,6 +2,7 @@
    hero title edited in place, and the quiet bottom row (comments, add subtask, repeat, tags). The body is GoalDetail's
    and comes in as `children`; `beforeBody` and `metaStart` are two more content slots. Inline (on the board) it draws
    only the slots. */
+import { keyboardHelpOpen } from '../lib/keyboard'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { computed, nextTick, ref, watch } from '../reactivity'
 import { KCheckbox, KChip, KInlineAdd } from '../kit'
@@ -161,7 +162,7 @@ export const GoalDetailEditor = tracked(function GoalDetailEditor(raw: Props & R
       if (next && next !== props.title) void store.updateGoal(props.id, { title: next })
       else titleDraft.value = props.title
     }
-    listen(titleInputEl, 'blur', commitTitle)
+    listen(titleInputEl, 'blur', () => { if (!keyboardHelpOpen.value) commitTitle() })
 
     function cancelTitleEdit() {
       titleCommitGuard = true

@@ -3,6 +3,7 @@
    documents that mention it. Lines that are one link to a document leave the notes for the links; long notes show ten
    lines and say what is left. GoalCard draws it inside `<Transition name="goal-notes">`: the root takes its ref and
    class. */
+import { keyboardHelpOpen } from '../lib/keyboard'
 import { Fragment } from 'react'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from '../reactivity'
 import { GoalDetailEditor } from './GoalDetailEditor'
@@ -59,6 +60,7 @@ export const GoalDetail = tracked(function GoalDetail(attrs: Record<string, unkn
       }
 
       function onInlinePointerDown(event: PointerEvent) {
+        if (keyboardHelpOpen.value) return
         if (store.state.openGoalId === null || inWindow()) return
         const target = event.target as HTMLElement | null
         if (!target) return
@@ -318,7 +320,7 @@ export const GoalDetail = tracked(function GoalDetail(attrs: Record<string, unkn
       listen(bodyInputEl, 'input', (event) => onBodyInput(event as InputEvent))
       listen(bodyInputEl, 'keydown', onBodySurfaceKeydown)
       listen(bodyInputEl, 'paste', handleBodyPaste)
-      listen(bodyInputEl, 'blur', () => finishBodyEdit())
+      listen(bodyInputEl, 'blur', () => { if (!keyboardHelpOpen.value) finishBodyEdit() })
 
       /* Documents after the notes, newest first: the goal's own (linked on lines of their own), then the ones its parents
          link, nearest parent first, are rows of its links; the ones that mention the goal and aren't in its notes are a

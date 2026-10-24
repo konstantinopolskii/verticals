@@ -7,6 +7,7 @@ import { computed, ref, watch } from '../reactivity'
 import { pressToDrag } from './CardDnd'
 import { KCard } from '../kit'
 import { useCompletionCelebration } from '../lib/completionCelebration'
+import { keyboardHelpOpen } from '../lib/keyboard'
 import { caretAt, useInlineTitleEdit } from '../lib/inlineTitleEdit'
 import { anyMenuOpen, menuGoalId, pointerOver, useCardLift, whenMenuCloses } from '../lib/cardLift'
 import { useGroupWash } from '../lib/goalWash'
@@ -187,7 +188,7 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
       commit: (next) => void store.updateGoal(props.id, { title: next }),
       input: inlineTitleInput,
     })
-    listen(inlineTitleInput, 'blur', () => title.commit())
+    listen(inlineTitleInput, 'blur', () => { if (!keyboardHelpOpen.value) title.commit() })
 
     function onTitlePress(event: MouseEvent) {
       if (isInlineDetailHost.value) title.start(caretAt(event))
@@ -274,6 +275,9 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
       tools.value?.openMenu()
     }
     function onRowKeydown(event: ReactKeyboardEvent) {
+      if (event.defaultPrevented || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
+        || event.repeat || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
+      if ((event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) return
       if (!['/', 'Slash', 'Enter', ' '].includes(event.key)) return
       // Slash is the card-level options shortcut even when focus currently sits on a descendant.
       // Enter/Space remain owned by that descendant so native control activation is unchanged.
