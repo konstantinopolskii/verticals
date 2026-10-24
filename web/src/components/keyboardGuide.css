@@ -33,7 +33,14 @@
   padding: 15px 32px; border-top: 1px solid var(--color-border); font-size: 12px; color: var(--keyboard-guide-muted, var(--color-text-muted)); }
 .keyboard-guide__foot > span { display: flex; align-items: center; gap: 7px; }
 .keyboard-guide__complete kbd, .keyboard-guide__editing kbd, .keyboard-guide__foot kbd { height: 22px; font-size: 11px; }
-[data-keyboard-column]:focus-visible, .goal-card > .goal-card__row:focus-visible { outline: 2px solid var(--color-text); outline-offset: -2px; border-radius: 5px; }
+/* The keys' place on the board wears the board's own highlights, never a frame: a column as tall as the window drew
+   two white lines down the board in dark mode. A goal takes its hover colour; a column lights its kind and its Add row,
+   where N and Enter create. */
+[data-keyboard-column]:focus-visible, .goal-card > .goal-card__row:focus-visible { outline: none; }
+.goal-card:has(> .goal-card__row:focus-visible) > .goal-card__row::before { opacity: var(--goal-light-tint); transition: none; }
+[data-keyboard-column]:focus-visible .column-header__sub-label { color: rgb(var(--vt-foreground-rgb, 45 48 54) / 88%); }
+[data-keyboard-column]:focus-visible > .period-track > .period-slide:not([data-state="outgoing"]) .column-add-row {
+  background: rgb(var(--vt-foreground-rgb, 45 48 54) / 6%); color: rgb(var(--vt-foreground-rgb, 45 48 54) / 72%); }
 @media (max-width: 700px) {
   .keyboard-help { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); min-width: 44px; min-height: 44px; justify-content: center; }
   .keyboard-help > span:first-child { width: 32px; height: 32px; }
