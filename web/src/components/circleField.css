@@ -15,6 +15,13 @@
   pointer-events: none;
   font-family: var(--font-body);
 }
+/* Put away with ⌘\ or Ctrl+\ (lib/fieldHidden.ts), the way a field notice hides it (fieldNotice.css): it fades where it
+   stands, and `visibility` takes it out of the pointer's and the keys' reach. */
+.circle-field[data-hidden] {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--vt-dur-fade) ease-out, visibility 0s linear var(--vt-dur-fade);
+}
 /* Toasts stand above the circle and its tags. */
 .toast-stack[data-toast-stack] { bottom: calc(var(--vt-field-bottom) + 84px + 8px); }
 .circle-field__above {

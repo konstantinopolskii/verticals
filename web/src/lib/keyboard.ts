@@ -22,6 +22,7 @@ export const keyboardGroups = [
     { label: 'Open details', keys: ['Space'] },
     { label: 'More actions', keys: ['/'] },
     { label: 'Find or ask', keys: ['F'] },
+    { label: 'Hide or show the field', keys: [keyboardModifier, '\\'] },
   ] },
 ]
 

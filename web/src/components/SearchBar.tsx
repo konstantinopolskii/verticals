@@ -21,6 +21,7 @@ import { fontEpoch, fontOf, widthOf } from '../lib/fitName'
 import { CIRCLE, fieldHeight, fieldWidth, LINE, PAD_LEFT, PAD_Y } from '../lib/fieldSize'
 import { fieldMascot, lineModeOf } from '../lib/fieldMascot'
 import { fieldKeys } from '../lib/fieldKeys'
+import { fieldHidden } from '../lib/fieldHidden'
 import { searchWords } from '../lib/urlState'
 import { dots } from '../lib/spansDrag'
 import { pictures, reporting, stackRoom, watchPictureInput } from '../lib/reportPictures'
@@ -393,6 +394,7 @@ export const SearchBar = tracked(function SearchBar(raw: Props & Record<string, 
       'data-focused': circle.focused ? '' : undefined,
       'data-holding': s.holding.value ? '' : undefined,
       'data-flying': s.flying.value ?? undefined,
+      'data-hidden': fieldHidden.value ? '' : undefined,
       onPointerLeave: s.onLeave,
     }, attrs)}>
       <div className="circle-field__above">
