@@ -1,0 +1,216 @@
+"""Board keys as a person meets them: no focus set up by the test, the pointer mixed in, and an empty board."""
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+from playwright.sync_api import Browser, expect
+
+from tests.ui.conftest import F2_OWNER, UiSession, _backend, _make_ui_session, _static_server
+from tests.ui.views import switch_view
+
+FIELD = '.circle-field__words textarea'
+GUIDE = 'dialog.keyboard-guide'
+
+
+@pytest.fixture
+def ui_empty(browser: Browser, db_dsn: str, tmp_path: Path, request: pytest.FixtureRequest, web_dist: None,
+             ui_reduced_motion: str) -> Iterator[UiSession]:
+    """A board with no goals at all."""
+    with _backend(db_dsn, F2_OWNER, tmp_path) as backend:
+        with _static_server(backend.base_url, tmp_path) as static_base_url:
+            yield from _make_ui_session(browser=browser, backend=backend, static_base_url=static_base_url,
+                                        request=request, reduced_motion=ui_reduced_motion)
+
+
+def column(page, vertical):
+    return page.locator(f'[data-keyboard-column][data-vertical="{vertical}"]')
+
+
+def first_row(page, vertical):
+    return column(page, vertical).locator('.goal-card__row').first
+
+
+def away(page):
+    page.evaluate('() => document.activeElement?.blur()')
+
+
+def loaded(page):
+    page.wait_for_selector('.goal-card__row')
+    away(page)
+
+
+def test_an_arrow_on_a_fresh_board_picks_the_first_goal(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowDown')
+    expect(first_row(page, 'day')).to_be_focused()
+    expect(page.locator(FIELD)).to_have_value('')
+
+
+def test_arrows_then_move_between_columns(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowRight')
+    page.keyboard.press('ArrowRight')
+    expect(first_row(page, 'week')).to_be_focused()
+
+
+def test_question_mark_on_the_background_opens_the_guide(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('?')
+    expect(page.locator(GUIDE)).to_be_visible()
+    page.keyboard.press('Escape')
+    expect(page.locator(FIELD)).to_have_value('')
+
+
+def test_a_letter_on_the_background_still_starts_the_field(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('h')
+    expect(page.locator(FIELD)).to_be_focused()
+    expect(page.locator(FIELD)).to_have_value('h')
+
+
+def test_a_click_away_keeps_the_goal_the_arrows_return_to(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowDown')
+    page.keyboard.press('ArrowRight')
+    page.keyboard.press('ArrowDown')
+    second = column(page, 'week').locator('.goal-card__row').nth(1)
+    expect(second).to_be_focused()
+    away(page)
+    page.keyboard.press('ArrowUp')
+    expect(second).to_be_focused()
+
+
+def test_a_created_goal_leaves_the_keys_in_its_column(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowDown')
+    page.keyboard.press('n')
+    page.keyboard.type('Made from the keyboard')
+    page.keyboard.press('Enter')
+    expect(page.locator('[data-vertical="day"] .goal-card__title-text').filter(has_text='Made from the keyboard')).to_have_count(1)
+    expect(column(page, 'day')).to_be_focused()
+    page.keyboard.press('n')
+    expect(page.locator('[data-vertical="day"] [data-role="column-add-editor"]')).to_be_focused()
+    page.keyboard.press('Escape')
+    expect(column(page, 'day')).to_be_focused()
+    expect(page.locator(FIELD)).to_have_value('')
+
+
+def test_enter_on_a_column_starts_a_goal_there(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    column(page, 'month').focus()
+    page.keyboard.press('Enter')
+    expect(page.locator('[data-vertical="month"] [data-role="column-add-editor"]')).to_be_focused()
+
+
+def test_focus_marks_the_goal_and_column_without_white_frames(ui_f2: UiSession):
+    page = ui_f2.page
+    page.emulate_media(color_scheme='dark')
+    loaded(page)
+    page.keyboard.press('ArrowDown')
+    row = first_row(page, 'day')
+    expect(row).to_be_focused()
+    assert row.evaluate('el => getComputedStyle(el).outlineStyle') == 'none'
+    assert float(row.evaluate("el => getComputedStyle(el, '::before').opacity")) > 0.3
+    month = column(page, 'month')
+    add = month.locator('[data-role="column-add"]')
+    rest = add.evaluate('el => getComputedStyle(el).backgroundColor')
+    page.keyboard.press('ArrowRight')
+    page.keyboard.press('ArrowRight')
+    month.focus()
+    expect(month).to_be_focused()
+    assert month.evaluate('el => getComputedStyle(el).outlineStyle') == 'none'
+    assert month.evaluate("el => getComputedStyle(el).boxShadow") == 'none'
+    page.wait_for_timeout(400)
+    assert add.evaluate('el => getComputedStyle(el).backgroundColor') != rest
+
+
+def test_leaving_the_board_lets_the_open_column_lead_again(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowRight')
+    page.keyboard.press('ArrowRight')
+    page.keyboard.press('ArrowRight')
+    expect(page.locator('.pattern-vertical-board__column--deck-main')).to_have_attribute('data-vertical', 'month')
+    away(page)
+    expect(page.locator('.pattern-vertical-board__column--deck-main')).to_have_attribute('data-vertical', 'day')
+
+
+def test_the_guide_says_how_to_start(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('?')
+    expect(page.locator(GUIDE)).to_contain_text('Press an arrow key to pick a goal.')
+
+
+def test_an_empty_board_takes_the_keys(ui_empty: UiSession):
+    page = ui_empty.page
+    page.wait_for_selector('[data-keyboard-column]')
+    page.keyboard.press('ArrowDown')
+    expect(column(page, 'day')).to_be_focused()
+    page.keyboard.press('ArrowRight')
+    expect(column(page, 'week')).to_be_focused()
+    page.keyboard.press('Enter')
+    page.keyboard.type('First goal')
+    page.keyboard.press('Enter')
+    expect(column(page, 'week')).to_be_focused()
+    expect(first_row(page, 'week')).to_contain_text('First goal')
+    page.keyboard.press('ArrowDown')
+    expect(first_row(page, 'week')).to_be_focused()
+
+
+def test_arrows_in_the_field_stay_in_the_field(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('h')
+    page.keyboard.press('ArrowLeft')
+    page.keyboard.press('ArrowDown')
+    expect(page.locator(FIELD)).to_be_focused()
+
+
+def test_typing_after_a_click_in_a_column_goes_to_the_field(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    box = column(page, 'week').bounding_box()
+    page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] - 120)
+    page.keyboard.type('next')
+    expect(page.locator(FIELD)).to_have_value('next')
+    expect(page.locator('[data-role="column-add-editor"]')).to_have_count(0)
+
+
+def test_typing_after_clicking_a_goal_goes_to_the_field(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    box = first_row(page, 'week').bounding_box()
+    page.mouse.click(box['x'] + 60, box['y'] + box['height'] / 2)
+    page.keyboard.type('hello')
+    expect(page.locator(FIELD)).to_have_value('hello')
+
+
+def test_arrows_in_inbox_leave_the_hidden_board_alone(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    switch_view(page, 'inbox')
+    away(page)
+    page.keyboard.press('ArrowDown')
+    page.keyboard.press('?')
+    assert page.evaluate("() => !document.activeElement.closest('[data-keyboard-column]')")
+    expect(page.locator(GUIDE)).not_to_be_visible()
+
+
+def test_escape_from_a_goal_title_edit_returns_to_the_goal(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowDown')
+    page.keyboard.press('Enter')
+    expect(page.locator('.goal-card__title-input')).to_be_focused()
+    page.keyboard.press('Escape')
+    expect(first_row(page, 'day')).to_be_focused()
+    page.keyboard.press('ArrowDown')
+    expect(column(page, 'day').locator('.goal-card__row').nth(1)).to_be_focused()
