@@ -98,13 +98,15 @@ export function boardKey(event: KeyboardEvent, focusField: () => void): boolean 
   if (!column) return false
   const arrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
   if (event.shiftKey && event.key !== '?') return false
-  if (!arrow && !['n', 'f', '?'].includes(event.key)) return false
+  // Enter on a column, not a goal, creates there as N does; on a goal it stays the goal's own (rename).
+  const enter = event.key === 'Enter' && target === column
+  if (!arrow && !enter && !['n', 'f', '?'].includes(event.key)) return false
   event.preventDefault()
   event.stopImmediatePropagation()
   if (!arrow && event.repeat) return true
   if (event.key === '?') keyboardHelpOpen.value = true
   else if (event.key === 'f') focusField()
-  else if (event.key === 'n') {
+  else if (event.key === 'n' || enter) {
     const editor = column.querySelector<HTMLElement>('.period-slide:not([data-state="outgoing"]) [data-role="column-add-editor"]')
     if (editor) editor.focus()
     else column.querySelector<HTMLElement>('.period-slide:not([data-state="outgoing"]) [data-role="column-add"]')?.click()

@@ -52,15 +52,26 @@ export const InlineAdd = tracked(function InlineAdd(raw: Props & Record<string, 
     event.preventDefault()
     if (!s.editing.value) s.openEditor()
   }
+  /* The keys stay in the column the field closes in, so N or an arrow carries on from there. */
+  function backToColumn(event: KeyboardEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const column = input.closest<HTMLElement>('[data-keyboard-column]')
+    void nextTick(() => {
+      const now = document.activeElement
+      if (column?.isConnected && (!now || now === document.body || now === input)) column.focus({ preventScroll: true })
+    })
+  }
   function onEditorKey(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
     if (event.key === ' ') event.stopPropagation()
     else if (event.key === 'Enter') {
       event.preventDefault()
+      if (s.draft.value.trim()) backToColumn(event)
       s.commit()
     } else if (event.key === 'Escape') {
       event.stopPropagation()
       event.preventDefault()
+      backToColumn(event)
       s.cancelEditor()
     }
   }
