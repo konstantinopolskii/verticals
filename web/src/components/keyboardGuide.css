@@ -37,7 +37,7 @@
    two white lines down the board in dark mode. A goal takes its hover colour; a column lights its kind and its Add row,
    where N and Enter create. */
 [data-keyboard-column]:focus-visible, .goal-card > .goal-card__row:focus-visible { outline: none; }
-.goal-card:has(> .goal-card__row:focus-visible) > .goal-card__row::before { opacity: var(--goal-light-tint); transition: none; }
+.goal-card:not(.goal-card--detail-open, .goal-card--lifted):has(> .goal-card__row:focus-visible) > .goal-card__row::before { opacity: var(--goal-light-tint); transition: none; }
 [data-keyboard-column]:focus-visible .column-header__sub-label { color: rgb(var(--vt-foreground-rgb, 45 48 54) / 88%); }
 [data-keyboard-column]:focus-visible > .period-track > .period-slide:not([data-state="outgoing"]) .column-add-row {
   background: rgb(var(--vt-foreground-rgb, 45 48 54) / 6%); color: rgb(var(--vt-foreground-rgb, 45 48 54) / 72%); }
