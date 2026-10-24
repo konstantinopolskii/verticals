@@ -25,17 +25,30 @@ export const keyboardGroups = [
   ] },
 ]
 
+/* The places the keys stand on: a goal, a column's Add row, and a column with neither. */
+const PLACES = '.goal-card__row, [data-role="column-add"], [data-keyboard-column]'
+
 export function boardKeyTarget(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof HTMLElement) || !target.matches('.goal-card__row, [data-keyboard-column]')) return null
+  if (!(target instanceof HTMLElement) || !target.matches(PLACES)) return null
   return target.closest('[data-role="column-strip"]') ? target : null
+}
+
+/** Where an arrow starts from: the place itself, or the goal or column whose own control (a checkbox, the actions
+ * button, the period bars) has the focus. Fields keep their arrows for the caret. */
+function arrowPlace(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement) || target.matches('input:not([type="checkbox"]), textarea, select, [contenteditable="true"]')) return null
+  const place = boardKeyTarget(target) ?? target.closest<HTMLElement>('.goal-card__row')
+    ?? (target.closest('.column-bars') ? target.closest<HTMLElement>('[data-keyboard-column]') : null)
+  return boardKeyTarget(place)
 }
 
 /* A goal just created waits, inert, for the server under a `pending:` id; the keys may land on it, and take it when it
    comes back as the real goal. */
 const PENDING = '[data-goal-id^="pending:"]'
 
+/** The goals of a column in the order they show, then its Add row. */
 function rows(column: HTMLElement, pending = false): HTMLElement[] {
-  return [...column.querySelectorAll<HTMLElement>('.goal-card__row')].filter((row) =>
+  return [...column.querySelectorAll<HTMLElement>('.goal-card__row, [data-role="column-add"][tabindex]')].filter((row) =>
     !row.closest(`[data-state="outgoing"], [data-ghost], [aria-hidden="true"], ${pending ? `[inert]:not(${PENDING})` : '[inert]'}`)
     && row.getClientRects().length > 0)
 }
@@ -59,16 +72,17 @@ export function boardFocused(target: HTMLElement): void {
 /* Keeps the keys' place when the board redraws it: a focused goal or column whose element is replaced takes the focus
    back on its new element, instead of leaving it on the page. A blur the person made (the element stays) drops it. Its
    column and goal are read while it is still on the board: a removed row has no column around it any more. */
-type Place = { element: HTMLElement; column?: string; goal?: string }
+type Place = { element: HTMLElement; column?: string; goal?: string; add?: boolean }
 let held: Place | null = null
 function placeOf(target: HTMLElement): Place {
   return { element: target, column: target.closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical,
-    goal: target.closest<HTMLElement>('[data-goal-id]')?.dataset.goalId }
+    goal: target.closest<HTMLElement>('[data-goal-id]')?.dataset.goalId, add: target.matches('[data-role="column-add"]') }
 }
 /* The same goal or column drawn anew: a goal's row is replaced when the server confirms it or its period redraws. */
-function redrawn({ column, goal }: Place): HTMLElement | null {
+function redrawn({ column, goal, add }: Place): HTMLElement | null {
   const home = column ? document.querySelector<HTMLElement>(`[data-role="column-strip"] > [data-keyboard-column][data-vertical="${column}"]`) : null
   if (!home) return null
+  if (add) return rows(home).find((row) => row.matches('[data-role="column-add"]')) ?? home
   if (!goal) return home
   return [...home.querySelectorAll<HTMLElement>(`[data-goal-id="${CSS.escape(goal)}"] > .goal-card__row`)].find(shown) ?? null
 }
@@ -129,12 +143,13 @@ export function focusBoardTarget(target: HTMLElement): void {
 export function boardKey(event: KeyboardEvent, focusField: () => void): boolean {
   if (event.defaultPrevented || event.isComposing || event.keyCode === 229
     || event.metaKey || event.ctrlKey || event.altKey) return false
-  const target = boardKeyTarget(event.target)
+  const arrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+  const target = arrow ? arrowPlace(event.target) : boardKeyTarget(event.target)
   if (!target) {
     // On the background an arrow picks up the board where the keys left it, and ? opens the guide; letters stay the field's.
     if (!onBackground(event)) return false
     if (event.key === '?') keyboardHelpOpen.value = true
-    else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) && !event.shiftKey) {
+    else if (arrow && !event.shiftKey) {
       const start = boardStart()
       if (!start) return false
       focusBoardTarget(start)
@@ -145,7 +160,6 @@ export function boardKey(event: KeyboardEvent, focusField: () => void): boolean 
   }
   const column = target.closest<HTMLElement>('[data-keyboard-column]')
   if (!column) return false
-  const arrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
   if (event.shiftKey && event.key !== '?') return false
   // Enter on a column, not a goal, creates there as N does; on a goal it stays the goal's own (rename).
   const enter = event.key === 'Enter' && target === column

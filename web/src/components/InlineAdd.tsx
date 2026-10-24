@@ -52,13 +52,15 @@ export const InlineAdd = tracked(function InlineAdd(raw: Props & Record<string, 
     event.preventDefault()
     if (!s.editing.value) s.openEditor()
   }
-  /* The keys stay in the column the field closes in, so N or an arrow carries on from there. */
-  function backToColumn(event: KeyboardEvent<HTMLInputElement>) {
+  /* The keys come back to the Add row the field closes into, so Enter, N or an arrow carries on from there. */
+  function backToRow(event: KeyboardEvent<HTMLInputElement>) {
     const input = event.currentTarget
-    const column = input.closest<HTMLElement>('[data-keyboard-column]')
+    const row = input.closest<HTMLElement>('[data-role="column-add"]')
     void nextTick(() => {
       const now = document.activeElement
-      if (column?.isConnected && (!now || now === document.body || now === input)) column.focus({ preventScroll: true })
+      if (!row?.isConnected || (now && now !== document.body && now !== input)) return
+      row.tabIndex = 0 // the render that gives it back may come after this tick
+      row.focus({ preventScroll: true })
     })
   }
   function onEditorKey(event: KeyboardEvent<HTMLInputElement>) {
@@ -66,12 +68,12 @@ export const InlineAdd = tracked(function InlineAdd(raw: Props & Record<string, 
     if (event.key === ' ') event.stopPropagation()
     else if (event.key === 'Enter') {
       event.preventDefault()
-      if (s.draft.value.trim()) backToColumn(event)
+      if (s.draft.value.trim()) backToRow(event)
       s.commit()
     } else if (event.key === 'Escape') {
       event.stopPropagation()
       event.preventDefault()
-      backToColumn(event)
+      backToRow(event)
       s.cancelEditor()
     }
   }

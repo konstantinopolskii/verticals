@@ -35,8 +35,8 @@
 .column-add-row:focus-visible {
   background: rgb(var(--vt-foreground-rgb, 45 48 54) / 6%);
   color: rgb(var(--vt-foreground-rgb, 45 48 54) / 72%);
-  outline: 2px solid var(--color-border-strong);
-  outline-offset: 1px;
+  /* The keys' place wears the hover colour, as a focused goal does; never a frame (keyboardGuide.css). */
+  outline: none;
 }
 .column-add-row__checkbox {
   flex: 0 0 16px;
