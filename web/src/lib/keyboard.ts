@@ -37,6 +37,7 @@ function rows(column: HTMLElement): HTMLElement[] {
 
 /* The goal or column the keys last stood on: an arrow pressed on the background comes back to it. */
 let lastTarget: HTMLElement | null = null
+let lastPlace: Place | null = null
 /* A press of the pointer, not a key, moved the focus last. */
 let pointed = false
 window.addEventListener('pointerdown', () => { pointed = true }, true)
@@ -47,28 +48,35 @@ window.addEventListener('keydown', () => { pointed = false }, true)
 export function boardFocused(target: HTMLElement): void {
   if (pointed && target.matches('[data-keyboard-column]')) { target.blur(); return }
   lastTarget = target
-}
-
-/* The same goal or column drawn anew: a goal's row is replaced when the server confirms it or its period redraws. */
-function redrawn(target: HTMLElement): HTMLElement | null {
-  const column = target.closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical
-  const id = target.closest<HTMLElement>('[data-goal-id]')?.dataset.goalId
-  const home = column ? document.querySelector<HTMLElement>(`[data-role="column-strip"] > [data-keyboard-column][data-vertical="${column}"]`) : null
-  if (!home) return null
-  if (!id) return home
-  return [...home.querySelectorAll<HTMLElement>(`[data-goal-id="${CSS.escape(id)}"] > .goal-card__row`)].find(shown) ?? null
+  lastPlace = placeOf(target)
 }
 
 /* Keeps the keys' place when the board redraws it: a focused goal or column whose element is replaced takes the focus
-   back on its new element, instead of leaving it on the page. A blur the person made (the element stays) drops it. */
-let held: HTMLElement | null = null
-document.addEventListener('focusin', (event) => { held = boardKeyTarget(event.target) })
+   back on its new element, instead of leaving it on the page. A blur the person made (the element stays) drops it. Its
+   column and goal are read while it is still on the board: a removed row has no column around it any more. */
+type Place = { element: HTMLElement; column?: string; goal?: string }
+let held: Place | null = null
+function placeOf(target: HTMLElement): Place {
+  return { element: target, column: target.closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical,
+    goal: target.closest<HTMLElement>('[data-goal-id]')?.dataset.goalId }
+}
+/* The same goal or column drawn anew: a goal's row is replaced when the server confirms it or its period redraws. */
+function redrawn({ column, goal }: Place): HTMLElement | null {
+  const home = column ? document.querySelector<HTMLElement>(`[data-role="column-strip"] > [data-keyboard-column][data-vertical="${column}"]`) : null
+  if (!home) return null
+  if (!goal) return home
+  return [...home.querySelectorAll<HTMLElement>(`[data-goal-id="${CSS.escape(goal)}"] > .goal-card__row`)].find(shown) ?? null
+}
+document.addEventListener('focusin', (event) => {
+  const target = boardKeyTarget(event.target)
+  held = target ? placeOf(target) : null
+})
 document.addEventListener('focusout', (event) => {
   const left = event.target
-  queueMicrotask(() => { if (left === held && left instanceof Node && left.isConnected) held = null })
+  queueMicrotask(() => { if (held?.element === left && left instanceof Node && left.isConnected) held = null })
 })
 new MutationObserver(() => {
-  if (!held || held.isConnected || (document.activeElement && document.activeElement !== document.body)) return
+  if (!held || held.element.isConnected || (document.activeElement && document.activeElement !== document.body)) return
   const again = redrawn(held)
   held = null
   if (again) focusBoardTarget(again)
@@ -82,6 +90,8 @@ function shown(target: HTMLElement | null): target is HTMLElement {
 /** Where the keys start on the board: the goal they last stood on, else the first goal of the leading column. */
 function boardStart(): HTMLElement | null {
   if (shown(lastTarget) && boardKeyTarget(lastTarget)) return lastTarget
+  const again = lastPlace && redrawn(lastPlace)
+  if (again) return again
   const strip = document.querySelector<HTMLElement>('[data-role="column-strip"]')
   const lead = strip?.querySelector<HTMLElement>('.pattern-vertical-board__column--deck-main[data-keyboard-column]')
     ?? strip?.querySelector<HTMLElement>('[data-keyboard-column]')
