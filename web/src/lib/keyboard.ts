@@ -30,9 +30,14 @@ export function boardKeyTarget(target: EventTarget | null): HTMLElement | null {
   return target.closest('[data-role="column-strip"]') ? target : null
 }
 
-function rows(column: HTMLElement): HTMLElement[] {
+/* A goal just created waits, inert, for the server under a `pending:` id; the keys may land on it, and take it when it
+   comes back as the real goal. */
+const PENDING = '[data-goal-id^="pending:"]'
+
+function rows(column: HTMLElement, pending = false): HTMLElement[] {
   return [...column.querySelectorAll<HTMLElement>('.goal-card__row')].filter((row) =>
-    !row.closest('[data-state="outgoing"], [data-ghost], [inert], [aria-hidden="true"]') && row.getClientRects().length > 0)
+    !row.closest(`[data-state="outgoing"], [data-ghost], [aria-hidden="true"], ${pending ? `[inert]:not(${PENDING})` : '[inert]'}`)
+    && row.getClientRects().length > 0)
 }
 
 /* The goal or column the keys last stood on: an arrow pressed on the background comes back to it. */
@@ -75,7 +80,16 @@ document.addEventListener('focusout', (event) => {
   const left = event.target
   queueMicrotask(() => { if (held?.element === left && left instanceof Node && left.isConnected) held = null })
 })
+/* The keys moved onto a goal still waiting for the server: its column and place, to focus when it arrives. */
+let awaiting: { column: HTMLElement; index: number } | null = null
+document.addEventListener('focusin', (event) => { if (awaiting && event.target !== awaiting.column) awaiting = null })
 new MutationObserver(() => {
+  if (awaiting) {
+    const { column, index } = awaiting
+    const row = column.isConnected && document.activeElement === column ? rows(column, true)[index] : undefined
+    if (!column.isConnected || document.activeElement !== column) awaiting = null
+    else if (row && !row.closest(PENDING)) { awaiting = null; focusBoardTarget(row) }
+  }
   if (!held || held.element.isConnected || (document.activeElement && document.activeElement !== document.body)) return
   const again = redrawn(held)
   held = null
@@ -146,7 +160,7 @@ export function boardKey(event: KeyboardEvent, focusField: () => void): boolean 
     if (editor) editor.focus()
     else column.querySelector<HTMLElement>('.period-slide:not([data-state="outgoing"]) [data-role="column-add"]')?.click()
   } else {
-    const own = rows(column)
+    const own = rows(column, true)
     const index = own.indexOf(target)
     let next: HTMLElement | undefined
     if (event.key === 'ArrowUp') next = own[index < 0 ? own.length - 1 : Math.max(0, index - 1)]
@@ -160,7 +174,11 @@ export function boardKey(event: KeyboardEvent, focusField: () => void): boolean 
         next = visible[Math.min(Math.max(index, 0), visible.length - 1)] ?? adjacent
       }
     }
-    if (next) focusBoardTarget(next)
+    if (next?.closest(PENDING)) {
+      // The column keeps the keys until the goal comes back real, then hands them to it.
+      focusBoardTarget(column)
+      awaiting = { column, index: own.indexOf(next) }
+    } else if (next) focusBoardTarget(next)
   }
   return true
 }
