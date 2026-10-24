@@ -3,6 +3,7 @@
    mounts it fresh per document (keyed by its id), so the debounced body save lands with the id and revision this
    instance opened, never on whatever document is current by then. `inWindow`: drawn in a document's window, whose head
    stands for the path and actions row; links there open beside it. */
+import { keyboardHelpOpen } from '../lib/keyboard'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from '../reactivity'
 import { KChip } from '../kit'
@@ -238,8 +239,8 @@ export const DocDetail = tracked(function DocDetail(raw: Props & Record<string, 
       if (fresh) revision.value = fresh.revision
     }
 
-    listen(pathInputEl, 'blur', () => void commitPath())
-    listen(titleInputEl, 'blur', () => void commitTitle())
+    listen(pathInputEl, 'blur', () => { if (!keyboardHelpOpen.value) void commitPath() })
+    listen(titleInputEl, 'blur', () => { if (!keyboardHelpOpen.value) void commitTitle() })
 
     function cancelPathEdit(): void {
       editingPath.value = false
@@ -380,7 +381,7 @@ export const DocDetail = tracked(function DocDetail(raw: Props & Record<string, 
         onClick={(event) => s.onBodyClick(event.nativeEvent)}
         onBlur={(event) => {
           if (event.target !== event.currentTarget) return
-          s.finishBodyEdit()
+          if (!keyboardHelpOpen.value) s.finishBodyEdit()
         }}
         onMouseDown={() => s.anchoring.onBodyMouseDown()}
         onMouseUp={() => s.anchoring.onBodyMouseUp()}

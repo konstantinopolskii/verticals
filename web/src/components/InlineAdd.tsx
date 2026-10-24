@@ -1,6 +1,7 @@
 /* The product's add row: at rest the board's disabled-checkbox row; activated, the row
    turns in place into the one-input create path. One input, no required selects, and a committed title goes up as `add`
    (the goal's real id comes back from the server, never from here). */
+import { keyboardHelpOpen } from '../lib/keyboard'
 import type { KeyboardEvent } from 'react'
 import { nextTick, ref } from '../reactivity'
 import { fallthrough, model } from '../bind'
@@ -36,6 +37,7 @@ export const InlineAdd = tracked(function InlineAdd(raw: Props & Record<string, 
       cancelEditor()
     }
     function onBlur() {
+      if (keyboardHelpOpen.value) return
       if (!draft.value.trim()) cancelEditor()
     }
     listen(editor, 'blur', onBlur)
@@ -51,6 +53,7 @@ export const InlineAdd = tracked(function InlineAdd(raw: Props & Record<string, 
     if (!s.editing.value) s.openEditor()
   }
   function onEditorKey(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
     if (event.key === ' ') event.stopPropagation()
     else if (event.key === 'Enter') {
       event.preventDefault()

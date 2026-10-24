@@ -1,3 +1,4 @@
+import { KeyboardGuide } from './components/KeyboardGuide'
 import { Board } from './components/Board'
 import { GoalCard } from './components/GoalCard'
 import { InboxView } from './components/InboxView'
@@ -54,6 +55,7 @@ export const App = tracked(function App() {
   return (
     <CardDnd>
       <div className="app-shell">
+        <KeyboardGuide />
         {boardInFocus ? <div className="board-top-fade" aria-hidden="true"></div> : null}
         <div className={cx('app-veil', { 'is-shown': unfocused, 'app-veil--window': windowOpen })} data-role="out-of-focus"
           aria-hidden="true" onClick={s.onVeilClick}></div>

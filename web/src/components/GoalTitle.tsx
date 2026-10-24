@@ -41,6 +41,7 @@ export const GoalTitle = tracked(function GoalTitle(raw: Props) {
       props.onInput(event.nativeEvent)
     }
     function onKeyDown(event: KeyboardEvent): void {
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
       if (event.key !== 'Enter' && event.key !== 'Escape') return
       event.preventDefault()
       event.stopPropagation()

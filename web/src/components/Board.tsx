@@ -1,6 +1,7 @@
 /* The board: the seven dated columns on a plain .card-stack wearing
    .pattern-vertical-board, the spans in its place while a goal moves, the iridescent overlay and the drag's flying copy.
-   Board-only window listeners: the horizontal wheel strip and the `t` key; the drag's own listeners live in the shell. */
+   The horizontal wheel listener lives here; the drag's listeners live in the shell. */
+import { boardKeyTarget } from '../lib/keyboard'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from '../reactivity'
 import { KButton, KCardStack } from '../kit'
 import { Column } from './Column'
@@ -48,7 +49,8 @@ export const Board = tracked(function Board(raw: Props) {
 
     // Hover is a transient deck preview; an opened card's column owns the main role, Day while nothing is open.
     const deckActiveVertical = ref('day')
-    const mainVertical = computed(() => (
+    const focusedVertical = ref<string | null>(null)
+    const mainVertical = computed(() => focusedVertical.value ?? (
       store.state.openGoalId !== null && store.state.openGoalVertical ? store.state.openGoalVertical : 'day'
     ))
     watch(() => store.state.openGoalId, (id) => {
@@ -86,7 +88,7 @@ export const Board = tracked(function Board(raw: Props) {
       if (!anchor) return
       void loadPeriod(adjacentPeriodAnchor(anchor, vertical as AdjustableVertical, direction), direction)
     }
-    /* The `t` key, and the single bar a column away from today shows: every column back on the period that holds today. */
+    /* The single bar a column away from today returns every column to the period that holds today. */
     function navigateToday() {
       const today = todayIso()
       const current = store.state.board?.anchor_date
@@ -99,11 +101,9 @@ export const Board = tracked(function Board(raw: Props) {
       void openSpans(vertical as SpanScale, vertical, periodKey, todayIso())
     }
 
-    function onWindowKeyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null
-      if (event.key.toLowerCase() === 't' && !event.repeat && !target?.matches('input, textarea, [contenteditable="true"]')) {
-        navigateToday()
-      }
+    function onFocus(event: React.FocusEvent) {
+      if (!boardKeyTarget(event.target)) return
+      focusedVertical.value = (event.target as HTMLElement).closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical ?? null
     }
     /* Capture phase, non-passive: the column boxes between the pointer and the strip are overflow:hidden scroll
        containers, so by the time a horizontal delta bubbles it has already been eaten (lib/boardWheel.ts). */
@@ -118,11 +118,9 @@ export const Board = tracked(function Board(raw: Props) {
     }
     onMounted(() => {
       window.addEventListener('wheel', onWindowWheel, { capture: true, passive: false })
-      window.addEventListener('keydown', onWindowKeyDown)
     })
     onBeforeUnmount(() => {
       window.removeEventListener('wheel', onWindowWheel, { capture: true })
-      window.removeEventListener('keydown', onWindowKeyDown)
     })
 
     /* Selection stays available at rest and on press, then locks from arm through settle; on body, since the gesture can
@@ -135,7 +133,7 @@ export const Board = tracked(function Board(raw: Props) {
 
     return {
       boardRoot, iridescentCanvas, dated, deckActiveVertical, mainVertical, previewColumn, deckStyle, periodDirection, periodSwapId,
-      navigatePeriod, navigateToday, openMode,
+      navigatePeriod, navigateToday, openMode, onFocus,
     }
   })
 
@@ -164,6 +162,7 @@ export const Board = tracked(function Board(raw: Props) {
             'pattern-vertical-board--nothing-found': nothingFound.value,
           })}
           style={sx(s.deckStyle.value)}
+          onFocusCapture={s.onFocus}
           data-role="column-strip"
         >
           {dated.map((column) => (
