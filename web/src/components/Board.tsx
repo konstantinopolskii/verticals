@@ -107,6 +107,10 @@ export const Board = tracked(function Board(raw: Props) {
       if (document.activeElement !== event.target) return
       focusedVertical.value = (event.target as HTMLElement).closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical ?? null
     }
+    /* Focus leaving the columns gives the lead back to the open goal's column, or Day. */
+    function onBlur(event: React.FocusEvent) {
+      if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) focusedVertical.value = null
+    }
     /* Capture phase, non-passive: the column boxes between the pointer and the strip are overflow:hidden scroll
        containers, so by the time a horizontal delta bubbles it has already been eaten (lib/boardWheel.ts). */
     function onWindowWheel(event: WheelEvent) {
@@ -135,7 +139,7 @@ export const Board = tracked(function Board(raw: Props) {
 
     return {
       boardRoot, iridescentCanvas, dated, deckActiveVertical, mainVertical, previewColumn, deckStyle, periodDirection, periodSwapId,
-      navigatePeriod, navigateToday, openMode, onFocus,
+      navigatePeriod, navigateToday, openMode, onFocus, onBlur,
     }
   })
 
@@ -165,6 +169,7 @@ export const Board = tracked(function Board(raw: Props) {
           })}
           style={sx(s.deckStyle.value)}
           onFocusCapture={s.onFocus}
+          onBlurCapture={s.onBlur}
           data-role="column-strip"
         >
           {dated.map((column) => (
