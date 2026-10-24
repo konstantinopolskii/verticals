@@ -272,3 +272,19 @@ def test_hiding_the_field_while_typing_in_it_drops_the_caret(ui_f2: UiSession):
     expect(page.locator(FIELD)).not_to_be_focused()
     page.keyboard.press('ArrowDown')
     expect(first_row(page, 'day')).to_be_focused()
+
+
+def test_space_closes_the_goal_it_opened_without_redrawing_it(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowDown')
+    row = first_row(page, 'day')
+    page.keyboard.press('Space')
+    expect(page.locator('#goal-detail')).to_be_visible()
+    opened = len(ui_f2.request_log)
+    page.keyboard.press('Space')
+    expect(page.locator('#goal-detail')).to_have_count(0)
+    expect(row).to_be_focused()
+    assert not any(r['method'] == 'GET' and '/api/goals/' in r['url'] for r in ui_f2.request_log[opened:])
+    page.keyboard.press('Space')
+    expect(page.locator('#goal-detail')).to_be_visible()

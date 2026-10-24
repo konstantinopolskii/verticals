@@ -284,7 +284,8 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
       if (!['/', 'Slash'].includes(event.key) && fromControl(event.nativeEvent)) return
       event.preventDefault()
       if (event.key === 'Enter') title.start()
-      else if (event.key === ' ') onOpenDetail()
+      // Space on the open goal closes it the way Esc does; opening it again only redrew it.
+      else if (event.key === ' ') { if (isInlineDetailHost.value) store.goUp(); else onOpenDetail() }
       else tools.value?.openMenu()
     }
     function onSearchOpen(event: ReactMouseEvent): void {

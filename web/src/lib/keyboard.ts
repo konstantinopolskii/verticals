@@ -19,7 +19,7 @@ export const keyboardGroups = [
   { name: 'Goals', bindings: [
     { label: 'New goal in this column', keys: ['N'] },
     { label: 'Rename goal', keys: ['Enter'] },
-    { label: 'Open details', keys: ['Space'] },
+    { label: 'Open or close details', keys: ['Space'] },
     { label: 'More actions', keys: ['/'] },
     { label: 'Find or ask', keys: ['F'] },
     { label: 'Hide or show the field', keys: [keyboardModifier, '\\'] },
