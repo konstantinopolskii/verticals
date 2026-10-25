@@ -281,10 +281,17 @@ def test_space_closes_the_goal_it_opened_without_redrawing_it(ui_f2: UiSession):
     row = first_row(page, 'day')
     page.keyboard.press('Space')
     expect(page.locator('#goal-detail')).to_be_visible()
-    opened = len(ui_f2.request_log)
+    opened = -1
+    while opened != len(ui_f2.request_log):  # the opening's own fetches land before the count
+        opened = len(ui_f2.request_log)
+        page.wait_for_timeout(400)
     page.keyboard.press('Space')
     expect(page.locator('#goal-detail')).to_have_count(0)
     expect(row).to_be_focused()
-    assert not any(r['method'] == 'GET' and '/api/goals/' in r['url'] for r in ui_f2.request_log[opened:])
+    # Prefetches of other goals may come; the open goal itself is not fetched again.
+    goal = row.evaluate('el => el.closest("[data-goal-id]").dataset.goalId')
+    late = [r['url'] for r in ui_f2.request_log[opened:] if r['method'] == 'GET' and f'/api/goals/{goal}' in r['url']]
+    assert not late, late
     page.keyboard.press('Space')
     expect(page.locator('#goal-detail')).to_be_visible()
+
