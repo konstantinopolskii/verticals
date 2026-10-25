@@ -492,3 +492,18 @@ def test_g_turns_the_menu_into_its_goal_search(ui_f2: UiSession):
     page.keyboard.press('g')
     expect(page.locator('[data-role="goal-actions-menu"]')).to_have_count(0)
     expect(page.locator('.popover-engine__surface input').first).to_be_visible()
+
+
+def test_the_hand_moves_the_keys_only_while_they_are_on_the_board(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    rows = column(page, 'month').locator('[data-section="planned"] > .goal-card > .goal-card__row')
+    box = rows.nth(2).bounding_box()
+    page.mouse.move(box['x'] + 60, box['y'] + box['height'] / 2, steps=3)
+    expect(page.locator('body')).to_be_focused()  # the keys are nowhere: the hand only points
+    rows.nth(0).focus()
+    page.keyboard.press('ArrowDown')
+    page.mouse.move(box['x'] + 70, box['y'] + box['height'] / 2, steps=3)
+    expect(rows.nth(2)).to_be_focused()
+    page.keyboard.press('ArrowDown')
+    expect(rows.nth(3)).to_be_focused()

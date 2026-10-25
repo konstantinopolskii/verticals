@@ -1,7 +1,7 @@
 /* The board: the seven dated columns on a plain .card-stack wearing
    .pattern-vertical-board, the spans in its place while a goal moves, the iridescent overlay and the drag's flying copy.
    The horizontal wheel listener lives here; the drag's listeners live in the shell. */
-import { boardKeyTarget, boardFocused } from '../lib/keyboard'
+import { boardKeyTarget, boardFocused, focusedByHand } from '../lib/keyboard'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from '../reactivity'
 import { KButton, KCardStack } from '../kit'
 import { Column } from './Column'
@@ -104,7 +104,7 @@ export const Board = tracked(function Board(raw: Props) {
     function onFocus(event: React.FocusEvent) {
       if (!boardKeyTarget(event.target)) return
       boardFocused(event.target as HTMLElement)
-      if (document.activeElement !== event.target) return
+      if (document.activeElement !== event.target || focusedByHand()) return
       focusedVertical.value = (event.target as HTMLElement).closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical ?? null
     }
     /* Focus leaving the columns gives the lead back to the open goal's column, or Day. */

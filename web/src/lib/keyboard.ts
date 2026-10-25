@@ -72,6 +72,24 @@ window.addEventListener('keydown', (event) => {
   store.dropHoverChain()
   whenHandMoves(handBack)
 }, true)
+/* One goal is the current one. While the keys are on the board (they moved last, not a click), the hand moving onto a goal takes them there, so the
+   goal under the pointer and the goal the keys act on are one; E, Space and / act on what is lit. With the keys
+   elsewhere (the field, a title, a menu, nothing) the hand only points, and typing still starts the field. Only a real
+   move counts: a goal sliding under a still pointer takes nothing. */
+let byHand = false
+/** The focus came from the hand moving onto a goal, not from the keys: the leading column stays where it is. */
+export function focusedByHand(): boolean { return byHand }
+window.addEventListener('pointermove', (event) => {
+  if (event.pointerType !== 'mouse' || (event.movementX === 0 && event.movementY === 0) || event.buttons) return
+  const now = document.activeElement
+  if (pointed || !(now instanceof HTMLElement) || !boardKeyTarget(now) || store.state.drag.id) return
+  const row = event.target instanceof Element ? event.target.closest<HTMLElement>('.goal-card__row') : null
+  if (!row || row === now || !boardKeyTarget(row) || !shown(row) || row.closest(PENDING)) return
+  byHand = true
+  row.focus({ preventScroll: true })
+  byHand = false
+}, { capture: true, passive: true })
+
 /* When the hand moves again, the goal under it answers as if the pointer had just come onto it. */
 function handBack(): void {
   document.querySelectorAll('.goal-card:hover, .goal-card__children:hover')
