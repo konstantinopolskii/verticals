@@ -38,6 +38,8 @@
    where N and Enter create. */
 [data-keyboard-column]:focus-visible, .goal-card > .goal-card__row:focus-visible { outline: none; }
 .goal-card:not(.goal-card--detail-open, .goal-card--lifted):has(> .goal-card__row:focus-visible) > .goal-card__row::before { opacity: var(--goal-light-tint); transition: none; }
+/* A plan carried over takes the tint its hover takes on the box's own ground (carriedGroup.css). */
+.carried-group .goal-card:not(.goal-card--detail-open):has(> .goal-card__row:focus-visible) > .goal-card__row::before { opacity: var(--goal-light-tint, .7) !important; }
 [data-keyboard-column]:focus-visible .column-header__sub-label { color: rgb(var(--vt-foreground-rgb, 45 48 54) / 88%); }
 [data-keyboard-column]:focus-visible > .period-track > .period-slide:not([data-state="outgoing"]) .column-add-row {
   background: rgb(var(--vt-foreground-rgb, 45 48 54) / 6%); color: rgb(var(--vt-foreground-rgb, 45 48 54) / 72%); }

@@ -1,10 +1,13 @@
 """Board keys as a person meets them: no focus set up by the test, the pointer mixed in, and an empty board."""
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
 
+import psycopg
 import pytest
 from playwright.sync_api import Browser, expect
 
+from verticals.core import goals
 from tests.ui.conftest import F2_OWNER, UiSession, _backend, _make_ui_session, _static_server
 from tests.ui.views import switch_view
 
@@ -295,3 +298,18 @@ def test_space_closes_the_goal_it_opened_without_redrawing_it(ui_f2: UiSession):
     page.keyboard.press('Space')
     expect(page.locator('#goal-detail')).to_be_visible()
 
+
+def test_arrows_reach_the_plans_carried_over(ui_f2: UiSession):
+    with psycopg.connect(ui_f2.backend.dsn, autocommit=True) as conn:
+        goals.create(conn, owner='t1', title='SYN carried by keys', vertical='year',
+                     anchor_date=date(date.today().year - 1, 6, 15))
+    page = ui_f2.page
+    page.goto(f'{ui_f2.base_url}/h/{date.today().isoformat()}')
+    page.wait_for_selector('[data-role="carried-group"]')
+    year = column(page, 'year')
+    year.locator('[data-section="planned"] .goal-card__row, [data-role="column-add"]').first.focus()
+    page.keyboard.press('ArrowUp')
+    focused_in_box = 'document.activeElement.matches("[data-role=carried-group] .goal-card__row")'
+    assert page.evaluate(focused_in_box)
+    page.keyboard.press('ArrowDown')
+    assert not page.evaluate(focused_in_box)

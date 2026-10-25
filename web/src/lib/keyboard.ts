@@ -50,7 +50,7 @@ const PENDING = '[data-goal-id^="pending:"]'
 /** The goals of a column in the order they show, then its Add row. */
 function rows(column: HTMLElement, pending = false): HTMLElement[] {
   return [...column.querySelectorAll<HTMLElement>('.goal-card__row, [data-role="column-add"][tabindex]')].filter((row) =>
-    !row.closest(`[data-state="outgoing"], [data-ghost], [aria-hidden="true"], ${pending ? `[inert]:not(${PENDING})` : '[inert]'}`)
+    !row.closest(`[data-state="outgoing"], [aria-hidden="true"], ${pending ? `[inert]:not(${PENDING})` : '[inert]'}`)
     && row.getClientRects().length > 0)
 }
 
@@ -113,7 +113,7 @@ new MutationObserver(() => {
 
 function shown(target: HTMLElement | null): target is HTMLElement {
   if (!target?.isConnected || target.getClientRects().length === 0) return false
-  return !target.closest('[data-state="outgoing"], [data-ghost], [inert], [aria-hidden="true"]')
+  return !target.closest('[data-state="outgoing"], [inert], [aria-hidden="true"]')
 }
 
 /** Where the keys start on the board: the goal they last stood on, else the first goal of the leading column. */
