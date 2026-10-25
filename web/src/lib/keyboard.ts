@@ -1,6 +1,7 @@
 import { ref } from '../reactivity'
 import { store } from '../store'
 import { outOfFocus } from './windows'
+import { releaseLifts } from './cardLift'
 
 export const keyboardHelpOpen = ref(false)
 export const keyboardModifier = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'
@@ -56,6 +57,15 @@ function rows(column: HTMLElement, pending = false): HTMLElement[] {
     !row.closest(`[data-state="outgoing"], [aria-hidden="true"], ${pending ? `[inert]:not(${PENDING})` : '[inert]'}`)
     && row.getClientRects().length > 0)
 }
+
+/* A key on the board takes over from the pointer: the goal under a still pointer drops its lift and its family's light
+   until the hand moves, so the board shows one goal, the keys' (a goal opened with Space stayed grey while the one
+   under the pointer lit). */
+window.addEventListener('keydown', (event) => {
+  if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key) || !boardKeyTarget(event.target)) return
+  releaseLifts(null)
+  store.dropHoverChain()
+}, true)
 
 /* The goal or column the keys last stood on: an arrow pressed on the background comes back to it. */
 let lastTarget: HTMLElement | null = null

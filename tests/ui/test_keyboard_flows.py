@@ -359,3 +359,22 @@ def test_shift_down_widens_the_column_and_shift_up_narrows_it(ui_f2: UiSession):
     expect(month).to_have_class(re.compile('pattern-vertical-board__column--active'))
     page.keyboard.press('Shift+ArrowUp')
     expect(month).not_to_have_class(re.compile('pattern-vertical-board__column--active'))
+
+
+def test_space_lights_the_goal_it_opens_not_the_one_under_the_pointer(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    rows = column(page, 'day').locator('[data-section="planned"] > .goal-card > .goal-card__row')
+    pointed, keyed = rows.nth(0), rows.nth(1)
+    box = pointed.bounding_box()
+    page.mouse.move(box['x'] + 40, box['y'] + box['height'] / 2)
+    page.mouse.move(box['x'] + 44, box['y'] + box['height'] / 2)
+    page.wait_for_timeout(400)  # the pointer rests: its goal's family lights
+    keyed.focus()
+    page.keyboard.press('Space')
+    expect(page.locator('#goal-detail')).to_be_visible()
+    page.wait_for_timeout(600)
+    opened = keyed.locator('xpath=..')
+    expect(opened).to_have_attribute('data-light', re.compile('.+'))
+    expect(opened).not_to_have_class(re.compile('goal-card--lifted'))
+    expect(pointed.locator('xpath=..')).not_to_have_class(re.compile('goal-card--lifted'))

@@ -120,6 +120,18 @@ export function setHoverChain(view: BoardViewState, id: string | null): void {
   hoverRestWatch = whenPointerRests(rest)
 }
 
+/** The keys took over: the light of the goal under the pointer goes at once, with no grace. */
+export function dropHoverChain(view: BoardViewState): void {
+  restToken++
+  for (const timer of [hoverClearTimer, hoverRestTimer]) if (timer !== null) clearTimeout(timer)
+  hoverClearTimer = null
+  hoverRestTimer = null
+  hoverRestWatch?.()
+  hoverRestWatch = null
+  view.hoverChainId = null
+  view.restChainId = null
+}
+
 /** A card's family line — itself, every ancestor, every descendant — as one id set. Pure
  *  client-side reads over the loaded board (HC-11). The store wraps these in a `computed`; called
  *  during evaluation, the reactive property reads below register the dependency tracking

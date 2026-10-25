@@ -9,7 +9,7 @@ import { KCard } from '../kit'
 import { useCompletionCelebration } from '../lib/completionCelebration'
 import { keyboardHelpOpen } from '../lib/keyboard'
 import { caretAt, useInlineTitleEdit } from '../lib/inlineTitleEdit'
-import { anyMenuOpen, menuGoalId, pointerOver, useCardLift, whenMenuCloses } from '../lib/cardLift'
+import { anyMenuOpen, menuGoalId, pointerOver, useCardLift, whenHandMoves, whenMenuCloses } from '../lib/cardLift'
 import { useGroupWash } from '../lib/goalWash'
 import { useCardDrag } from '../lib/cardDrag'
 import { withSlot, type SlotItem } from '../lib/reorderSlot'
@@ -244,7 +244,8 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
     }
     function onCardEnter(): void {
       if (inWindow.value) return
-      highlightFamily()
+      // After the keys took over, a card that slid under the still pointer lights only once the hand moves.
+      whenHandMoves(() => { if (rootElement()?.matches(':hover')) highlightFamily() })
       lift.enter()
       void store.ensureDetail(props.id) // a click here moves the board from its detail (lib/familyMotion.ts): fetch it ahead
     }

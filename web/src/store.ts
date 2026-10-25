@@ -280,6 +280,7 @@ const columns: ComputedRef<BoardColumnData[]> = computed(() => projectedColumns.
 const toggleExpandedColumn = (vertical: string): void => viewState.toggleExpandedColumn(state, vertical)
 const expandColumn = (vertical: string): void => viewState.expandColumn(state, vertical)
 const setHoverChain = (id: string | null): void => viewState.setHoverChain(state, id)
+const dropHoverChain = (): void => viewState.dropHoverChain(state)
 const hoverChain: ComputedRef<{ id: string; set: Set<string> } | null> = computed(() =>
   viewState.hoverChainOf(state),
 )
@@ -732,6 +733,7 @@ export const store = {
   toggleExpandedColumn,
   expandColumn,
   setHoverChain,
+  dropHoverChain,
   hoverChain,
   restChain,
   ...family,

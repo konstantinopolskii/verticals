@@ -88,6 +88,11 @@ export function releaseLifts(at: { x: number; y: number } | null): void {
 export function refreshLifts(): void {
   refreshers.forEach((refresh) => refresh())
 }
+/** Runs `fn` now, or once the hand moves when the board is waiting for it to. */
+export function whenHandMoves(fn: () => void): void {
+  if (quiet) waiting.add(fn)
+  else fn()
+}
 function wake(event: PointerEvent): void {
   if (!quiet || Math.hypot(event.clientX - quiet.x, event.clientY - quiet.y) < HOLD_MOVE_PX) return
   quiet = null
