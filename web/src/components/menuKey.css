@@ -6,6 +6,7 @@
   color: rgb(var(--vt-foreground-rgb, 45 48 54) / 40%);
   font: 400 13px/24px var(--font-body);
 }
-/* A submenu's arrow stands right after its key. */
-.menu-key + [data-role="submenu-arrow"] { margin-left: 4px; }
 .menu-key::after { content: attr(data-label); }
+/* The keys stand in one column: a submenu's arrow comes after its key, and an item with no arrow keeps the arrow's room. */
+.dropdown__item > .menu-key + [data-role="submenu-arrow"] { margin-left: 0; }
+.goal-actions__item > .menu-key:last-child { margin-right: 22px; } /* the arrow, 14 px, and the item's 8 px gap */

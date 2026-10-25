@@ -528,3 +528,11 @@ def test_a_column_pages_from_the_board_asked_for_ahead(ui_f2: UiSession):
     expect(month).not_to_have_attribute('data-period-key', was)
     shown = page.url.rsplit('/h/', 1)[-1]
     assert not [u for u in boards()[ahead:] if f'date={shown}' in u]  # the page came from the board asked for ahead
+
+
+def test_the_menu_keys_stand_in_one_column(ui_f2: UiSession):
+    page = ui_f2.page
+    _menu_on_first_day_goal(page)
+    rights = page.locator('[data-role="goal-actions-menu"] .menu-key').evaluate_all(
+        'keys => keys.map((k) => Math.round(k.getBoundingClientRect().right))')
+    assert len(rights) >= 5 and max(rights) - min(rights) <= 1, rights
