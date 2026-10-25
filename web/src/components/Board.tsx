@@ -83,10 +83,19 @@ export const Board = tracked(function Board(raw: Props) {
       // In the board's own tick: a column must still hold its old period when the swap starts.
       await store.loadBoard(anchor, () => { periodSwapId.value += 1 })
     }
+    /** Asks ahead for the periods before and after a column's, so its page shows at once (store.ts). */
+    function pageAhead(vertical: string | undefined) {
+      const anchor = store.state.board?.anchor_date
+      if (!anchor || !vertical || vertical === 'life' || vertical === 'maybe') return
+      for (const direction of [-1, 1] as const) {
+        store.prefetchBoard(adjacentPeriodAnchor(anchor, vertical as AdjustableVertical, direction))
+      }
+    }
     function navigatePeriod(vertical: string, direction: PeriodDirection) {
       const anchor = store.state.board?.anchor_date
       if (!anchor) return
       void loadPeriod(adjacentPeriodAnchor(anchor, vertical as AdjustableVertical, direction), direction)
+        .then(() => pageAhead(vertical)) // the next page, too
     }
     /* The single bar a column away from today returns every column to the period that holds today. */
     function navigateToday() {
@@ -104,8 +113,15 @@ export const Board = tracked(function Board(raw: Props) {
     function onFocus(event: React.FocusEvent) {
       if (!boardKeyTarget(event.target)) return
       boardFocused(event.target as HTMLElement)
+      const vertical = (event.target as HTMLElement).closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical
+      pageAhead(vertical)
       if (document.activeElement !== event.target || focusedByHand()) return
-      focusedVertical.value = (event.target as HTMLElement).closest<HTMLElement>('[data-keyboard-column]')?.dataset.vertical ?? null
+      focusedVertical.value = vertical ?? null
+    }
+    /* The hand on a column's period bars is about to page it. */
+    function onPointerOver(event: React.PointerEvent) {
+      const bars = (event.target as Element).closest('.column-bars')
+      if (bars) pageAhead(bars.closest<HTMLElement>('[data-vertical]')?.dataset.vertical)
     }
     /* Focus leaving the columns gives the lead back to the open goal's column, or Day. */
     function onBlur(event: React.FocusEvent) {
@@ -139,7 +155,7 @@ export const Board = tracked(function Board(raw: Props) {
 
     return {
       boardRoot, iridescentCanvas, dated, deckActiveVertical, mainVertical, previewColumn, deckStyle, periodDirection, periodSwapId,
-      navigatePeriod, navigateToday, openMode, onFocus, onBlur,
+      navigatePeriod, navigateToday, openMode, onFocus, onBlur, onPointerOver,
     }
   })
 
@@ -169,6 +185,7 @@ export const Board = tracked(function Board(raw: Props) {
           })}
           style={sx(s.deckStyle.value)}
           onFocusCapture={s.onFocus}
+          onPointerOver={s.onPointerOver}
           onBlurCapture={s.onBlur}
           data-role="column-strip"
         >

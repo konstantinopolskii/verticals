@@ -507,3 +507,24 @@ def test_the_hand_moves_the_keys_only_while_they_are_on_the_board(ui_f2: UiSessi
     expect(rows.nth(2)).to_be_focused()
     page.keyboard.press('ArrowDown')
     expect(rows.nth(3)).to_be_focused()
+
+
+
+def test_a_column_pages_from_the_board_asked_for_ahead(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    month = column(page, 'month')
+    was = month.get_attribute('data-period-key')
+
+    def boards():
+        return [r['url'] for r in ui_f2.request_log if r['method'] == 'GET' and '/api/board?' in r['url']]
+
+    asked = len(boards())
+    add_row(page, 'month').first.focus()
+    page.wait_for_timeout(800)  # the months before and after are asked for
+    assert len(boards()) >= asked + 2
+    ahead = len(boards())
+    page.keyboard.press('Shift+ArrowRight')
+    expect(month).not_to_have_attribute('data-period-key', was)
+    shown = page.url.rsplit('/h/', 1)[-1]
+    assert not [u for u in boards()[ahead:] if f'date={shown}' in u]  # the page came from the board asked for ahead
