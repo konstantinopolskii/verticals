@@ -16,7 +16,7 @@
 import { startLiveUpdates } from './liveUpdates'
 import { createDeferredRun, current as currentBoardEpoch } from './boardEpoch'
 import { keepPending } from './boardPlacement'
-import { fetchBoard, fetchTags, type BoardResponse, type TagMeta } from './api'
+import { fetchBoard, fetchTags, onApiWrite, type BoardResponse, type TagMeta } from './api'
 import { refreshPrivacy } from './privacy'
 import type { DragState } from './drag'
 
@@ -27,13 +27,18 @@ export interface LiveBoardState {
   drag: DragState
 }
 
+/* Writes sent or answered so far: a reload that one of them overtook would put back a state the board has left. */
+let writes = 0
+onApiWrite(() => { writes += 1 })
+
 export function createLiveBoard(state: LiveBoardState, todayIso: () => string) {
   async function quietReload(): Promise<void> {
     const epoch = currentBoardEpoch()
+    const seen = writes
     try {
       const date = state.board?.anchor_date ?? todayIso()
       const [board, tags] = await Promise.all([fetchBoard(date, state.valueFilter), fetchTags(), refreshPrivacy()])
-      if (currentBoardEpoch() !== epoch) return
+      if (currentBoardEpoch() !== epoch || writes !== seen) return
       if (!state.valueFilter) keepPending(board) // a filtered board leaves a new top goal out
       state.board = board
       state.tagMeta = tags.tags
