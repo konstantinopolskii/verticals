@@ -42,6 +42,10 @@ def add_row(page, vertical):
     return column(page, vertical).locator('[data-role="column-add"]')
 
 
+def add_field(page, vertical):
+    return column(page, vertical).locator('[data-role="column-add-editor"]')
+
+
 def loaded(page):
     page.wait_for_selector('.goal-card__row')
     away(page)
@@ -161,10 +165,10 @@ def test_an_empty_board_takes_the_keys(ui_empty: UiSession):
     page = ui_empty.page
     page.wait_for_selector('[data-keyboard-column]')
     page.keyboard.press('ArrowDown')
-    expect(add_row(page, 'day')).to_be_focused()
+    expect(add_field(page, 'day')).to_be_focused()
     page.keyboard.press('ArrowRight')
-    expect(add_row(page, 'week')).to_be_focused()
-    page.keyboard.press('Enter')
+    expect(add_field(page, 'week')).to_be_focused()
+    expect(add_field(page, 'day')).to_have_count(0)
     page.keyboard.type('First goal')
     page.keyboard.press('Enter')
     expect(add_row(page, 'week')).to_be_focused()
@@ -232,10 +236,9 @@ def test_arrows_leave_an_add_row_a_checkbox_and_the_period_bars(ui_f2: UiSession
     page.keyboard.press('ArrowUp')
     expect(column(page, 'week').locator('.goal-card__row').last).to_be_focused()
     page.keyboard.press('ArrowDown')
-    expect(add).to_be_focused()
-    assert add.evaluate('el => getComputedStyle(el).outlineStyle') == 'none'
+    expect(add_field(page, 'week')).to_be_focused()
     page.keyboard.press('ArrowLeft')
-    expect(column(page, 'day').locator('.goal-card__row, [data-role="column-add"]').nth(4)).to_be_focused()
+    expect(column(page, 'day').locator('.goal-card__row, [data-role="column-add-editor"]').nth(4)).to_be_focused()
     first_row(page, 'month').locator('input[type="checkbox"]').first.focus()
     page.keyboard.press('ArrowDown')
     expect(column(page, 'month').locator('.goal-card__row').nth(1)).to_be_focused()
@@ -378,3 +381,17 @@ def test_space_lights_the_goal_it_opens_not_the_one_under_the_pointer(ui_f2: UiS
     expect(opened).to_have_attribute('data-light', re.compile('.+'))
     expect(opened).not_to_have_class(re.compile('goal-card--lifted'))
     expect(pointed.locator('xpath=..')).not_to_have_class(re.compile('goal-card--lifted'))
+
+
+def test_the_keys_reach_an_add_row_ready_to_type(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    column(page, 'month').locator('.goal-card__row').last.focus()
+    page.keyboard.press('ArrowDown')
+    expect(add_field(page, 'month')).to_be_focused()
+    page.keyboard.type('Typed at once')
+    page.keyboard.press('ArrowUp')  # a field with words keeps its arrows
+    expect(add_field(page, 'month')).to_be_focused()
+    page.keyboard.press('Escape')
+    expect(add_row(page, 'month')).to_be_focused()
+    expect(page.locator(FIELD)).to_have_value('')

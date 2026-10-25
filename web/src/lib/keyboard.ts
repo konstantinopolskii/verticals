@@ -41,6 +41,10 @@ export function boardKeyTarget(target: EventTarget | null): HTMLElement | null {
 /** Where an arrow starts from: the place itself, or the goal or column whose own control (a checkbox, the actions
  * button, the period bars) has the focus. Fields keep their arrows for the caret. */
 function arrowPlace(target: EventTarget | null): HTMLElement | null {
+  // An Add field with nothing typed is its Add row: the arrows go on from it.
+  if (target instanceof HTMLInputElement && target.matches('[data-role="column-add-editor"]') && !target.value) {
+    return boardKeyTarget(target.closest('[data-role="column-add"]'))
+  }
   if (!(target instanceof HTMLElement) || target.matches('input:not([type="checkbox"]), textarea, select, [contenteditable="true"]')) return null
   const place = boardKeyTarget(target) ?? target.closest<HTMLElement>('.goal-card__row')
     ?? (target.closest('.column-bars') ? target.closest<HTMLElement>('[data-keyboard-column]') : null)
@@ -51,9 +55,9 @@ function arrowPlace(target: EventTarget | null): HTMLElement | null {
    comes back as the real goal. */
 const PENDING = '[data-goal-id^="pending:"]'
 
-/** The goals of a column in the order they show, then its Add row. */
+/** The goals of a column in the order they show, then its Add row, open or not. */
 function rows(column: HTMLElement, pending = false): HTMLElement[] {
-  return [...column.querySelectorAll<HTMLElement>('.goal-card__row, [data-role="column-add"][tabindex]')].filter((row) =>
+  return [...column.querySelectorAll<HTMLElement>('.goal-card__row, [data-role="column-add"]')].filter((row) =>
     !row.closest(`[data-state="outgoing"], [aria-hidden="true"], ${pending ? `[inert]:not(${PENDING})` : '[inert]'}`)
     && row.getClientRects().length > 0)
 }
@@ -121,7 +125,7 @@ new MutationObserver(() => {
   if (!held || held.element.isConnected || (document.activeElement && document.activeElement !== document.body)) return
   const again = redrawn(held)
   held = null
-  if (again) focusBoardTarget(again)
+  if (again) focusBoardTarget(again, false)
 }).observe(document.body, { childList: true, subtree: true })
 
 function shown(target: HTMLElement | null): target is HTMLElement {
@@ -148,7 +152,14 @@ function onBackground(event: KeyboardEvent): boolean {
   return store.state.activeView === 'verticals' && store.state.openGoalVertical !== 'search' && !outOfFocus.value
 }
 
-export function focusBoardTarget(target: HTMLElement): void {
+/** Puts the keys on a place. An Add row the keys reach opens its field at once: it is there to type in. A place given
+ * back after a redraw stays as it was. */
+export function focusBoardTarget(target: HTMLElement, open = true): void {
+  if (open && target.matches('[data-role="column-add"]')) {
+    target.click()
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+    return
+  }
   target.focus({ preventScroll: true })
   target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
 }
