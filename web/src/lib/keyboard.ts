@@ -1,7 +1,7 @@
 import { ref } from '../reactivity'
 import { store } from '../store'
 import { outOfFocus } from './windows'
-import { releaseLifts, whenHandMoves } from './cardLift'
+import { HELD_ATTR, releaseLifts, whenHandMoves } from './cardLift'
 
 export const keyboardHelpOpen = ref(false)
 export const keyboardModifier = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'
@@ -67,7 +67,8 @@ function rows(column: HTMLElement, pending = false): HTMLElement[] {
    under the pointer lit). */
 window.addEventListener('keydown', (event) => {
   if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key) || !boardKeyTarget(event.target)) return
-  releaseLifts(null, true)
+  // The goal the keys hold lifted (a goal Space opened) keeps its lift: its own key moves it (lib/cardLift.ts).
+  releaseLifts(null, !(event.target as HTMLElement).closest('.goal-card')?.hasAttribute(HELD_ATTR))
   store.dropHoverChain()
   whenHandMoves(handBack)
 }, true)

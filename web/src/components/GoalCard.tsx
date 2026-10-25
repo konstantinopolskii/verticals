@@ -3,7 +3,7 @@
    goal. The row arms the drag (lib/drag.ts through the store), the card and its list lift as one piece (lib/cardLift.ts)
    and carry the open goal's family light (lib/cardFamily.ts). Two roots, so nothing a parent passes falls through. */
 import type { KeyboardEvent as ReactKeyboardEvent, MemoExoticComponent, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { computed, ref, watch } from '../reactivity'
+import { computed, nextTick, ref, watch } from '../reactivity'
 import { pressToDrag } from './CardDnd'
 import { KCard } from '../kit'
 import { useCompletionCelebration } from '../lib/completionCelebration'
@@ -286,7 +286,14 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
       event.preventDefault()
       if (event.key === 'Enter') title.start()
       // Space on the open goal closes it the way Esc does; opening it again only redrew it.
-      else if (event.key === ' ') { if (isInlineDetailHost.value) store.goUp(); else onOpenDetail() }
+      else if (event.key === ' ') {
+        if (isInlineDetailHost.value) store.goUp()
+        else {
+          // As a click does: the card lifts and holds its lift, so it stays lit through the opening's move, over the veil.
+          lift.keyHold()
+          void nextTick(onOpenDetail)
+        }
+      }
       else tools.value?.openMenu()
     }
     function onSearchOpen(event: ReactMouseEvent): void {

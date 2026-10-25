@@ -379,7 +379,7 @@ def test_space_lights_the_goal_it_opens_not_the_one_under_the_pointer(ui_f2: UiS
     page.wait_for_timeout(600)
     opened = keyed.locator('xpath=..')
     expect(opened).to_have_attribute('data-light', re.compile('.+'))
-    expect(opened).not_to_have_class(re.compile('goal-card--lifted'))
+    expect(opened).to_have_class(re.compile('goal-card--lifted'))  # lifted as a click lifts it
     expect(pointed.locator('xpath=..')).not_to_have_class(re.compile('goal-card--lifted'))
 
 
