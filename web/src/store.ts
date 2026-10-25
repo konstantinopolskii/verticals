@@ -1,10 +1,11 @@
 // One reactive board state tree; write helpers mutate records in place for immediate rendering.
 
 import { wordsToGoal } from './lib/goalDraft'
-import { reactive, computed, type ComputedRef } from './reactivity'
+import { reactive, computed, watch, type ComputedRef } from './reactivity'
 import { toast } from './kit'
 import {
   fetchBoard,
+  onApiWrite,
   fetchTags,
   createGoal,
   patchGoal,
@@ -151,6 +152,25 @@ const { runSearch, loadRecentSearch, filterByTag, clearSearch } = createSearchAc
 
 // --- board loading -------------------------------------------------------------------------
 
+/* The boards of the periods next to the one on show, asked for while the keys or the hand are on a column, before they
+   page it: the page then shows at once, not a round trip later. A write and every new board on show drop them, so a
+   page never shows a board from before a change; an entry lives AHEAD_MS at most. */
+const AHEAD_MS = 15_000
+const ahead = new Map<string, { at: number; board: Promise<BoardResponse> }>()
+function aheadKey(date: string): string {
+  return `${date}|${state.valueFilter ?? ''}`
+}
+onApiWrite(() => ahead.clear())
+watch(() => state.board, () => ahead.clear(), { flush: 'sync' })
+function prefetchBoard(date: string): void {
+  const key = aheadKey(date)
+  const had = ahead.get(key)
+  if (had && performance.now() - had.at < AHEAD_MS) return
+  const board = Promise.all([fetchBoard(date, state.valueFilter), refreshPrivacy()]).then(([b]) => b)
+  board.catch(() => { if (ahead.get(key)?.board === board) ahead.delete(key) })
+  ahead.set(key, { at: performance.now(), board })
+}
+
 /** D245: bumps the board epoch FIRST — before this call's own `fetchBoard` even starts — so a
  *  user-initiated load (navigation, date change, value filter) always outruns whatever fetch is
  *  already in flight (a live/quiet reload, an older overlapping `loadBoard`). The bump also
@@ -160,6 +180,18 @@ const { runSearch, loadRecentSearch, filterByTag, clearSearch } = createSearchAc
  *  question a newer load or a newer local write has since superseded is discarded, not applied. */
 async function loadBoard(date: string, onLanded?: () => void): Promise<boolean> {
   const epoch = bumpBoardEpoch()
+  const early = ahead.get(aheadKey(date))
+  if (early && performance.now() - early.at < AHEAD_MS) {
+    const board = await early.board.catch(() => null)
+    if (currentBoardEpoch() !== epoch) return true
+    if (board) {
+      if (!state.valueFilter) keepPending(board)
+      state.board = board
+      onLanded?.()
+      schedulePrefetchBoardDetails()
+      return true
+    }
+  }
   state.loading = true
   state.error = null
   try {
@@ -703,6 +735,7 @@ export const store = {
   navigateSchedule,
   resetScheduleView,
   loadBoard,
+  prefetchBoard,
   reloadBoard,
   checkDayRollover,
   startDayRollover,

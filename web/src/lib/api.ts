@@ -246,7 +246,14 @@ function messageFrom(status: number, body: unknown): string {
   return `${UNREACHABLE} (HTTP ${status}).`
 }
 
+const writeListeners = new Set<() => void>()
+/** Runs `fn` as each write (anything but a GET) goes out. */
+export function onApiWrite(fn: () => void): void {
+  writeListeners.add(fn)
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (init.method && init.method !== 'GET') writeListeners.forEach((fn) => fn())
   const headers = new Headers(init.headers)
   /* The bundle ships with an EMPTY token by design (Dockerfile: no secret in any layer) — the
      proxy in front injects the real bearer. Setting `Authorization: Bearer <empty>` anyway is
