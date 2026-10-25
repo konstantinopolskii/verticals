@@ -384,6 +384,22 @@ export const PopoverEngine = tracked(function PopoverEngine(raw: PopoverEnginePr
         return
       }
       if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) moveFocus(event)
+      else pressItemKey(event)
+    }
+
+    /** A letter picks the item that names it (`data-key`), as a click does; a field in the menu keeps its letters. A
+     *  layout without Latin letters takes the key in the same place. */
+    function pressItemKey(event: KeyboardEvent) {
+      const surface = surfaceEl.value
+      const target = event.target as HTMLElement | null
+      if (!surface?.contains(target) || event.metaKey || event.ctrlKey || event.altKey || event.isComposing
+        || target?.closest('input, textarea, [contenteditable="true"]')) return
+      const letter = /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() : /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : null
+      const item = letter ? surface.querySelector<HTMLElement>(`[data-key="${letter}"]:not([disabled])`) : null
+      if (!item || item.closest('.popover-engine__surface') !== surface) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      if (!event.repeat) item.click()
     }
 
     function onWindowKeyup(event: KeyboardEvent) {

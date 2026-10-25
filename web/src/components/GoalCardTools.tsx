@@ -149,9 +149,9 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
             <p className="goal-actions__heading" aria-hidden="true">Reschedule</p>
             {!fixed ? (
               <>
-                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="tomorrow" data-cap="schedule"
+                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="tomorrow" data-cap="schedule" data-key="t"
                   onClick={() => s.moveTo('day', s.tomorrow.value)}>Tomorrow</button>
-                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="next-week"
+                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="next-week" data-key="w"
                   onClick={() => s.moveTo('week', s.nextWeek.value)}>Next week</button>
                 <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="date" onClick={toStep('date')}>
                   <span>Date</span>{arrow}

@@ -395,3 +395,18 @@ def test_the_keys_reach_an_add_row_ready_to_type(ui_f2: UiSession):
     page.keyboard.press('Escape')
     expect(add_row(page, 'month')).to_be_focused()
     expect(page.locator(FIELD)).to_have_value('')
+
+
+@pytest.mark.parametrize('key', ['t', 'w'])
+def test_a_letter_in_the_actions_menu_moves_the_goal(ui_f2: UiSession, key: str):
+    page = ui_f2.page
+    loaded(page)
+    row = column(page, 'day').locator('[data-section="planned"] > .goal-card > .goal-card__row').first
+    goal = row.evaluate('el => el.closest("[data-goal-id]").dataset.goalId')
+    row.focus()
+    page.keyboard.press('/')
+    expect(page.locator('[data-role="goal-actions-menu"]')).to_be_visible()
+    page.keyboard.press(key)
+    expect(page.locator('[data-role="goal-actions-menu"]')).to_have_count(0)
+    expect(column(page, 'day').locator(f'[data-goal-id="{goal}"]')).to_have_count(0)
+    expect(page.locator(FIELD)).to_have_value('')
