@@ -445,6 +445,10 @@ def test_an_open_add_field_keeps_the_rows_light(ui_empty: UiSession):
     page.wait_for_selector('[data-keyboard-column]')
     page.keyboard.press('ArrowDown')
     expect(add_field(page, 'day')).to_be_focused()
-    background = add_row(page, 'day').evaluate('el => getComputedStyle(el).backgroundColor')
-    assert background != page.evaluate('() => getComputedStyle(document.body).backgroundColor')
-    assert not background.endswith(', 0)')
+    # The row's colour fades in: wait until it differs from the page's.
+    page.wait_for_function('''() => {
+        const row = document.querySelector('[data-vertical="day"] [data-role="column-add"]')
+        const colour = getComputedStyle(row).backgroundColor
+        return colour !== getComputedStyle(document.body).backgroundColor && !colour.endsWith(', 0)')
+    }''', timeout=2000)
+
