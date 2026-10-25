@@ -10,6 +10,7 @@ export const keyboardGroups = [
     { label: 'Change column', keys: ['←', '→'] },
     { label: 'Change goal', keys: ['↑', '↓'] },
     { label: 'Previous or next period', keys: ['Shift', '←', '→'] },
+    { label: 'Widen or narrow the column', keys: ['Shift', '↓', '↑'] },
     { label: 'Next control', keys: ['Tab'] },
     { label: 'Previous control', keys: ['Shift', 'Tab'] },
   ] },
@@ -142,8 +143,9 @@ export function focusBoardTarget(target: HTMLElement): void {
   target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
 }
 
-/** Shift with ← or → pages the column as its side bars do, and the columns under it follow. The column keeps the keys:
- * the goal they stood on may leave with its period. */
+/** Shift with ← or → pages the column as its side bars do, and the columns under it follow; Shift with ↓ widens it as
+ * a click on its name does, and Shift with ↑ makes it narrow again. The column keeps the keys: the goal they stood on
+ * may leave with its period. */
 function shiftArrow(key: string, column: HTMLElement): void {
   const vertical = column.dataset.vertical
   if (!vertical) return
@@ -152,6 +154,9 @@ function shiftArrow(key: string, column: HTMLElement): void {
     if (!bar) return
     focusBoardTarget(column)
     bar.click()
+  } else if ((key === 'ArrowDown') !== (store.state.expandedVertical === vertical)
+    && !(key === 'ArrowUp' && store.state.openGoalVertical === vertical)) {
+    store.toggleExpandedColumn(vertical)
   }
 }
 

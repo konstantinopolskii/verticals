@@ -1,6 +1,7 @@
 """Board keys as a person meets them: no focus set up by the test, the pointer mixed in, and an empty board."""
 from collections.abc import Iterator
 from datetime import date
+import re
 from pathlib import Path
 
 import psycopg
@@ -346,3 +347,15 @@ def test_shift_arrows_page_the_column_and_the_columns_under_it(ui_f2: UiSession)
     expect(month).to_have_attribute('data-period-key', was[0])
     expect(page.locator(FIELD)).to_have_value('')
 
+
+def test_shift_down_widens_the_column_and_shift_up_narrows_it(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    month = column(page, 'month')
+    add_row(page, 'month').first.focus()
+    page.keyboard.press('Shift+ArrowDown')
+    expect(month).to_have_class(re.compile('pattern-vertical-board__column--active'))
+    page.keyboard.press('Shift+ArrowDown')
+    expect(month).to_have_class(re.compile('pattern-vertical-board__column--active'))
+    page.keyboard.press('Shift+ArrowUp')
+    expect(month).not_to_have_class(re.compile('pattern-vertical-board__column--active'))
