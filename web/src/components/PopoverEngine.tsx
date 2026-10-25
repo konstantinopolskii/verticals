@@ -318,8 +318,11 @@ export const PopoverEngine = tracked(function PopoverEngine(raw: PopoverEnginePr
       props.onClose?.()
       // The board holds still while a menu is open; cards the pointer reached meanwhile react now (`lib/cardLift.ts`).
       if (!props.nested) window.dispatchEvent(new CustomEvent('verticals:root-popover-close', { detail: id }))
-      // A submenu that had the keys gives them back to its item in the menu above.
-      if (restoreFocus || (props.nested && hadKeys)) void nextTick(() => targetEl.value?.focus())
+      if (restoreFocus) void nextTick(() => targetEl.value?.focus())
+      // A submenu that had the keys gives them back to its item in the menu above, unless they went somewhere already.
+      else if (props.nested && hadKeys) {
+        void nextTick(() => { if (!document.activeElement || document.activeElement === document.body) targetEl.value?.focus() })
+      }
     }
 
     function toggle() {
