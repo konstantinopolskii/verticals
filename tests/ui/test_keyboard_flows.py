@@ -452,3 +452,27 @@ def test_an_open_add_field_keeps_the_rows_light(ui_empty: UiSession):
         return colour !== getComputedStyle(document.body).backgroundColor && !colour.endsWith(', 0)')
     }''', timeout=2000)
 
+
+def _menu_on_first_day_goal(page):
+    loaded(page)
+    row = column(page, 'day').locator('[data-section="planned"] > .goal-card > .goal-card__row').first
+    goal = row.evaluate('el => el.closest("[data-goal-id]").dataset.goalId')
+    row.focus()
+    page.keyboard.press('/')
+    expect(page.locator('[data-role="goal-actions-menu"]')).to_be_visible()
+    return goal
+
+
+def test_backspace_in_the_menu_deletes_the_goal(ui_f2: UiSession):
+    page = ui_f2.page
+    goal = _menu_on_first_day_goal(page)
+    page.keyboard.press('Backspace')
+    expect(page.locator(f'[data-goal-id="{goal}"]')).to_have_count(0)
+
+
+def test_g_turns_the_menu_into_its_goal_search(ui_f2: UiSession):
+    page = ui_f2.page
+    _menu_on_first_day_goal(page)
+    page.keyboard.press('g')
+    expect(page.locator('[data-role="goal-actions-menu"]')).to_have_count(0)
+    expect(page.locator('.popover-engine__surface input').first).to_be_visible()

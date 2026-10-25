@@ -14,6 +14,7 @@ import { PopoverEngine, type PopoverTriggerSlot } from './PopoverEngine'
 import { RepeatPopover } from './RepeatPopover'
 import { OpenInMenu } from './OpenInMenu'
 import { MoveStep, type MoveStepName } from './MoveStep'
+import { MenuKey } from './MenuKey'
 import type { RepeatRule } from '../lib/api'
 import { bindRef, fallthrough } from '../bind'
 import { tracked } from '../tracked'
@@ -135,11 +136,11 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
           <div className="goal-actions__section" data-menu-section="agent" role="group" aria-label="Agent">
             <p className="goal-actions__heading" aria-hidden="true">Agent</p>
             {!open ? (
-              <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-menu-item="discuss"
-                onClick={s.discuss}>Discuss</button>
+              <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-menu-item="discuss" data-key="c"
+                onClick={s.discuss}><span>Discuss</span><MenuKey label="C" /></button>
             ) : null}
-            <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-menu-item="start-work"
-              onClick={s.startWork}>Start work</button>
+            <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-menu-item="start-work" data-key="s"
+              onClick={s.startWork}><span>Start work</span><MenuKey label="S" /></button>
             <OpenInMenu id={id} onDone={s.closeMenu} />
           </div>
         ) : null}
@@ -150,11 +151,11 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
             {!fixed ? (
               <>
                 <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="tomorrow" data-cap="schedule" data-key="t"
-                  onClick={() => s.moveTo('day', s.tomorrow.value)}>Tomorrow</button>
+                  onClick={() => s.moveTo('day', s.tomorrow.value)}><span>Tomorrow</span><MenuKey label="T" /></button>
                 <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="next-week" data-key="w"
-                  onClick={() => s.moveTo('week', s.nextWeek.value)}>Next week</button>
-                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="date" onClick={toStep('date')}>
-                  <span>Date</span>{arrow}
+                  onClick={() => s.moveTo('week', s.nextWeek.value)}><span>Next week</span><MenuKey label="W" /></button>
+                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="date" data-key="d" onClick={toStep('date')}>
+                  <span>Date</span><MenuKey label="D" />{arrow}
                 </button>
               </>
             ) : null}
@@ -165,12 +166,12 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
         {!fixed ? (
           <div className="goal-actions__section" data-menu-section="move" role="group" aria-label="Move">
             <p className="goal-actions__heading" aria-hidden="true">Move</p>
-            <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="under" onClick={toStep('under')}>
-              <span>Into a goal</span>{arrow}
+            <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="under" data-key="g" onClick={toStep('under')}>
+              <span>Into a goal</span><MenuKey label="G" />{arrow}
             </button>
             {vertical ? (
-              <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="inbox" data-action="inbox"
-                onClick={s.moveToInbox}>To Inbox</button>
+              <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-move="inbox" data-action="inbox" data-key="i"
+                onClick={s.moveToInbox}><span>To Inbox</span><MenuKey label="I" /></button>
             ) : null}
           </div>
         ) : null}
@@ -183,9 +184,9 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
               surfaceClass="goal-actions__submenu goal-actions__tags"
               surfaceAttrs={TAGS_ATTRS}
               trigger={(
-                <button type="button" role="menuitem" className="dropdown__item goal-actions__item">
+                <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-key="a">
                   <span>Tags…</span>
-                  {arrow}
+                  <MenuKey label="A" />{arrow}
                 </button>
               )}
             >
@@ -207,9 +208,9 @@ export const GoalCardTools = tracked(function GoalCardTools(raw: Props & Record<
 
         <div className="goal-actions__section" data-menu-section="delete">
           <button type="button" role="menuitem" className="dropdown__item goal-actions__item goal-actions__item--danger" data-action="delete"
-            data-cap="delete" onClick={s.remove}>
+            data-cap="delete" data-key="delete" onClick={s.remove}>
             <AppIcon name="trash" data-icon="trash" />
-            <span>Delete</span>
+            <span>Delete</span><MenuKey label="⌫" />
           </button>
         </div>
       </div>

@@ -9,6 +9,7 @@ import { tracked } from '../tracked'
 import { useSetup } from '../setup'
 import { AppIcon } from './AppIcon'
 import { PopoverEngine } from './PopoverEngine'
+import { MenuKey } from './MenuKey'
 import './openInMenu.css'
 
 interface Props {
@@ -32,7 +33,7 @@ export const OpenInMenu = tracked(function OpenInMenu(raw: Props & Record<string
 
   const label = (
     <>
-      <span>Open in</span><span data-role="submenu-arrow" aria-hidden="true"><AppIcon name="chevron-right" size={14} /></span>
+      <span>Open in</span><MenuKey label="O" /><span data-role="submenu-arrow" aria-hidden="true"><AppIcon name="chevron-right" size={14} /></span>
     </>
   )
   if (!s.sessions.value.length) {
@@ -59,7 +60,7 @@ export const OpenInMenu = tracked(function OpenInMenu(raw: Props & Record<string
       surfaceAttrs={SURFACE_ATTRS}
       {...attrs}
       trigger={
-        <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-menu-item="open-in">
+        <button type="button" role="menuitem" className="dropdown__item goal-actions__item" data-menu-item="open-in" data-key="o">
           {label}
         </button>
       }

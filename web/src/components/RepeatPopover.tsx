@@ -6,6 +6,7 @@ import { AppIcon } from './AppIcon'
 import type { RepeatRule } from '../lib/api'
 import { store } from '../store'
 import { PopoverEngine } from './PopoverEngine'
+import { MenuKey } from './MenuKey'
 import { cx, fallthrough } from '../bind'
 import { tracked } from '../tracked'
 import { useSetup, withDefaults } from '../setup'
@@ -157,9 +158,11 @@ export const RepeatPopover = tracked(function RepeatPopover(raw: Props & Record<
           role={compact ? undefined : 'menuitem'}
           className={compact ? 'goal-detail__meta-trigger' : 'dropdown__item goal-actions__item'}
           aria-label={compact ? 'Repeat' : undefined}
+          data-key={compact ? undefined : 'r'}
         >
           <AppIcon name="repeat" size={compact ? 18 : 24} />
           {!compact ? <span>Repeat</span> : null}
+          {!compact ? <MenuKey label="R" /> : null}
           {!compact ? <span data-role="submenu-arrow" aria-hidden="true"><AppIcon name="chevron-right" size={14} /></span> : null}
         </button>
       }

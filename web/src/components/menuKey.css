@@ -1,0 +1,11 @@
+.menu-key {
+  margin-left: auto;
+  padding: 0 0 0 12px;
+  border: 0;
+  background: none;
+  color: rgb(var(--vt-foreground-rgb, 45 48 54) / 40%);
+  font: 400 13px/24px var(--font-body);
+}
+/* A submenu's arrow stands right after its key. */
+.menu-key + [data-role="submenu-arrow"] { margin-left: 4px; }
+.menu-key::after { content: attr(data-label); }
