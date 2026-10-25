@@ -397,12 +397,14 @@ export function editsText(target: EventTarget | null): boolean {
   return target.isContentEditable
 }
 
-/** ⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z elsewhere. The Z is the key's letter, so a layout that has it elsewhere (QWERTZ)
- *  still means its own Z; a layout with no Latin letter on the key (Cyrillic) is read by the key's place, as `privacy.ts` does. */
+/** ⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z elsewhere, and there ⌘Z too: Linux on a Mac's keyboard (Asahi) sends its
+ *  ⌘ key as Meta, and ⌘Z did nothing after a delete while the notice's Undo worked (the owner, 25 Oct 2026). The Z is the
+ *  key's letter, so a layout that has it elsewhere (QWERTZ) still means its own Z; a layout with no Latin letter on the key
+ *  (Cyrillic) is read by the key's place, as `privacy.ts` does. */
 export function historyKey(event: KeyboardEvent): 'undo' | 'redo' | null {
   const isZ = /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() === 'z' : event.code === 'KeyZ'
   if (event.altKey || !isZ) return null
-  const modifier = APPLE ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
+  const modifier = APPLE ? event.metaKey && !event.ctrlKey : event.ctrlKey !== event.metaKey
   return modifier ? (event.shiftKey ? 'redo' : 'undo') : null
 }
 

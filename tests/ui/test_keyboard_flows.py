@@ -536,3 +536,22 @@ def test_the_menu_keys_stand_in_one_column(ui_f2: UiSession):
     rights = page.locator('[data-role="goal-actions-menu"] .menu-key').evaluate_all(
         'keys => keys.map((k) => Math.round(k.getBoundingClientRect().right))')
     assert len(rights) >= 5 and max(rights) - min(rights) <= 1, rights
+
+
+@pytest.mark.parametrize('how', ['keys', 'mouse'])
+@pytest.mark.parametrize('undo', ['Control+z', 'Meta+z'])
+def test_undo_keys_bring_back_a_deleted_goal(ui_f2: UiSession, how: str, undo: str):
+    page = ui_f2.page
+    loaded(page)
+    row = column(page, 'day').locator('[data-section="planned"] > .goal-card > .goal-card__row').first
+    goal = row.evaluate('el => el.closest("[data-goal-id]").dataset.goalId')
+    if how == 'keys':
+        row.focus()
+        page.keyboard.press('/')
+        page.keyboard.press('Backspace')
+    else:
+        row.click(button='right')
+        page.locator('[data-role="goal-actions-menu"] [data-action="delete"]').click()
+    expect(page.locator(f'[data-goal-id="{goal}"]')).to_have_count(0)
+    page.keyboard.press(undo)  # Meta is the Cmd key of a Mac keyboard on Linux
+    expect(page.locator(f'[data-goal-id="{goal}"]')).to_have_count(1)
