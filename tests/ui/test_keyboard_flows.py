@@ -463,6 +463,22 @@ def _menu_on_first_day_goal(page):
     return goal
 
 
+def test_letters_open_a_submenu_and_pick_in_it(ui_f2: UiSession):
+    page = ui_f2.page
+    goal = _menu_on_first_day_goal(page)
+    page.keyboard.press('r')
+    repeat = page.locator('.repeat-menu').first
+    expect(repeat).to_be_visible()
+    page.keyboard.press('Escape')
+    expect(repeat).to_have_count(0)
+    expect(page.locator('[data-role="goal-actions-menu"]')).to_be_visible()
+    page.keyboard.press('r')
+    expect(repeat).to_be_visible()
+    with page.expect_request(lambda r: r.method == 'PATCH' and goal in r.url and 'weekly' in (r.post_data or '')):
+        page.keyboard.press('w')
+    expect(page.locator(FIELD)).to_have_value('')
+
+
 def test_backspace_in_the_menu_deletes_the_goal(ui_f2: UiSession):
     page = ui_f2.page
     goal = _menu_on_first_day_goal(page)
