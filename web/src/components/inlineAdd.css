@@ -32,7 +32,8 @@
   color: rgb(var(--vt-foreground-rgb, 45 48 54) / 88%);
   outline: none;
 }
-.column-add-row:focus-visible {
+/* The open field keeps the row's light: in an empty column it is all there is to show where the keys are. */
+.column-add-row:focus-visible, .column-add-row:has(> .column-add-editor:focus) {
   background: rgb(var(--vt-foreground-rgb, 45 48 54) / 6%);
   color: rgb(var(--vt-foreground-rgb, 45 48 54) / 72%);
   /* The keys' place wears the hover colour, as a focused goal does; never a frame (keyboardGuide.css). */

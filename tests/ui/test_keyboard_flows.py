@@ -438,3 +438,13 @@ def test_the_keys_come_back_to_an_add_field_with_words(ui_f2: UiSession):
     page.keyboard.press('ArrowDown')
     expect(add_field(page, 'month')).to_be_focused()
     expect(add_field(page, 'month')).to_have_value('Half typed')
+
+
+def test_an_open_add_field_keeps_the_rows_light(ui_empty: UiSession):
+    page = ui_empty.page
+    page.wait_for_selector('[data-keyboard-column]')
+    page.keyboard.press('ArrowDown')
+    expect(add_field(page, 'day')).to_be_focused()
+    background = add_row(page, 'day').evaluate('el => getComputedStyle(el).backgroundColor')
+    assert background != page.evaluate('() => getComputedStyle(document.body).backgroundColor')
+    assert not background.endswith(', 0)')
