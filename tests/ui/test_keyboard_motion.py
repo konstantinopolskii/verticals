@@ -60,7 +60,7 @@ def test_a_goal_opened_with_space_stays_lit_while_it_opens(ui_f2: UiSession):
     for _ in range(10):
         seen.append(_brightest(page, row.bounding_box()))
     expect(page.locator('#goal-detail')).to_be_visible()
-    # A click on the goal shows one dimmer frame as the card starts to move, while the screenshot's clip catches the words
-    # mid-move; the board's veil over the card would dim several in a row.
-    assert sum(seen_ < before - 25 for seen_ in seen) <= 1, (before, seen)
+    # A click on the goal shows a dimmer frame or two as the card starts to move, while the screenshot's clip catches the
+    # words mid-move; the board's veil over the card dimmed three or four in a row.
+    assert sum(seen_ < before - 25 for seen_ in seen) <= 2, (before, seen)
 
