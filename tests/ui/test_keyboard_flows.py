@@ -313,3 +313,20 @@ def test_arrows_reach_the_plans_carried_over(ui_f2: UiSession):
     assert page.evaluate(focused_in_box)
     page.keyboard.press('ArrowDown')
     assert not page.evaluate(focused_in_box)
+
+
+def test_e_marks_the_goal_done_without_opening_it(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    page.keyboard.press('ArrowDown')
+    row = page.locator(':focus')
+    card = row.locator('xpath=..')
+    box = row.locator('[data-cap="complete"]').first
+    was = box.get_attribute('aria-checked')
+    page.keyboard.press('e')
+    expect(box).not_to_have_attribute('aria-checked', was)
+    expect(page.locator('#goal-detail')).to_have_count(0)
+    expect(page.locator(FIELD)).to_have_value('')
+    expect(card.locator('> .goal-card__row')).to_be_focused()
+    page.keyboard.press('e')
+    expect(box).to_have_attribute('aria-checked', was)

@@ -20,6 +20,7 @@ export const keyboardGroups = [
     { label: 'New goal in this column', keys: ['N'] },
     { label: 'Rename goal', keys: ['Enter'] },
     { label: 'Open or close details', keys: ['Space'] },
+    { label: 'Mark done', keys: ['E'] },
     { label: 'More actions', keys: ['/'] },
     { label: 'Find or ask', keys: ['F'] },
     { label: 'Hide or show the field', keys: [keyboardModifier, '\\'] },
@@ -140,6 +141,9 @@ export function focusBoardTarget(target: HTMLElement): void {
   target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
 }
 
+/* The board's letters by where they are on the keys. */
+const LETTERS: Record<string, string> = { KeyN: 'n', KeyF: 'f', KeyE: 'e' }
+
 /** Runs before background typing, only for the surface that owns focus. */
 export function boardKey(event: KeyboardEvent, focusField: () => void): boolean {
   if (event.defaultPrevented || event.isComposing || event.keyCode === 229
@@ -164,13 +168,18 @@ export function boardKey(event: KeyboardEvent, focusField: () => void): boolean 
   if (event.shiftKey && event.key !== '?') return false
   // Enter on a column, not a goal, creates there as N does; on a goal it stays the goal's own (rename).
   const enter = event.key === 'Enter' && target === column
-  if (!arrow && !enter && !['n', 'f', '?'].includes(event.key)) return false
+  // A layout without Latin letters (Russian) takes the letter in the same place on the keys.
+  const letter = /^[a-z]$/.test(event.key) ? event.key : LETTERS[event.code] ?? event.key
+  const done = letter === 'e' && target.matches('.goal-card__row') && !target.closest(PENDING)
+  if (!arrow && !enter && !done && !['n', 'f', '?'].includes(letter)) return false
   event.preventDefault()
   event.stopImmediatePropagation()
   if (!arrow && event.repeat) return true
   if (event.key === '?') keyboardHelpOpen.value = true
-  else if (event.key === 'f') focusField()
-  else if (event.key === 'n' || enter) {
+  else if (letter === 'f') focusField()
+  // E does what the goal's checkbox does, without opening the goal; again, it takes it back.
+  else if (done) target.querySelector<HTMLInputElement>(':scope > .goal-card__affordance-slot input[type="checkbox"]')?.click()
+  else if (letter === 'n' || enter) {
     const editor = column.querySelector<HTMLElement>('.period-slide:not([data-state="outgoing"]) [data-role="column-add-editor"]')
     if (editor) editor.focus()
     else column.querySelector<HTMLElement>('.period-slide:not([data-state="outgoing"]) [data-role="column-add"]')?.click()

@@ -73,9 +73,7 @@ export const KeyboardGuide = tracked(function KeyboardGuide() {
       <p className="keyboard-guide__context" id="keyboard-guide-context">On the board · {board ? 'Press an arrow key to pick a goal.' : 'Switch to the board to use these keys.'}</p>
       {!board && store.state.activeView === 'inbox' ? <p className="keyboard-guide__context">In Inbox, Enter opens a goal.</p> : null}
       {commandFilter.text ? <p className="keyboard-guide__context">Clear the filter to create a new goal.</p> : null}
-      <div className="keyboard-guide__grid"><div>{group('Navigate')}{group('History')}</div><div>{group('Goals')}
-        <p className="keyboard-guide__complete">To complete a goal, focus its checkbox<br className="keyboard-guide__break" /> and press <Keys values={['Space']} />.</p>
-      </div></div>
+      <div className="keyboard-guide__grid"><div>{group('Navigate')}{group('History')}</div><div>{group('Goals')}</div></div>
       <p className="keyboard-guide__editing"><strong>Editing a title?</strong> <Keys values={['Enter']} /> saves. <Keys values={['Esc']} /> cancels.<br />In notes, Enter starts a new line.</p>
       <footer className="keyboard-guide__foot"><span><Keys values={['?']} /> opens this guide on the board</span><span><Keys values={['Esc']} /> Close</span></footer>
     </dialog>
