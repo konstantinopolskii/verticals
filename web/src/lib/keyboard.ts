@@ -9,6 +9,7 @@ export const keyboardGroups = [
   { name: 'Navigate', bindings: [
     { label: 'Change column', keys: ['←', '→'] },
     { label: 'Change goal', keys: ['↑', '↓'] },
+    { label: 'Previous or next period', keys: ['Shift', '←', '→'] },
     { label: 'Next control', keys: ['Tab'] },
     { label: 'Previous control', keys: ['Shift', 'Tab'] },
   ] },
@@ -141,6 +142,19 @@ export function focusBoardTarget(target: HTMLElement): void {
   target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
 }
 
+/** Shift with ← or → pages the column as its side bars do, and the columns under it follow. The column keeps the keys:
+ * the goal they stood on may leave with its period. */
+function shiftArrow(key: string, column: HTMLElement): void {
+  const vertical = column.dataset.vertical
+  if (!vertical) return
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    const bar = column.querySelector<HTMLElement>(`:scope > .column-bars [data-cap="${key === 'ArrowLeft' ? 'period-prev' : 'period-next'}"]`)
+    if (!bar) return
+    focusBoardTarget(column)
+    bar.click()
+  }
+}
+
 /* The board's letters by where they are on the keys. */
 const LETTERS: Record<string, string> = { KeyN: 'n', KeyF: 'f', KeyE: 'e' }
 
@@ -165,6 +179,12 @@ export function boardKey(event: KeyboardEvent, focusField: () => void): boolean 
   }
   const column = target.closest<HTMLElement>('[data-keyboard-column]')
   if (!column) return false
+  if (event.shiftKey && arrow) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    if (!event.repeat) shiftArrow(event.key, column)
+    return true
+  }
   if (event.shiftKey && event.key !== '?') return false
   // Enter on a column, not a goal, creates there as N does; on a goal it stays the goal's own (rename).
   const enter = event.key === 'Enter' && target === column

@@ -330,3 +330,19 @@ def test_e_marks_the_goal_done_without_opening_it(ui_f2: UiSession):
     expect(card.locator('> .goal-card__row')).to_be_focused()
     page.keyboard.press('e')
     expect(box).to_have_attribute('aria-checked', was)
+
+
+def test_shift_arrows_page_the_column_and_the_columns_under_it(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    month, week = column(page, 'month'), column(page, 'week')
+    was = month.get_attribute('data-period-key'), week.get_attribute('data-period-key')
+    add_row(page, 'month').first.focus()
+    page.keyboard.press('Shift+ArrowRight')
+    expect(month).not_to_have_attribute('data-period-key', was[0])
+    expect(week).not_to_have_attribute('data-period-key', was[1])
+    expect(month).to_be_focused()
+    page.keyboard.press('Shift+ArrowLeft')
+    expect(month).to_have_attribute('data-period-key', was[0])
+    expect(page.locator(FIELD)).to_have_value('')
+
