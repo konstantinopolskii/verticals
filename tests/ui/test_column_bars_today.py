@@ -168,6 +168,9 @@ def test_under_reduced_motion_the_light_bars_simply_go_and_come(ui_f2: UiSession
     _hover(page, "week")  # the pointer is on the column, not on the side bar it just pressed
     _blur(page)
     assert _wait_colours(page, "week", [LIGHT, INK, LIGHT]) == [LIGHT, INK, LIGHT]
-    page.keyboard.press("t")
+    _col(page, "week").locator('[data-cap="period-today"]').click()
+    _hover(page, "week")
+    _blur(page)
     expect(_col(page, "week")).to_have_attribute("data-period-key", "2026-W32")
-    assert [bar["color"] for bar in _wait_bars(page, "week", 5)] == [LIGHT, LIGHT, INK, LIGHT, LIGHT]
+    _wait_bars(page, "week", 5)
+    assert _wait_colours(page, "week", [LIGHT, LIGHT, INK, LIGHT, LIGHT]) == [LIGHT, LIGHT, INK, LIGHT, LIGHT]

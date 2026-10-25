@@ -152,8 +152,8 @@ def _step(page: Page, vertical: str, cap: str, key: str) -> None:
 
 
 def _blur(page: Page) -> None:
-    """A click on a bar leaves the focus on it, and the next key pressed (the `t` below) makes that a keyboard's focus, which
-    brings the side bars into view: the focus goes back to the page first, so `t` is pressed from the board."""
+    """A click on a bar leaves the focus on it, and a later key makes that a keyboard's focus, which brings the side bars
+    into view: the focus goes back to the page, so the bars show as the pointer alone shows them."""
     page.evaluate("() => document.activeElement instanceof HTMLElement && document.activeElement.blur()")
 
 
@@ -298,16 +298,19 @@ def test_the_side_bars_page_the_column(ui_f2: UiSession, vertical: str) -> None:
     expect(column).to_have_attribute("data-period-key", before)
 
 
-def test_t_still_goes_back_to_today(ui_f2: UiSession) -> None:
-    """The board's own key to today works as it did, and the sign turns back into three bars."""
+def test_the_single_bar_goes_back_to_today(ui_f2: UiSession) -> None:
+    """A click on the single bar brings the column back to today, and the sign turns back into three bars."""
     page = _open(ui_f2)
     _step(page, "week", "period-next", "2026-W33")
     _hover(page, "week")  # the pointer is on the column, not on the side bar it just pressed
     _blur(page)
     assert _wait_colours(page, "week", [LIGHT, INK, LIGHT]) == [LIGHT, INK, LIGHT], "the single bar between its sides"
-    page.keyboard.press("t")
+    _col(page, "week").locator('[data-cap="period-today"]').click()
+    _hover(page, "week")
+    _blur(page)
     expect(_col(page, "week")).to_have_attribute("data-period-key", "2026-W32")
-    assert [bar["color"] for bar in _wait_bars(page, "week", 5)] == [LIGHT, LIGHT, INK, LIGHT, LIGHT]
+    _wait_bars(page, "week", 5)
+    assert _wait_colours(page, "week", [LIGHT, LIGHT, INK, LIGHT, LIGHT]) == [LIGHT, LIGHT, INK, LIGHT, LIGHT]
 
 
 def test_a_click_on_the_lines_words_does_what_a_click_on_the_header_does(ui_f2: UiSession) -> None:
