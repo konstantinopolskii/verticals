@@ -162,7 +162,9 @@ function onBackground(event: KeyboardEvent): boolean {
  * back after a redraw stays as it was. */
 export function focusBoardTarget(target: HTMLElement, open = true): void {
   if (open && target.matches('[data-role="column-add"]')) {
-    target.click()
+    const editor = target.querySelector<HTMLElement>('[data-role="column-add-editor"]')
+    if (editor) editor.focus() // a field already open, with its words
+    else target.click()
     target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
     return
   }

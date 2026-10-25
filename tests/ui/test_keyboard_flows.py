@@ -427,3 +427,14 @@ def test_the_goal_under_the_hand_lifts_again_when_the_hand_moves(ui_f2: UiSessio
     page.mouse.move(box['x'] + 80, box['y'] + box['height'] / 2, steps=4)
     expect(pointed).to_have_class(re.compile('goal-card--lifted'))
 
+
+def test_the_keys_come_back_to_an_add_field_with_words(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    add_row(page, 'month').click()
+    page.keyboard.type('Half typed')
+    last = column(page, 'month').locator('.goal-card__row').last
+    last.focus()
+    page.keyboard.press('ArrowDown')
+    expect(add_field(page, 'month')).to_be_focused()
+    expect(add_field(page, 'month')).to_have_value('Half typed')
