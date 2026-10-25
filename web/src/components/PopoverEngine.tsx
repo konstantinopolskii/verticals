@@ -305,6 +305,7 @@ export const PopoverEngine = tracked(function PopoverEngine(raw: PopoverEnginePr
 
     function closeMenu(restoreFocus = !props.nested) {
       if (!open.value) return
+      const hadKeys = !!surfaceEl.value?.contains(document.activeElement)
       parentState.activeChild?.close()
       parentState.activeChild = null
       open.value = false
@@ -317,7 +318,8 @@ export const PopoverEngine = tracked(function PopoverEngine(raw: PopoverEnginePr
       props.onClose?.()
       // The board holds still while a menu is open; cards the pointer reached meanwhile react now (`lib/cardLift.ts`).
       if (!props.nested) window.dispatchEvent(new CustomEvent('verticals:root-popover-close', { detail: id }))
-      if (restoreFocus) void nextTick(() => targetEl.value?.focus())
+      // A submenu that had the keys gives them back to its item in the menu above.
+      if (restoreFocus || (props.nested && hadKeys)) void nextTick(() => targetEl.value?.focus())
     }
 
     function toggle() {
@@ -346,9 +348,10 @@ export const PopoverEngine = tracked(function PopoverEngine(raw: PopoverEnginePr
     }
 
     function onRootClick(event: MouseEvent) {
-      // Keyboard-generated activation has no preceding mousedown.
+      // Keyboard-generated activation has no preceding mousedown. It opens a submenu with the keys in it.
       if (event.detail !== 0 || !targetEl.value?.contains(event.target as Node)) return
-      toggle()
+      if (open.value) closeMenu()
+      else void openMenu(true)
     }
 
     function onWindowRootOpen(event: Event) {
@@ -387,19 +390,24 @@ export const PopoverEngine = tracked(function PopoverEngine(raw: PopoverEnginePr
       else pressItemKey(event)
     }
 
-    /** A letter picks the item that names it (`data-key`), as a click does; a field in the menu keeps its letters. A
-     *  layout without Latin letters takes the key in the same place. */
+    /** A letter picks the item that names it (`data-key`), as a click does, and ⌫ the item named "delete"; a field in the
+     *  menu keeps its keys. A layout without Latin letters takes the key in the same place. Only the menu that has the
+     *  focus answers: a submenu's letters are its own. */
     function pressItemKey(event: KeyboardEvent) {
       const surface = surfaceEl.value
       const target = event.target as HTMLElement | null
-      if (!surface?.contains(target) || event.metaKey || event.ctrlKey || event.altKey || event.isComposing
-        || target?.closest('input, textarea, [contenteditable="true"]')) return
-      const letter = /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() : /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : null
-      const item = letter ? surface.querySelector<HTMLElement>(`[data-key="${letter}"]:not([disabled])`) : null
+      if (!surface || target?.closest('.popover-engine__surface') !== surface || event.metaKey || event.ctrlKey
+        || event.altKey || event.isComposing || target.closest('input, textarea, [contenteditable="true"]')) return
+      const key = event.key === 'Backspace' || event.key === 'Delete' ? 'delete'
+        : /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() : /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : null
+      const item = key ? surface.querySelector<HTMLElement>(`[data-key="${key}"]:not([disabled])`) : null
       if (!item || item.closest('.popover-engine__surface') !== surface) return
       event.preventDefault()
       event.stopImmediatePropagation()
-      if (!event.repeat) item.click()
+      if (event.repeat) return
+      item.click()
+      // An item that turns the menu into a step takes the focused item away: the menu keeps the keys.
+      void nextTick(() => { if (open.value && !surface.contains(document.activeElement)) surface.focus() })
     }
 
     function onWindowKeyup(event: KeyboardEvent) {
