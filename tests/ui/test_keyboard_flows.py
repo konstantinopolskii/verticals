@@ -410,3 +410,20 @@ def test_a_letter_in_the_actions_menu_moves_the_goal(ui_f2: UiSession, key: str)
     expect(page.locator('[data-role="goal-actions-menu"]')).to_have_count(0)
     expect(column(page, 'day').locator(f'[data-goal-id="{goal}"]')).to_have_count(0)
     expect(page.locator(FIELD)).to_have_value('')
+
+
+def test_the_goal_under_the_hand_lifts_again_when_the_hand_moves(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    rows = column(page, 'day').locator('[data-section="planned"] > .goal-card > .goal-card__row')
+    pointed = rows.nth(0).locator('xpath=..')
+    box = rows.nth(0).bounding_box()
+    page.mouse.move(box['x'] + 40, box['y'] + box['height'] / 2)
+    page.mouse.move(box['x'] + 44, box['y'] + box['height'] / 2)
+    expect(pointed).to_have_class(re.compile('goal-card--lifted'))
+    rows.nth(1).focus()
+    page.keyboard.press('ArrowDown')
+    expect(pointed).not_to_have_class(re.compile('goal-card--lifted'))
+    page.mouse.move(box['x'] + 80, box['y'] + box['height'] / 2, steps=4)
+    expect(pointed).to_have_class(re.compile('goal-card--lifted'))
+

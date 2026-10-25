@@ -1,7 +1,7 @@
 import { ref } from '../reactivity'
 import { store } from '../store'
 import { outOfFocus } from './windows'
-import { releaseLifts } from './cardLift'
+import { releaseLifts, whenHandMoves } from './cardLift'
 
 export const keyboardHelpOpen = ref(false)
 export const keyboardModifier = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'
@@ -67,9 +67,15 @@ function rows(column: HTMLElement, pending = false): HTMLElement[] {
    under the pointer lit). */
 window.addEventListener('keydown', (event) => {
   if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key) || !boardKeyTarget(event.target)) return
-  releaseLifts(null)
+  releaseLifts(null, true)
   store.dropHoverChain()
+  whenHandMoves(handBack)
 }, true)
+/* When the hand moves again, the goal under it answers as if the pointer had just come onto it. */
+function handBack(): void {
+  document.querySelectorAll('.goal-card:hover, .goal-card__children:hover')
+    .forEach((el) => el.dispatchEvent(new MouseEvent('mouseenter')))
+}
 
 /* The goal or column the keys last stood on: an arrow pressed on the background comes back to it. */
 let lastTarget: HTMLElement | null = null

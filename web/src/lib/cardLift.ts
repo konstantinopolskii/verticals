@@ -76,12 +76,13 @@ function releaseHold(): void {
    not what the hand pointed at. The card the hand clicked keeps its lift through the move (KK, 4 Oct 2026: "keeping
    it scaled"): the move reads it lifted and lands it lifted at its new size, its scale measured again for that size
    (`refreshLifts`) before the move reads where it lands, so the lift changes inside the one movement. */
-const releases = new Set<() => void>()
+const releases = new Set<(all: boolean) => void>()
 const refreshers = new Set<() => void>()
 let quiet: { x: number; y: number } | null = null
-export function releaseLifts(at: { x: number; y: number } | null): void {
+/** `all`: the card a click holds lifted drops its lift too (the keys took over). */
+export function releaseLifts(at: { x: number; y: number } | null, all = false): void {
   quiet = at ?? (Number.isNaN(pointer.x) ? null : { ...pointer })
-  releases.forEach((release) => release())
+  releases.forEach((release) => release(all))
 }
 /** Measures every lifted card again for the size it has now and writes its lift onto it at once, not at the card's next
  *  drawing: the move reads where things land right after the change. */
@@ -274,7 +275,7 @@ export function useCardLift(options: {
     clickHost?.addEventListener('click', hold, true)
   }, { flush: 'post' })
 
-  const release = (): void => { if (holder !== me) drop() } // the clicked card keeps its lift through the move
+  const release = (all: boolean): void => { if (all || holder !== me) drop() } // the clicked card keeps its lift through the move
   releases.add(release)
   const refresh = (): void => {
     if (!lifted.value || !measure()) return
