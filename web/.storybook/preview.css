@@ -1,0 +1,6 @@
+/* base.css locks the page to the app's window; a story page scrolls. */
+html,
+body {
+  height: auto;
+  overflow: auto;
+}

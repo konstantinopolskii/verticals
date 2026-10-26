@@ -69,6 +69,11 @@ Submit changes as pull requests against `main`, one task each, opened with `tool
 Edit web/src for UI, verticals/core for domain behavior, verticals/db/migrations for schema.
 Do not edit generated bundles or vendor archives. Do not commit secrets or real user data.
 
+Components and their states can be seen apart from the app in Storybook:
+`npm --prefix web run storybook` (http://127.0.0.1:6006) or `npm --prefix web run build-storybook`.
+A story sits next to its component as `Name.stories.tsx` and takes its data as props, with English
+sample text; it needs no backend.
+
 ## Agent skills
 
 The portable, repository-owned skill pack lives in `.agents/skills/`:

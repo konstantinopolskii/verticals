@@ -29,6 +29,7 @@ htmlcov/
 # Node / frontend build
 node_modules
 dist/
+storybook-static/
 .vite/
 
 # Vendored kk-agentic-ds tarballs (WP-12). @konstantinopolskii/{design-system,vue} are AGPL-3.0
