@@ -17,7 +17,6 @@
   background: var(--color-text);
 }
 .field:focus-within .field__input,
-.field:focus-within .field__label,
 .card.comment-thread[data-state="active"] .comment-thread__reply .field__input {
   color: var(--color-bg);
 }
@@ -51,17 +50,9 @@
 .card.comment-thread[data-state="active"] .comment-thread__reply .field__input:not(:placeholder-shown) {
   padding-right: var(--space-5);
 }
-.field,
-.field__label { cursor: pointer; }
+.field { cursor: pointer; }
 .field input,
 .field textarea { cursor: text; }
-.field--row {
-  flex-direction: row;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-.field__label { flex-shrink: 0; max-width: 60%; }
-.field--row .field__input { text-align: right; }
 .field__input {
   color: var(--color-text);
   caret-color: currentColor;

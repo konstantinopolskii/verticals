@@ -26,7 +26,6 @@
   line-height: var(--lh-caption);
   font-weight: var(--fw-regular);
 }
-.t-caption--bold { font-weight: var(--fw-bold); }
 .t-muted { color: var(--color-text-muted); }
 .t-code {
   background: var(--color-surface-strong);

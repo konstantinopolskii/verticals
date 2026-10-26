@@ -1,41 +1,20 @@
 /* The kit's components the app uses, in the kit's markup and classes. A parent's attributes fall through onto the root
    (bind.ts); a declared event is a prop the component calls. */
-import { useLayoutEffect, useRef, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { cx, fallthrough, valueOf } from '../bind'
 
 type Attrs = Record<string, unknown> & { className?: string; children?: ReactNode }
 
-export function KButton({ primary = false, as = 'button', type = 'button', cta = null, caption = false, children, ...attrs }:
-  Attrs & { primary?: boolean; as?: ElementType; type?: string; cta?: string | null; caption?: boolean }) {
-  const Tag = as
-  const own = {
-    className: 'button' + (primary ? ' button--primary' : '') + (caption ? ' t-caption--bold' : ' t-subtitle'),
-    type: as === 'button' ? type : undefined,
-    'data-cta': cta ?? undefined,
-  }
-  return <Tag {...fallthrough(own, attrs)}>{children}</Tag>
+export function KButton({ primary = false, type = 'button', children, ...attrs }: Attrs & { primary?: boolean; type?: string }) {
+  return <button {...fallthrough({ className: 'button t-subtitle' + (primary ? ' button--primary' : ''), type }, attrs)}>{children}</button>
 }
 
-const CARD_VARIANT = { static: '', interactive: ' card--interactive', link: ' card--link', shout: ' card--shout', heading: ' card--heading' }
-
-export function KCard({ variant = 'static', href = '', tight = false, selectable = false, state = null, span = null, lead = false,
-  dense = false, children, ...attrs }: Attrs & {
-  variant?: keyof typeof CARD_VARIANT; href?: string; tight?: boolean; selectable?: boolean; state?: string | null
-  span?: string | null; lead?: boolean; dense?: boolean
-}) {
-  const Tag = variant === 'link' ? 'a' : variant === 'heading' ? 'header' : 'div'
-  const own = {
-    className: 'card' + CARD_VARIANT[variant] + (selectable ? ' card--selectable' : '') + (tight ? ' card--tight' : '')
-      + (span ? ` panel--${span}` : '') + (lead ? ' front__lead' : '') + (dense ? ' card--dense' : ''),
-    href: variant === 'link' ? href : undefined,
-    'data-state': variant === 'interactive' && state ? state : undefined,
-  }
-  return <Tag {...fallthrough(own, attrs)}>{children}</Tag>
+export function KCard({ dense = false, children, ...attrs }: Attrs & { dense?: boolean }) {
+  return <div {...fallthrough({ className: cx('card', dense ? 'card--dense' : null) }, attrs)}>{children}</div>
 }
 
-export function KCardStack({ columns = false, dense = false, children, ...attrs }: Attrs & { columns?: boolean; dense?: boolean }) {
-  const own = { className: cx('card-stack', columns ? 'card-stack--columns' : null, dense ? 'card-stack--dense' : null) }
-  return <div {...fallthrough(own, attrs)}>{children}</div>
+export function KCardStack({ dense = false, children, ...attrs }: Attrs & { dense?: boolean }) {
+  return <div {...fallthrough({ className: cx('card-stack', dense ? 'card-stack--dense' : null) }, attrs)}>{children}</div>
 }
 
 export function KChip({ pressed = false, onClick, children, ...attrs }:
@@ -84,21 +63,16 @@ export function KInlineAdd({ placeholder = 'Add…', onAdd, ...attrs }: Attrs & 
   return <input {...fallthrough({ className: 'inline-add', type: 'text', placeholder, onKeyDown }, attrs)} />
 }
 
-export function KField({ label = '', modelValue = '', placeholder = '', type = 'text', textarea = false, row = false, fakeCaret = false,
-  'onUpdate:modelValue': onUpdate, ...attrs }: Attrs & {
-  label?: string; modelValue?: string; placeholder?: string; type?: string; textarea?: boolean; row?: boolean; fakeCaret?: boolean
-  'onUpdate:modelValue'?: (value: string) => void
-}) {
+export function KField({ modelValue = '', placeholder = '', type = 'text', textarea = false, 'onUpdate:modelValue': onUpdate, ...attrs }:
+  Attrs & { modelValue?: string; placeholder?: string; type?: string; textarea?: boolean; 'onUpdate:modelValue'?: (value: string) => void }) {
   const field = {
     className: 't-caption field__input',
     placeholder: placeholder || undefined,
     ...valueOf(modelValue, (event) => onUpdate?.(event.currentTarget.value)),
   }
   return (
-    <label {...fallthrough({ className: row ? 'field field--row' : 'field' }, attrs)}>
-      {label ? <span className="t-caption--bold field__label">{label}</span> : null}
+    <label {...fallthrough({ className: 'field' }, attrs)}>
       {textarea ? <textarea {...field} /> : <input {...field} type={type} />}
-      {fakeCaret ? <span className="field__fake-caret" aria-hidden="true"></span> : null}
     </label>
   )
 }

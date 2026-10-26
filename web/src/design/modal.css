@@ -1,17 +1,4 @@
 /* Modal: a centred dialog over a scrim */
-.modal {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-5);
-}
-
-.modal[data-state="closed"] {
-  display: none;
-}
 
 .modal__body {
   font-size: var(--fs-caption);

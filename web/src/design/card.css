@@ -15,11 +15,6 @@
 .card[data-state="active"] {
   background: var(--color-surface-overlay);
 }
-.card--heading {
-  padding: var(--space-5) var(--space-6) var(--space-3);
-  gap: var(--space-3);
-}
-.card--heading:hover { background: transparent; }
 .card--shout {
   --color-bg:              #000000;
   --color-text:            #ffffff;
@@ -31,14 +26,6 @@
   --color-border-strong:   rgba(255, 255, 255, 0.28);
   color: #ffffff;
 }
-.card--tight { padding: var(--space-4) var(--space-5); gap: var(--space-2); }
-.card--link {
-  cursor: pointer;
-  transition: background-color var(--dur-base) var(--ease-out),
-              transform var(--dur-fast) var(--ease-out);
-}
-.card--link:active { transform: scale(0.96); }
-.card--link:focus-visible { background: var(--color-surface-overlay); }
 .card--interactive {
   cursor: pointer;
 }
@@ -46,9 +33,6 @@
   cursor: default;
 }
 .card--interactive[data-state="active"]:hover { background: var(--color-surface-overlay); }
-.card--interactive.card--selectable[data-state="active"] {
-  background: var(--color-surface-strong);
-}
 .card__collapsible {
   display: grid;
   grid-template-rows: 1fr;
@@ -61,12 +45,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-.card__collapsible-inner:has(.deck) {
-  overflow: visible;
-}
-.card__collapsible-inner:has(.comment__menu[aria-expanded="true"]) {
-  overflow: visible;
 }
 .card--interactive:not([data-state="active"]) .card__collapsible {
   grid-template-rows: 0fr;
@@ -86,36 +64,24 @@
   padding-left: var(--card-inset-x);
   padding-right: var(--card-inset-x);
 }
-.card > .deck,
-.card__collapsible-inner > .deck {
-  padding-left: var(--card-inset-x);
-  padding-right: var(--card-inset-x);
-}
 .card.card > * {
   margin-left: var(--card-inset-x);
   margin-right: var(--card-inset-x);
 }
-.card.card > :where(.card__heading, .card__body, .card__collapsible,
-  .field, .switch, .deck, .divider),
-.card.card--heading > * {
+.card.card > :where(.card__heading, .card__collapsible, .field) {
   margin-left: 0;
   margin-right: 0;
 }
 .card > .button {
   width: auto;
 }
-.field + .field,
-.field + .switch,
-.switch + .field,
-.switch + .switch {
+.field + .field {
   margin-top: calc(-1 * var(--space-3));
 }
-.switch + .card__heading,
 .field + .card__heading {
   margin-top: var(--space-4);
 }
-.field::after,
-.switch::after {
+.field::after {
   content: "";
   position: absolute;
   bottom: 0;
