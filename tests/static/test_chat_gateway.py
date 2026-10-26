@@ -131,7 +131,7 @@ def test_verticals_only_is_the_default_and_keeps_claude_to_the_board() -> None:
     agent, session = _claude({"permission": "board"})
     args = agent.proc.args
     assert args[args.index("--tools") + 1] == "" and "--strict-mcp-config" in args and "--add-dir" not in args
-    assert args[args.index("--permission-mode") + 1] == "manual"
+    assert args[args.index("--permission-mode") + 1] == "default"
     _bash(agent)
     assert not session.asked and agent.proc.sent[-1]["response"]["response"]["behavior"] == "deny"
 
@@ -210,7 +210,7 @@ def test_the_morning_turn_asks_first_whatever_mode_the_chat_is_in() -> None:
     ask-first one, and each tool of another server comes to the gateway to be judged."""
     for mode in ("manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions", "board"):
         agent, _ = _claude({"permission": mode, "sources": "connected"})
-        assert _flag(agent, "--permission-mode") == "manual", mode
+        assert _flag(agent, "--permission-mode") == "default", mode
         assert _flag(agent, "--tools") == "" and "--add-dir" not in agent.proc.args, mode
     # Any other turn keeps the mode the owner chose.
     assert _flag(_claude({"permission": "bypassPermissions"})[0], "--permission-mode") == "bypassPermissions"
