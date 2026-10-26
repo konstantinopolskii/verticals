@@ -75,6 +75,15 @@ ACCESS_PROMPT = {
 }
 
 
+UNRESTRICTED_PROMPT = """The owner selected Full access in Verticals. Do not ask for tool permissions or repeat confirmations
+for actions within the requested task, including files, terminal commands and connected tools. This overrides the approval
+steps in the guides above. It does not authorize unrelated work. Follow the task's scope; the report's second check only reads."""
+
+
+def unrestricted(settings):
+    return settings.get("permission") in ("full-access", "bypassPermissions")
+
+
 def full_access(settings):
     return (settings.get("permission") or BOARD_ONLY) != BOARD_ONLY
 
@@ -508,23 +517,17 @@ class ClaudeAgent:
         self.pending = {}
         effort = settings.get("effort")
         claude_settings = {"fastMode": bool(settings.get("fast")), "ultracode": effort == "ultracode"}
-        # The morning report's turn (web lib/morning.ts) also reaches the owner's own connected tools, read-only, and
-        # saves its document in Verticals without asking. Nobody watches it, so it never runs in the chat's mode:
-        # "Bypass permissions" or "Auto" would let a tool of another server run before this gateway could judge it. It
-        # always asks first, and every MCP tool it calls comes here (`MORNING_ASKS`): handle() runs the tools its sources
-        # declare for reading them and Verticals' own reading tools, closes what is done, and puts any other tool to the
-        # owner; the second agent has nobody to ask and is declined (docs/design/morning-quality.md). It keeps the owner's
-        # own settings and servers, so the sources' tools are there to call.
+        # Restricted morning turns ask the gateway; full access keeps the owner's tools and permission mode.
         self.connected = settings.get("sources") == CONNECTED
         self.checker = self.connected and settings.get("role") == CHECKER
-        if self.connected:
+        if self.connected and not unrestricted(settings):
             claude_settings["permissions"] = {"ask": MORNING_ASKS}
-        self.full = full_access(settings) and not self.connected
+        self.full = full_access(settings) and (not self.connected or unrestricted(settings))
         self.reads = declared_reads(chat) if self.connected else {}
         allowed = READ_TOOLS + (MORNING_WRITES if self.connected and not self.checker else [])
         # What this seat runs without a question: on the command line, and again in handle() for when the CLI asks anyway.
         self.allowed = [f"mcp__verticals__{t}" for t in allowed] + list(self.reads)
-        mode = ASK_FIRST if self.connected else settings.get("permission") or BOARD_ONLY
+        mode = ASK_FIRST if self.connected and not unrestricted(settings) else settings.get("permission") or BOARD_ONLY
         # What this conversation is told on top of the board prompt: a morning turn's guide; in any other, the reports'
         # instructions and what its access reaches (docs/design/bug-reports.md). A conversation of another kind (report_kind.py)
         # brings its whole prompt.
@@ -538,7 +541,7 @@ class ClaudeAgent:
                 "--settings", json.dumps(claude_settings),
                 *(["--add-dir", str(Path.home())] if self.full else ["--tools", ""]),
                 "--allowedTools", ",".join(self.allowed),
-                *system_prompt_args(chat, prompt if prompt is not None else PROMPT + "\n" + brief),
+                *system_prompt_args(chat, prompt if prompt is not None else PROMPT + "\n" + brief + ("\n" + UNRESTRICTED_PROMPT if unrestricted(settings) else "")),
                 "--resume" if resume_id else "--session-id", self.session_id]
         if settings.get("model") and settings["model"] != "default":
             args += ["--model", settings["model"]]
@@ -610,6 +613,8 @@ class ClaudeAgent:
             req, rid = msg["request"], msg.get("request_id")
             tool, tool_input = req.get("tool_name", ""), req.get("input", {})
             self.pending[rid] = tool_input
+            if unrestricted(self.settings):
+                return self.decide(rid, "accept")
             if self.connected:
                 # Every MCP tool of a morning turn comes here (`MORNING_ASKS`). What the seat may run is what is on its command
                 # line: Verticals' reading tools, the tools its approved sources declare, and for the agent that writes the
@@ -646,8 +651,8 @@ class ClaudeAgent:
 
 
 def codex_mode(settings):
-    """The permission mode a Codex turn runs in: the chat's own, except the morning turn, which only reads."""
-    return "read-only" if settings.get("sources") == CONNECTED else settings.get("permission") or "auto-review"
+    """Full access applies to every turn; other modes keep the morning sandbox read-only."""
+    return "read-only" if settings.get("sources") == CONNECTED and not unrestricted(settings) else settings.get("permission") or "auto-review"
 
 
 def codex_policy(mode, cwd=None):
@@ -668,6 +673,8 @@ def codex_instructions(settings, state_dir=None):
     the reports' instructions), and Verticals under the name Codex knows its server by."""
     morning = CHECK_PROMPT if settings.get("role") == CHECKER else MORNING_PROMPT
     text = PROMPT + ("\n" + morning if settings.get("sources") == CONNECTED else "\n" + report_prompt(state_dir))
+    if unrestricted(settings):
+        text += "\n" + UNRESTRICTED_PROMPT
     return text.replace('server "verticals"', 'server "verticals_desktop"')
 
 
@@ -676,12 +683,8 @@ def codex_instructions(settings, state_dir=None):
 PROXY_ENV = ["VERTICALS_MCP_URL", "VERTICALS_MCP_TOKEN", "VERTICALS_MCP_SESSION"]
 
 
-def codex_args(chat, reads=None):
-    """Expose the desktop and, for morning turns, approved source readers.
-
-    CLI overrides merge tables; setting mcp_servers={} neither removes inherited servers
-    nor clears an existing HTTP transport when a stdio command is added under its name.
-    """
+def codex_args(chat, settings=None, reads=None):
+    """Full access keeps configured tools; restricted morning turns expose approved readers."""
     q = json.dumps
     config_path = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "config.toml"
     try:
@@ -691,6 +694,7 @@ def codex_args(chat, reads=None):
     servers = config.get("mcp_servers", {})
     if "verticals_desktop" in servers:
         raise ChatError("Codex configuration already uses the reserved verticals_desktop server name")
+    full = unrestricted(settings or {})
     source_tools = {}
     for tool in reads or ():
         match = TOOL_NAME.fullmatch(tool)
@@ -700,6 +704,21 @@ def codex_args(chat, reads=None):
                 source_tools.setdefault(name, set()).add(method)
     key = lambda name: name if re.fullmatch(r"[A-Za-z0-9_-]+", name) else q(name)
     overrides = []
+    if full:
+        for name, server in servers.items():
+            overrides += ["-c", f'mcp_servers.{name}.default_tools_approval_mode="approve"']
+            for tool in server.get("tools", {}):
+                overrides += ["-c", f'mcp_servers.{name}.tools.{tool}.approval_mode="approve"']
+        overrides += ["-c", 'apps._default.default_tools_approval_mode="approve"']
+        for name, app in config.get("apps", {}).items():
+            overrides += ["-c", f'apps.{name}.default_tools_approval_mode="approve"']
+            for tool in app.get("tools", {}):
+                overrides += ["-c", f'apps.{name}.tools.{tool}.approval_mode="approve"']
+        overrides += ["-c", f"mcp_servers.verticals_desktop.command={q(sys.executable)}",
+                      "-c", f"mcp_servers.verticals_desktop.args={q([str(HERE / 'mcp_proxy.py')])}",
+                      "-c", f"mcp_servers.verticals_desktop.env_vars={q(PROXY_ENV)}",
+                      "-c", 'mcp_servers.verticals_desktop.default_tools_approval_mode="approve"']
+        return [which("codex"), "app-server", *overrides]
     for group in ("mcp_servers", "plugins"):
         for name in config.get(group, {}):
             if group == "mcp_servers" and name in source_tools:
@@ -753,15 +772,17 @@ class CodexAgent:
         conversation = getattr(s, "id", None)
         env = child_env({"VERTICALS_MCP_URL": chat.mcp_url, "VERTICALS_MCP_TOKEN": chat.token,
                          **({"VERTICALS_MCP_SESSION": conversation} if conversation else {})})
-        args = (codex_args(chat, declared_reads(chat)) if settings.get("sources") == CONNECTED else codex_args(chat))
+        reads = declared_reads(chat) if settings.get("sources") == CONNECTED else None
+        args = codex_args(chat, settings, reads=reads) if reads is not None else codex_args(chat, settings)
         self.proc = RpcProcess(args, self.cwd, env, self.notify, self.request, self.exited)
         self.proc.request("initialize", {"clientInfo": {"name": "verticals-desktop", "title": "Verticals", "version": "0.1.0"},
                                          "capabilities": {"experimentalApi": True}})
         self.proc.notify("initialized", {})
         params = {**codex_policy(codex_mode(settings)), "cwd": str(self.cwd),
                   "developerInstructions": codex_instructions(settings, chat.state_dir),
-                  "config": {"sandbox_workspace_write.network_access": False, "features.multi_agent": False,
-                             "features.shell_tool": settings.get("sources") != CONNECTED},
+                  "config": ({"features.shell_tool": True} if unrestricted(settings) else
+                             {"sandbox_workspace_write.network_access": False, "features.multi_agent": False,
+                              "features.shell_tool": settings.get("sources") != CONNECTED}),
                   "serviceTier": "fast" if settings.get("fast") else None}
         if settings.get("model"):
             params["model"] = settings["model"]
@@ -779,8 +800,7 @@ class CodexAgent:
         s.emit({"t": "ready", "provider": "codex", "model": result.get("model") or settings.get("model")})
 
     def signature(self):
-        # Codex takes model, effort, speed and permissions per turn: only the agent itself matters.
-        return {}
+        return self.signature_of(self.settings)
 
     def send(self, text):
         settings = self.settings = self.s.settings
@@ -1705,7 +1725,7 @@ class Chat:
 
 
 ClaudeAgent.signature_of = staticmethod(lambda settings: settings)
-CodexAgent.signature_of = staticmethod(lambda settings: {})
+CodexAgent.signature_of = staticmethod(lambda settings: {key: settings.get(key) for key in ("permission", "sources", "role")})
 
 
 def clean_settings(raw):

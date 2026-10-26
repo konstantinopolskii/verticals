@@ -22,6 +22,12 @@ The app is in [Releases](https://github.com/konstantinopolskii/verticals/release
 carries its old name, Verticals. Open source under the GNU Affero General Public License v3.0,
 see [License](#license).
 
+On first launch with an agent available, choose its access in the app. **Allow full access**
+lets both Claude and Codex use files, terminal commands, the network and connected tools
+without further tool confirmations, including morning reports. **Keep asking** retains the
+restricted defaults. The choice is saved with the app's settings; change it per agent in the
+agent menu. macOS permissions and account sign-ins still apply.
+
 ## Native local startup
 
 Requires Python 3.12, Node 22+ with npm, PostgreSQL 16 including pg_trgm and ICU support.
