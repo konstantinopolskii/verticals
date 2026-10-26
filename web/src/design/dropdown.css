@@ -1,8 +1,4 @@
-/* Menu-button popover. Trigger reuses .button; the popover is a white
-   surface on the page, so it earns NO shadow — separation comes from the
-   0.5px hairline border alone (manifesto § Material). Radius token, one
-   contrast step (item hover fills to the 3% overlay), motion on tokens. */
-
+/* Dropdown: a menu-button popover */
 .dropdown {
   position: relative;
   display: inline-block;

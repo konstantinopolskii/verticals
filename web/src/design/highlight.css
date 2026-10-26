@@ -1,28 +1,4 @@
-/* =========================================================================
-   Highlight — text the reader has marked. One universal rule, two
-   states, mirrored from the card-stack model:
-
-     .highlight             — the resting state. 3% surface overlay —
-                              the same whisper-gray the rest of the
-                              system uses for "present but not the
-                              centre of attention". This is the default
-                              look whenever the owning card (draft or
-                              committed thread) is minimized in the
-                              inspector.
-
-     .highlight.highlight--active — inverted. Black background, white
-                              text. Used ONLY while the owning card is
-                              active in the inspector stack (the
-                              "shout" of a highlight — one at a time,
-                              same as card activation). Applied /
-                              removed by a MutationObserver watching
-                              data-state on the card.
-
-   Clicking any highlight promotes its owning thread; the MutationObserver
-   then flips this mark to --active as a side effect. No padding or
-   margin so apply / remove is a pure paint, not a layout shift.
-   box-decoration-break: clone keeps the mark tight on each wrapped line.
-   ========================================================================= */
+/* Highlight: text the reader has marked */
 .highlight {
   background: var(--color-surface-overlay);
   color: inherit;
@@ -30,9 +6,6 @@
   margin: 0;
   border-radius: 2px;
   cursor: pointer;
-  /* Vertical extension: flat geometry, no blur. The mark grows 4 px above
-     and below the line-box so the highlight reads as a deliberate band,
-     not a translucent ghost over the cap-height. */
   box-shadow: 0 4px 0 0 var(--color-surface-overlay),
               0 -4px 0 0 var(--color-surface-overlay);
   box-decoration-break: clone;

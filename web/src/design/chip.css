@@ -1,8 +1,4 @@
-/* Chip — a tag the user can press. Selects among peers: segment tabs,
-   filter rails, multi-select wraps. Tag stays metadata; button commits
-   an outcome; chip picks. Selected state inverts — the kit's one
-   emphasis move. Render as <button class="chip">; a group wraps in
-   .chip-wrap. */
+/* Chip: a tag the user can press */
 .chip {
   display: inline-flex;
   align-items: center;

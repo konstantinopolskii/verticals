@@ -1,10 +1,4 @@
-/* =========================================================================
-   Deck — a fanned 3D card stack. Cards tilt away on the right, the
-   active one rotates forward and grows. Use for browse-then-pick
-   interactions (theme presets, tier choices, swatch flips) where the
-   reader wants to skim before committing. Separate component from the
-   flat .card-stack above, which is a vertical list of equal surfaces.
-   ========================================================================= */
+/* Deck: a fanned 3D card stack */
 .deck {
   display: flex;
   flex-direction: row;
@@ -16,11 +10,6 @@
   flex-shrink: 0;
   width: 200px;
   min-height: 160px;
-  /* Deck cards are always white, regardless of the theme around them.
-     The fan's depth reads on a light surface; inverting would collapse
-     the perspective's legibility. We reset the color tokens back to
-     light mode locally so a shout card wrapping a deck still shows
-     black text on the white cards inside. */
   --color-bg:              #ffffff;
   --color-text:            #000000;
   --color-text-muted:      rgba(0, 0, 0, 0.55);
@@ -28,11 +17,6 @@
   --color-surface-overlay: rgba(0, 0, 0, 0.03);
   --color-surface-strong:  rgba(0, 0, 0, 0.06);
   --color-border:          rgba(0, 0, 0, 0.1);
-  /* Opaque gray, not a token tint: the deck always lives inside a
-     black shout, and a semi-transparent surface token (6% black)
-     would composite onto the shout's black and vanish. A solid value
-     keeps every fanned-back card visible, one tonal step under the
-     white active card, whatever surface sits behind the deck. */
   background: #dcdcdc;
   color: #000000;
   border-radius: var(--radius-lg);
@@ -42,15 +26,10 @@
   cursor: pointer;
   margin-right: -188px;
   transform: perspective(120px) rotateY(52deg) rotateX(8deg);
-  transform-origin: left center;   /* cards fan from their left edge */
+  transform-origin: left center;
   -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
   scale: 0.75;
-  /* Two easings on one element, intentionally different:
-     rotation settles (ease-out), margin springs (cubic spring).
-     The tilt is functional, it lands. The spread is physical, it pops.
-     Background rides the same dur-slow / ease-out so the gray to white
-     swap on promotion stays in lockstep with the tilt and scale. */
   transition: transform var(--dur-slow) var(--ease-out),
               scale var(--dur-slow) var(--ease-out),
               background-color var(--dur-slow) var(--ease-out),
@@ -66,12 +45,6 @@
   margin-right: 0px;
   background: #ffffff;
 }
-
-/* Select tag inside a card stack — reuses the plain .tag component as an
-   action. Borrowing a metadata element and giving it a click target is
-   cheaper than inventing a new button. Muted at rest, full-black when
-   chosen, with a small checkmark at the left. Visible only on the active
-   card, so browsing is still commitment-free. */
 .deck-card__select {
   margin-top: auto;
   align-self: flex-start;
@@ -86,12 +59,6 @@
   opacity: 1;
   pointer-events: auto;
 }
-
-/* Checkmark glyph — same clip-path as the native checkbox so we don't
-   invent a second tick. Sized and colored to match caption text, so it
-   reads as a letterform, not an icon dropped into running copy. Springs
-   in on insert: the span is freshly appended each time "Chosen" is set,
-   so the keyframes run once per choice — confirmation of the gesture. */
 .deck-card__check {
   display: inline-block;
   width: var(--space-3);
@@ -107,6 +74,4 @@
   from { opacity: 0; transform: scale(0); }
   to   { opacity: 1; transform: scale(1); }
 }
-
-/* The whole active card is clickable — wire up the hint visually. */
 .deck-card.active { cursor: pointer; }

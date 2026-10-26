@@ -1,6 +1,4 @@
-/* =========================================================================
-   Button — full-width caption on a surface
-   ========================================================================= */
+/* Button */
 .button {
   background: var(--color-surface-overlay);
   color: var(--color-text);
@@ -15,20 +13,12 @@
 .button:hover { background: var(--color-surface-strong); }
 .button:active { background: var(--color-border); transform: scale(0.96); }
 .button:focus-visible { outline: 2px solid var(--color-border-strong); outline-offset: 2px; }
-
-/* Primary button — inverts the surface. Black bg, white label. Used as the
-   executing CTA inside an active interactive card. */
 .button--primary {
   background: var(--color-text);
   color: var(--color-bg);
 }
 .button--primary:hover { background: var(--color-text); opacity: 0.9; }
 .button--primary:active { background: var(--color-text); opacity: 0.8; }
-
-/* State-swap CTAs: interactive cards show different buttons in each state.
-   Minimized card -> secondary CTA (expands). Active card -> primary CTA
-   (executes). The labels must differ — a primary button never repeats the
-   minimized one's text. */
 .card--interactive [data-cta="active"] { display: none; }
 .card--interactive[data-state="active"] [data-cta="minimized"] { display: none; }
 .card--interactive[data-state="active"] [data-cta="active"] { display: block; }

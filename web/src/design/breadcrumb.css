@@ -1,10 +1,4 @@
-/* =========================================================================
-   A5 — Breadcrumb (ARCHITECTURE.md §6: "slash-separated ancestor
-   chain; every hierarchical view needs it"). New component, new
-   classes: changes nothing for any current consumer. Separator is
-   drawn by ::after on every item but the last, so item text never
-   carries a literal slash.
-   ========================================================================= */
+/* Breadcrumb */
 .breadcrumb {
   display: flex;
   align-items: center;

@@ -1,6 +1,4 @@
-/* =========================================================================
-   Reset & base
-   ========================================================================= */
+/* Reset and base */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -8,9 +6,6 @@
 }
 ul, ol, menu { list-style: none; }
 a { color: inherit; text-decoration: none; }
-/* The hidden attribute wins over component display values. Without this,
-   any component that sets display (card's flex, spec-list's grid) undoes
-   the UA's [hidden] rule and the element stays visible. */
 [hidden] { display: none !important; }
 button {
   border: none;
@@ -29,10 +24,6 @@ input, textarea {
 }
 input::placeholder, textarea::placeholder { color: var(--color-text-subtle); }
 img, svg { display: block; max-width: 100%; }
-
-/* Selection follows the monochrome contract — inverted, same tokens as
-   the card/highlight active state so a live selection previews the mark
-   it's about to become. No blue, no brand. */
 ::selection {
   background: var(--color-text);
   color: var(--color-bg);

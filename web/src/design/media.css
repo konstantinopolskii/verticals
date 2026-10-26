@@ -1,8 +1,4 @@
-/* Media — the row molecule every feed, file list, byline, and related
-   list shares: leading figure, two-line body, trailing meta. Hairline
-   between siblings, never above the first or below the last — the
-   field's divider law. Anchor form makes the whole row one target,
-   same law as the link card. */
+/* Media row */
 .media {
   display: flex;
   align-items: center;
@@ -20,8 +16,6 @@
   background: var(--color-border);
   pointer-events: none;
 }
-/* A button riding a media row is a row action — it shrinks to its label
-   instead of claiming the full column width. */
 a.media {
   transition: background-color var(--dur-fast) var(--ease-out);
 }

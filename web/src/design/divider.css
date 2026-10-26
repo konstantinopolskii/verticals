@@ -1,6 +1,4 @@
-/* =========================================================================
-   Divider — hairline break between sections inline with text
-   ========================================================================= */
+/* Divider */
 .divider {
   height: 0.5px;
   background: var(--color-border);

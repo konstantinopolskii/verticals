@@ -1,6 +1,4 @@
-/* =========================================================================
-   Typography utilities — the whole lexicon fits on one screen
-   ========================================================================= */
+/* Typography utilities */
 .t-hero {
   font-size: var(--fs-hero);
   line-height: var(--lh-hero);
@@ -30,12 +28,6 @@
 }
 .t-caption--bold { font-weight: var(--fw-bold); }
 .t-muted { color: var(--color-text-muted); }
-
-/* .t-code is the inline code/token chip. Soft surface, muted text, regular
-   weight. Commissioner — the kit has one typeface; <code> elements override
-   the browser's default monospace. Font-size and leading inherit so the chip
-   sits on the surrounding line without breaking rhythm. Replaces .t-mono
-   (which carried a forbidden 600 weight). */
 .t-code {
   background: var(--color-surface-strong);
   border-radius: var(--radius-sm);
@@ -44,10 +36,6 @@
   font-family: var(--font-body);
   font-weight: var(--fw-regular);
 }
-
-/* .t-code--block is the block-level code rail. No surface chip; the left
-   border carries the affordance. Block padding clears the body rhythm.
-   Commissioner — same typeface as the surrounding prose. */
 .t-code--block {
   color: var(--color-text-muted);
   font-family: var(--font-body);

@@ -1,9 +1,4 @@
-/* Centered dialog over a 40%-black scrim. White surface, so no shadow —
-   separation comes from the scrim plus a 0.5px hairline on the dialog.
-   Radius-lg (24px) marks it as the dialog case. One contrast step in the
-   heading: ink title, muted subtitle. Open motion rides --dur-base +
-   --ease-out; the × close hovers on --dur-fast. */
-
+/* Modal: a centred dialog over a scrim */
 .modal {
   position: fixed;
   inset: 0;

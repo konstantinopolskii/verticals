@@ -1,6 +1,4 @@
-/* Singleton stack, bottom-center. Fixed, shrinks to its widest toast.
-   pointer-events:none lets clicks fall through the empty gap between
-   stacked toasts; each toast re-arms its own pointer events. */
+/* Toast */
 .toast-stack {
   position: fixed;
   bottom: var(--space-6);
@@ -13,10 +11,6 @@
   align-items: center;
   pointer-events: none;
 }
-
-/* Inverted surface: black bg, white ink. The black background earns the
-   soft material shadow — same permission as the FAB (manifesto § Material).
-   No status colors; one ink surface carries every message. */
 .toast {
   display: flex;
   align-items: center;
@@ -32,26 +26,16 @@
   transition: opacity var(--dur-base) var(--ease-out),
               transform var(--dur-base) var(--ease-out);
 }
-
-/* Enter/exit: translateY(8px) + fade. Open (default) rests at rest.
-   The imperative path inserts with data-state="closed", reflows, then
-   flips to "open" so the transition plays; dismissal flips back. */
 .toast[data-state="closed"] {
   opacity: 0;
   transform: translateY(8px);
 }
-
-/* Inverted-ghost action. Weight is the one contrast step against the
-   message text; no fill, no border. */
 .toast__action {
   color: var(--color-bg);
   font-weight: var(--fw-bold);
   background: 0;
   border: 0;
 }
-
-/* Dismiss ×. Muted by opacity — the one contrast step against the ink
-   message. Full ink on hover. */
 .toast__close {
   color: var(--color-bg);
   opacity: 0.6;
