@@ -1,0 +1,244 @@
+/* =========================================================================
+   Card — the workhorse surface
+   Transparent by default. On :hover or :focus-within (any focusable
+   descendant has focus), or with [data-state="active"], the surface
+   fades in. That is the entire interaction vocabulary of this kit.
+   ========================================================================= */
+.card {
+  position: relative;
+  background: transparent;
+  border-radius: var(--radius-lg);
+  /* Half-and-half inset: the card shell contributes 12 px of horizontal
+     padding, and every UI component inside it (headings, fields, switches,
+     card stacks) contributes another 12 px. The two halves compound to
+     24 px — the original text rail — while the component itself retains
+     a 12 px breathing zone so its hover fill never collides with the
+     card edge. One token, --card-inset-x, governs both halves. */
+  --card-inset-x: var(--space-3);
+  padding: var(--space-5) var(--card-inset-x) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+/* The surface lights up on hover only where the card itself is an
+   affordance — interactive stack cards and link cards. A static card
+   (a metric panel, a settings group, a step sheet) never reacts to the
+   cursor: hover glow on a dead surface promises a click that goes
+   nowhere. The hover rule itself closes the surface cascade after the
+   doc, stack, and shout rules — see "Affordance hover" further down.
+   Input focus and promotion still light any card. */
+.card:has(input:focus),
+.card:has(textarea:focus),
+.card[data-state="active"] {
+  background: var(--color-surface-overlay);
+}
+.card--heading {
+  padding: var(--space-5) var(--space-6) var(--space-3);
+  gap: var(--space-3);
+}
+.card--heading:hover { background: transparent; }
+
+/* =========================================================================
+   Shout card — an inverted, high-contrast variant. Active was never
+   visible enough for commit-scale moments; shout is the card turned all
+   the way up. Black surface, white content, inverted everything inside:
+   placeholders, dividers, hover fills, switch tracks, even the primary
+   button reverses polarity. Use when a card needs to announce itself as
+   THE decision, not one of many.
+
+   Implementation trick: override the color tokens as CSS custom props on
+   the card itself. Every child component already reads from these vars,
+   so they re-theme in dark mode without per-element overrides.
+
+   The background is declared after the doc/stack rules below so it wins
+   on specificity and order — see the `.card.card--shout` selector right
+   after the 2D stack definitions.
+   ========================================================================= */
+.card--shout {
+  --color-bg:              #000000;
+  --color-text:            #ffffff;
+  --color-text-muted:      rgba(255, 255, 255, 0.55);
+  --color-text-subtle:     rgba(255, 255, 255, 0.35);
+  --color-surface-overlay: rgba(255, 255, 255, 0.08);
+  --color-surface-strong:  rgba(255, 255, 255, 0.14);
+  --color-border:          rgba(255, 255, 255, 0.16);
+  --color-border-strong:   rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+.card--tight { padding: var(--space-4) var(--space-5); gap: var(--space-2); }
+
+/* Link card — the whole surface is one navigation affordance. Rendered
+   as an <a class="card card--link">; the button span inside labels the
+   destination, it is not a second target. The stack script skips link
+   cards: no promotion, no glide, the click just navigates. Reach for it
+   when a pointer card opens another document; a card that reveals
+   content in place stays interactive. */
+.card--link {
+  cursor: pointer;
+  transition: background-color var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.card--link:active { transform: scale(0.96); }
+.card--link:focus-visible { background: var(--color-surface-overlay); }
+
+/* Interactive card — form-bearing card that runs on a sticky active /
+   minimized state. Active = gray, form visible. Minimized = transparent,
+   heading + CTA only. Promotion and demotion are wired up in JS. */
+.card--interactive {
+  cursor: pointer;
+}
+.card--interactive[data-state="active"] {
+  cursor: default;
+}
+/* Hover no longer needs to reveal the surface on interactive cards — their
+   state is explicit. We let the default hover rule apply to minimized cards
+   (hinting at clickability) but override on active to keep the surface solid. */
+.card--interactive[data-state="active"]:hover { background: var(--color-surface-overlay); }
+
+/* Selectable interactive card — registry-style card that drives an external
+   preview (see patterns.html). Active reads as "this is the current
+   selection" rather than "this form is open for input", so the surface
+   lands one notch stronger than the default interactive-active overlay.
+   Inspector-scoped overrides still win; this only changes doc-column use. */
+.card--interactive.card--selectable[data-state="active"] {
+  background: var(--color-surface-strong);
+}
+
+/* The collapsible is a single-row grid that animates between 0fr and 1fr.
+   Its inner div carries the real content with overflow:hidden so children
+   can clip cleanly while grid-template-rows transitions. */
+.card__collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-out),
+              opacity var(--dur-base) var(--ease-out);
+}
+.card__collapsible-inner {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* Card stack inside a collapsible needs to escape the overflow:hidden clip */
+.card__collapsible-inner:has(.deck) {
+  overflow: visible;
+}
+/* Open menu popover needs to escape the same clip. Only kicks in while a
+   popover is open; otherwise inner keeps overflow:hidden for clean slide. */
+.card__collapsible-inner:has(.comment__menu[aria-expanded="true"]) {
+  overflow: visible;
+}
+.card--interactive:not([data-state="active"]) .card__collapsible {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+/* UI components inside a card each contribute their own half of the inset
+   via horizontal padding of var(--card-inset-x) = 12 px. Combined with
+   the card's own 12 px, content lands on the 24 px rail. */
+.card__heading {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--card-inset-x);
+  padding-right: var(--card-inset-x);
+}
+.card__heading {
+  gap: 4px;
+  margin-top: var(--space-2);
+}
+
+/* A nested heading (e.g. "Pick a default" inside the collapsible) needs
+   the same half-inset because its parent collapsible wrapper is flush. */
+.card__collapsible-inner > .card__heading {
+  padding-left: var(--card-inset-x);
+  padding-right: var(--card-inset-x);
+}
+
+/* Card stack inside a card is a UI component like any other — it gets the
+   same 12 px inset so the fanned deck starts on the same rail as the
+   copy and fields above it. Matches the "half + half" pattern, so the
+   stack doesn't collide with the card edge. */
+.card > .deck,
+.card__collapsible-inner > .deck {
+  padding-left: var(--card-inset-x);
+  padding-right: var(--card-inset-x);
+}
+
+/* The rail is the default. Every direct child of a card takes a 12 px
+   margin that stacks with the shell's 12 px padding, landing content on
+   the 24 px text rail without the author doing anything. The old model
+   enumerated which children get the inset (p, ol, ul, dl, chip-wrap,
+   media) — and every child type outside the list (a metric row, a data
+   table, a bare spark) sat on the shell edge until someone noticed.
+   Inverted, the exception list is the closed set of kit parts that own
+   their own bleed, and it only changes when the kit does:
+   card__heading and card__body pad themselves; the collapsible is a
+   full-width machine whose inner manages the rail; fields and switches
+   keep their flush hover fill and inset their hairline to the rail;
+   decks pad themselves; dividers span the shell. A heading card pads
+   its children directly, so they opt out wholesale.
+   Margins, not padding, so a table's rules end on the rail exactly
+   where a field's hairline does.
+   The doubled .card.card is cascade armor, not a typo: several
+   components carry their own `margin: 0` reset (book__spec, lists),
+   declared later in this file at single-class specificity. At plain
+   .card > * weight the rail would lose those ties by source order and
+   the spec list would silently fall off the rail again. Two classes
+   outweigh every single-class reset; opting out of the rail is done
+   here, in the exception list below, never by a component's own
+   margin declaration. */
+.card.card > * {
+  margin-left: var(--card-inset-x);
+  margin-right: var(--card-inset-x);
+}
+.card.card > :where(.card__heading, .card__body, .card__collapsible,
+  .field, .switch, .deck, .divider),
+.card.card--heading > * {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Full-width children must drop to width:auto under the rail margins —
+   a 100% box plus 24 px of margin overflows the card. Flex stretch
+   fills them to the railed width. Buttons also spend their internal
+   padding on label centering, so the rail rides the margin alone. */
+.card > .button {
+  width: auto;
+}
+
+/* Stack fields and switches tight against each other — padding inside
+   each row does the spacing work, so the cursor is never between rows. */
+.field + .field,
+.field + .switch,
+.switch + .field,
+.switch + .switch {
+  margin-top: calc(-1 * var(--space-3));
+}
+
+/* When a sub-heading breaks a stack of switches or fields, give it
+   extra breathing room on top so the new group reads as a new block,
+   not a tighter continuation of the row above. */
+.switch + .card__heading,
+.field + .card__heading {
+  margin-top: var(--space-4);
+}
+
+/* Divider — every field and switch carries its own 0.5px hairline at the
+   bottom, even when alone. Inset to the card's content rail so the line
+   aligns with labels and paragraph copy. Adjacent rows share the look of
+   a single divider (one field's bottom meets the next's top with no
+   double-up because we only paint it once per field). The pseudo sits
+   above the hover background so it survives the highlight. */
+.field::after,
+.switch::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: var(--card-inset-x, var(--space-3));
+  right: var(--card-inset-x, var(--space-3));
+  height: 0.5px;
+  background: var(--color-border);
+  pointer-events: none;
+}

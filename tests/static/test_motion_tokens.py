@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from tests.static.conftest import WEB_SRC_DIR
 
-TOKENS = {"tokens.css", "lib/motion.ts", "lib/look.ts"}
+TOKENS = {"design/tokens.css", "design/vars.css", "lib/motion.ts", "lib/look.ts"}
 PREDATE_THE_TOKENS = {
     "components/Column.tsx",
     "components/GoalCard.tsx",
@@ -14,6 +14,7 @@ PREDATE_THE_TOKENS = {
     "components/goalDetail.css",
     "components/inlineAdd.css",
     "components/subgoalAddRow.css",
+    "design/deck.css",
     "lib/drag.ts",
     "lib/dragSettle.ts",  # the settle curve, split out of lib/drag.ts unchanged (S5.P1.038)
     "lib/familyMotion.ts",

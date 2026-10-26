@@ -1,0 +1,83 @@
+/* Panel grid — the dashboard shell. Cards as panels on a twelve-column
+   grid, macro gutters, the whole surface scrolls as one page. Span
+   modifiers name intent, not arithmetic. Scroll belongs to the shell,
+   same reason as the reading shell. */
+.panels {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-6);
+  align-content: start;
+  padding: var(--space-8) var(--space-10) var(--space-20);
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+.panels > * { grid-column: span 12; }
+.panel--third { grid-column: span 4; }
+.panel--half { grid-column: span 6; }
+.panel--two-thirds { grid-column: span 8; }
+.panel--full { grid-column: span 12; }
+
+/* Front — the news shell. Lead story left, latest rail right, section
+   grid below. The lead earns two thirds; the rail is a tight column of
+   media rows; desks grid three-up under a hairline. Scroll belongs to
+   the shell, same reason as the reading shell. */
+.front {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-10);
+  align-content: start;
+  padding: var(--space-8) var(--space-10) var(--space-20);
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+/* Masthead — the nameplate row every front page opens with. Full span,
+   nameplate left, dateline right, closed by the strong newspaper rule. */
+.front__lead { grid-column: 1; }
+@media (max-width: 1024px) {
+  .front { grid-template-columns: 1fr; }
+  .front__lead { grid-column: 1; }
+  .panels { padding: var(--space-6) var(--space-6) var(--space-15); }
+  .panel--third, .panel--half, .panel--two-thirds { grid-column: span 12; }
+}
+
+/* Tablet — two columns. Sidebar is hidden by default and invoked via
+   [data-view="nav"], which swaps it in at the inspector's expense. */
+@media (max-width: 1024px) {
+  .app {
+    grid-template-columns: 1fr minmax(360px, var(--inspector-w));
+  }
+  .sidebar { display: none; }
+  .app[data-view="nav"] {
+    grid-template-columns: minmax(220px, var(--sidebar-w)) 1fr;
+  }
+  .app[data-view="nav"] .sidebar { display: flex; }
+}
+
+/* Phone — one column at a time, governed by [data-view] on .app. The
+   selector matches .app[data-view] so it beats the tablet-range rule
+   `.app[data-view="nav"] { grid-template-columns: ... }` on specificity;
+   a bare `.app` selector loses that cascade and the sidebar ends up
+   260px wide in a 390px viewport instead of filling it. */
+@media (max-width: 768px) {
+  .app[data-view] {
+    grid-template-columns: 1fr;
+  }
+  .sidebar { display: none; }
+  .app[data-view="nav"] .sidebar { display: flex; }
+
+  /* Sidebar takes the full phone viewport. Dividers run edge-to-edge
+     on the 0 rail; text sits on the 24 px rail so the copy still
+     breathes but the hairline owns the full column width. */
+  .sidebar {
+    width: 100%;
+    padding: var(--space-4) 0 var(--space-5) 0;
+  }
+
+  /* Hero sits smaller on phones so the intro doesn't eat the first screen.
+     Utility-class override inside the narrow breakpoint; 48 px is the
+     phone-only step between 38 and 66. */
+  .t-hero { font-size: 48px; line-height: 48px; }
+
+}

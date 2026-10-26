@@ -1,0 +1,63 @@
+/* =========================================================================
+   A4 — Checkbox (docs/UI_REFERENCE.md §4, docs/UI_MEASURED.md §4.1).
+   New component, new classes: nothing existing selects .checkbox*, so
+   this block changes nothing for any current consumer. Sizes match the
+   three measured cases exactly (16/20/24, 2px padding, 3px radius,
+   border-box). Checked accent #357cf4 is a seventh blue distinct from
+   the goal palette (A3) — the reference planner never colors the box by goal hue.
+   Tick is .deck-card__check's clip-path reapplied via ::after so the
+   kit still draws exactly one checkmark shape.
+   ========================================================================= */
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+.checkbox__input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.checkbox__box {
+  box-sizing: border-box;
+  display: block;
+  padding: 2px;
+  border-radius: 3px;
+  border: 1px solid var(--color-border-strong);
+  background-color: transparent;
+  flex-shrink: 0;
+  transition: background-color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+.checkbox--size-s .checkbox__box { width: 16px; height: 16px; }
+.checkbox--size-xl .checkbox__box { width: 20px; height: 20px; }
+.checkbox--size-xxl .checkbox__box { width: 24px; height: 24px; }
+.checkbox__box::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: currentColor;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.checkbox__input:checked + .checkbox__box {
+  background-color: #357cf4;
+  border-color: #357cf4;
+  color: #fff;
+}
+.checkbox__input:checked + .checkbox__box::after { opacity: 1; }
+.checkbox:focus-within .checkbox__box {
+  outline: 2px solid var(--color-border-strong);
+  outline-offset: 2px;
+}

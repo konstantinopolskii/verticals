@@ -1,0 +1,20 @@
+/* =========================================================================
+   A1 — density modifier (docs/UI_REFERENCE.md §1, §1b; docs/UI_MEASURED.md
+   §4). Opt-in only: .card and .card-stack above are untouched, so a card
+   or stack without the modifier renders exactly as it does today. A card
+   that also carries .card--dense collapses the roomy default padding to
+   the measured board row: 6px uniform pad, 8px radius, matching
+   The reference planner's .GoalRow. A stack that also carries .card-stack--dense
+   tightens the gap to the measured 2px pitch between cards
+   (.GoalRowWrapper's padding-bottom, read as inter-card spacing here
+   since the kit expresses that spacing as stack gap, not card margin).
+   ========================================================================= */
+.card--dense {
+  --card-pad: 6px;
+  padding: var(--card-pad);
+  border-radius: 8px;
+}
+.card-stack--dense {
+  --card-gap: 2px;
+  gap: var(--card-gap);
+}

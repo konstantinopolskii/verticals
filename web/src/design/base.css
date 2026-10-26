@@ -1,0 +1,60 @@
+/* =========================================================================
+   Reset & base
+   ========================================================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+ul, ol, menu { list-style: none; }
+a { color: inherit; text-decoration: none; }
+/* The hidden attribute wins over component display values. Without this,
+   any component that sets display (card's flex, spec-list's grid) undoes
+   the UA's [hidden] rule and the element stays visible. */
+[hidden] { display: none !important; }
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+input, textarea {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+}
+input::placeholder, textarea::placeholder { color: var(--color-text-subtle); }
+img, svg { display: block; max-width: 100%; }
+
+/* Selection follows the monochrome contract — inverted, same tokens as
+   the card/highlight active state so a live selection previews the mark
+   it's about to become. No blue, no brand. */
+::selection {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+::-moz-selection {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-size-adjust: 100%;
+}
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  font-weight: var(--fw-regular);
+  color: var(--color-text);
+  background: var(--color-bg);
+  overflow: hidden;
+}

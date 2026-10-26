@@ -1,0 +1,118 @@
+/* =========================================================================
+   Field — one line, one label, no box.
+   Vertical space is padding (not parent gap) so the whole row is hoverable —
+   no dead space between adjacent fields. Dividers (see below) sit BETWEEN
+   siblings only. Hover and focus just darken the row background; there are
+   no shadows or borders on the field itself.
+   ========================================================================= */
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.field:hover {
+  background: var(--color-surface-strong);
+}
+/* "Lit" base — colour-only flip applied BOTH on real focus-within AND
+   when the field sits inside an active comment card (draft or thread).
+   The auto-lit path handles the "white by default when a comment card
+   opens, no JS focus stealing" rule: the reader opens a thread to
+   reply, the field flips to white immediately as a visual "type here"
+   affordance, but no .focus() is called so any text selection in the
+   doc and copy/paste keep working. */
+.field:focus-within,
+.card.comment-thread[data-state="active"] .comment-thread__reply {
+  background: var(--color-text);
+}
+.field:focus-within .field__input,
+.field:focus-within .field__label,
+.card.comment-thread[data-state="active"] .comment-thread__reply .field__input {
+  color: var(--color-bg);
+}
+.field:focus-within .field__input::placeholder,
+.card.comment-thread[data-state="active"] .comment-thread__reply .field__input::placeholder {
+  color: var(--color-bg);
+  opacity: 0.5;
+}
+
+/* Enter cue — ⏎ glyph pinned to the right edge of a lit field, and
+   also the only commit affordance now that the "Leave a comment"
+   button is gone. Appears only once there's content to submit
+   (:has(.field__input:not(:placeholder-shown))); an empty field
+   never shows it. Full black (#000 hardcoded), full opacity, plus
+   a 0.2 px text-stroke for weight — reads as a primary action,
+   not a secondary hint. Rendered as ::after so the thread's
+   top-divider ::before stays untouched; all hairline-pseudo
+   properties reset to auto / none so no .field::after ghost shows
+   through. display:block re-enables the ::after on the reply
+   field (otherwise suppressed). */
+.field:focus-within:has(.field__input:not(:placeholder-shown))::after,
+.card.comment-thread[data-state="active"] .comment-thread__reply:has(.field__input:not(:placeholder-shown))::after {
+  content: "⏎";
+  display: block;
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  bottom: auto;
+  left: auto;
+  width: auto;
+  height: auto;
+  background: none;
+  transform: translateY(-50%);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: var(--fw-bold);
+  -webkit-text-stroke: 0.2px currentColor;
+  color: #000000;
+  opacity: 1;
+  pointer-events: none;
+}
+/* Right padding on the input is also gated on "has content", so the
+   text doesn't nudge inward the moment the field is lit (before any
+   character is typed). It only reserves space once the glyph needs
+   it. */
+.field:focus-within .field__input:not(:placeholder-shown),
+.card.comment-thread[data-state="active"] .comment-thread__reply .field__input:not(:placeholder-shown) {
+  padding-right: var(--space-5);
+}
+
+/* Inside a typing zone the cursor becomes text, but the surrounding row
+   — label span, bold value, padding — keeps the pointer so clicking the
+   label area focuses the input instead of showing the I-beam over copy
+   that isn't editable. */
+.field,
+.field__label { cursor: pointer; }
+.field input,
+.field textarea { cursor: text; }
+.field--row {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+/* Label takes its natural width — a fixed column chokes on real words
+   ("Subscription" is wider than any fixed 72 px) and the overflow
+   collides with the value. The value takes the rest and reads from the
+   right edge, the settings-row convention every phone reference uses. */
+.field__label { flex-shrink: 0; max-width: 60%; }
+.field--row .field__input { text-align: right; }
+/* Inputs render in the body weight — regular. Bold values look heavy
+   inside tight form rows; the label already carries the weight, the
+   value just reads. */
+.field__input {
+  color: var(--color-text);
+  /* Caret — CSS has no width property for the caret, only colour
+     (`caret-shape: block` paints it at full character width, which
+     is far too wide). Explicit `caret-color: currentColor` keeps the
+     caret tied to whatever colour the surrounding text is using — so
+     it flips correctly between light and inverted (lit) states. Real
+     width stays at the browser default of 1-2 px, which is the ask. */
+  caret-color: currentColor;
+}
+.field__input::placeholder {
+  color: var(--color-text-subtle);
+}

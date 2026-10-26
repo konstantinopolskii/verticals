@@ -609,7 +609,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     // MARK: web view
 
-    // The board's own background (web/src/tokens.css), so the window and the page are one colour from the first frame.
+    // The board's own background (web/src/design/tokens.css), so the window and the page are one colour from the first frame.
     static let pageColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ? NSColor(srgbRed: 0x1c / 255.0, green: 0x1c / 255.0, blue: 0x1e / 255.0, alpha: 1) : .white
@@ -823,7 +823,7 @@ extension AppDelegate: NSMenuItemValidation {
 // MARK: Appearance (View menu)
 //
 // System follows macOS; Light or Dark is kept in the app's defaults (`Appearance`). The whole app takes it, and the page's
-// `prefers-color-scheme` follows the web view's appearance (web/src/tokens.css), so the page needs no switch of its own.
+// `prefers-color-scheme` follows the web view's appearance (web/src/design/tokens.css), so the page needs no switch of its own.
 extension AppDelegate {
     static let appearances: [(String, NSAppearance.Name?)] = [("System", nil), ("Light", .aqua), ("Dark", .darkAqua)]
 

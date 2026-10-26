@@ -1,0 +1,163 @@
+/* =========================================================================
+   Comment thread — a conversation lives inside one card. Minimized, the
+   thread shows the first and last message with a 3-line ellipsis in
+   between (hidden when the thread has 2 or fewer messages). Active, the
+   collapsible reveals every message in order plus a reply field at the
+   bottom. Thread cards are card--interactive, so the existing inspector
+   stack JS handles promote / demote for free — same rule as the
+   Next-steps cards up top.
+   ========================================================================= */
+.comment-thread {
+  /* Half + half rail: the thread contributes 12 px of horizontal
+     padding, every message inside contributes another 12 px, and text
+     lands on the 24 px rail — same as every other card in the system.
+     Vertical is trimmed to 8 px because the first and last messages
+     carry their own 12 px top / bottom padding, so the card doesn't
+     need the default 20 / 24. */
+  gap: 0;
+  padding: var(--space-2) var(--card-inset-x);
+}
+
+/* Archived thread — retained in the DOM so consumers keep the data,
+   hidden from the inspector stack. A future UI will re-surface archived
+   threads; in 0.13.0 archive is a one-way dismiss. */
+.comment-stack > .comment-thread[data-archived="true"] {
+  display: none;
+}
+
+/* Resolved thread — collapsed single-row card. Approve replaces the
+   preview and hides the collapsible entirely; the stamp + snippet +
+   byline sit on one line on the 24 px rail. Stays in place in the
+   stack so the reader sees which anchor this thread resolved. */
+.comment-thread[data-resolved="true"] .card__collapsible {
+  display: none;
+}
+
+/* One message — author header + body. Position relative so the kebab
+   popover anchors to it, and so the ::before divider on the next
+   sibling can sit on the message's top edge. */
+.comment-msg {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--card-inset-x);
+}
+
+/* Inter-element dividers inside a thread — hairline on the second
+   element of every adjacent pair, inset by var(--card-inset-x) on each
+   side so the divider stops where the text does (24 px from the card
+   border on both sides). Same shape as .field::after. The ellipsis
+   block is NOT part of this rule: it renders its own three hairlines
+   and doesn't want a duplicate hairline above or below itself. */
+.comment-thread .comment-msg + .comment-msg {
+  position: relative;
+}
+.comment-thread .comment-msg + .comment-msg::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--card-inset-x);
+  right: var(--card-inset-x);
+  height: 0.5px;
+  background: var(--color-border);
+  pointer-events: none;
+}
+
+/* Flatten the vertical rhythm inside a thread's collapsible. The
+   generic .card__collapsible-inner carries gap: var(--space-3) for
+   heading / field / stack children; inside a thread that gap stacks
+   on top of the list's last message (padding-bottom 12) and the
+   reply's padding-top, pushing the divider way below the last text
+   line. Zeroing the gap lets the reply dock tight against the list,
+   with the inter-element hairline doing the separation — same rhythm
+   as msg → msg. */
+.comment-thread .card__collapsible-inner {
+  gap: 0;
+}
+
+/* Draft + reply fields keep the default .field padding but sit with
+   an extra bit of top margin so there's breathing room between the
+   field and whatever comes above it (the card heading for a draft,
+   the last message's divider for a reply). The reply's base ::after
+   bottom hairline stays suppressed; its top hairline comes from the
+   thread's inter-element divider. */
+.comment-thread__reply {
+  margin-top: var(--space-3);
+}
+.comment-thread__reply::after {
+  display: none;
+}
+
+/* Edit mode (0.16.0) — kebab → Edit collapses the whole thread into a
+   single field-card prefilled with the targeted message's body. Same
+   grid-rows animation pattern as .card__collapsible: the wrapper holds
+   1fr / 0fr, the inner has overflow:hidden + min-height:0 so the field
+   clips cleanly while transitioning. Sibling of preview + collapsible
+   so the existing card-active rules do not have to fight the open
+   state — the edit slot is its own row in the card. */
+.comment-thread[data-editing="true"] > .card__collapsible {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+/* Fake caret — a blinking indicator shown inside an auto-lit comment
+   field whose input isn't actually focused. The reader sees "this is
+   where typing goes" without JS ever calling .focus(), so any text
+   selection they started in the doc stays intact and copy/paste keeps
+   working. Width 2 px, height 1.2 em — matches a native iOS caret.
+   steps(1, end) keyframes make the blink binary (no fade) at the
+   1.06 s cadence macOS / iOS use. Hidden by default; shown only on
+   active comment cards whose input is empty + not focus-within.
+   background: var(--color-bg) means it flips colours correctly
+   between the light and shout contexts. */
+.field__fake-caret {
+  display: none;
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 1.2em;
+  background: var(--color-bg);
+  pointer-events: none;
+  animation: fake-caret-blink 1.06s steps(1, end) infinite;
+}
+@keyframes fake-caret-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.card.comment-thread[data-state="active"] .comment-thread__reply:not(:focus-within):has(.field__input:placeholder-shown) .field__fake-caret {
+  display: block;
+}
+
+/* =========================================================================
+   Comment stack — a column of thread cards. 6 px rhythm, same as the
+   2D card stack; each thread is its own surface in the inspector column.
+   ========================================================================= */
+.comment-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* =========================================================================
+   New-comment card — a draft. Lives in the thread stack as a card--
+   interactive, same stack rules as committed threads:
+
+     Active   — shout inversion (via .inspector .card--interactive[data-state="active"]
+                below), collapsible open, input visible, "Leave a comment"
+                CTA visible. The owning highlight wears the inverted
+                (black) state.
+     Minimized — transparent at rest (hover-surface like any other card),
+                 collapsible closed, CTA hidden (no minimized CTA — the
+                 whole card is the click target to reopen). A preview
+                 line shows the draft's text so far. The owning
+                 highlight wears the 3% gray state.
+
+   An empty draft that gets demoted is dismissed outright (see the
+   MutationObserver in the selection IIFE): no residue in the stack
+   from a selection the reader never followed through on. A draft
+   with content stays as a minimized card; clicking it reactivates.
+   ========================================================================= */
+.card.comment-new { }

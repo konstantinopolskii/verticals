@@ -1,0 +1,56 @@
+/* =========================================================================
+   App shell — three-pane layout, iPad-style split view
+   The frame floats on a muted surface. Each pane scrolls on its own.
+   ========================================================================= */
+.app {
+  background: var(--color-bg);
+  height: 100%;
+  display: grid;
+  /* Side columns shrink with the viewport down to a usable floor, instead
+     of gluing to their max and starving the doc between the tablet
+     breakpoint (1024) and wide desktop. The vw middles are tuned so
+     both hit their floors near 1024 and reach their tokenized maxes
+     around 1440 — smooth across the whole desktop range. */
+  grid-template-columns:
+    clamp(200px, 18vw, var(--sidebar-w))
+    1fr
+    clamp(340px, 32vw, var(--inspector-w));
+  overflow: hidden;
+}
+
+.sidebar {
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+/* All three columns scroll at the default (auto) behavior. Smooth
+   glides are driven from js/kit.js. Declaring scroll-behavior:smooth
+   in CSS on top of a JS smooth scrollTo makes the two animations fight
+   and the scroll dies a few pixels in — Chromium cancels the JS glide
+   against the style-driven one. One owner: the script. */
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--radius-full);
+}
+.sidebar:hover::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+}
+
+/* =========================================================================
+   Sidebar — brand, nav groups, footer. Stays put; only nav scrolls.
+   ========================================================================= */
+.sidebar {
+  /* Left padding = 8 px so nav content sits 8 px from the viewport
+     edge. The indicator hangs 8 px to the LEFT of nav content (via
+     its own negative offset) to land right on the viewport edge,
+     and the 4 px gap between the indicator's right edge and the
+     nav-row's box is the "gap between indicator and nav" token.
+     Top padding 32 clears the sidebar header's t-title line-height
+     (28 px) per inner-and-outer rule 9: outer margin ≥ line-height. */
+  padding: var(--space-8) var(--col-pad-x) var(--space-5) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

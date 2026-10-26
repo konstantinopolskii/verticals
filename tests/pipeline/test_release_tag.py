@@ -192,13 +192,6 @@ def _preflight() -> str | None:
     )
     if probe.returncode != 0:
         return f"`docker compose` is unavailable: {probe.stderr.strip() or probe.stdout.strip()}"
-    if not list((REPO_ROOT / "web" / "vendor").glob("*.tgz")):
-        # AC-170/JC-02, stated in the README's own Status section: the kit is not on a public
-        # registry, so the frontend stage cannot build without the vendored tarballs.
-        return (
-            "web/vendor/*.tgz absent — the private kit (JC-02) is what the frontend stage builds "
-            "from, so no image can be produced on this machine"
-        )
     return None
 
 

@@ -1,0 +1,74 @@
+/* =========================================================================
+   2D card stack — a column of cards where only one is active at a time.
+   Unlike the 3D stack (which fans in perspective), the 2D stack is a
+   list: first card carries the active surface, the rest sit minimized
+   underneath. Used in the doc to show static+interactive combinations,
+   and whenever a block groups related cards.
+
+   A single card inside a stack still counts as "the stack" and is
+   therefore active by default — consistent with the rule: if there's
+   only one card, it's the one.
+   ========================================================================= */
+.card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Card stack — columns variant. Cards arranged horizontally for parallel
+   comparison (pricing tiers, theme presets, plan choices). At narrow
+   viewport, the columns collapse to vertical stack. Same DOM, no class swap.
+   Replaces the legacy .tier / .tiers shape. */
+.card-stack--columns {
+  flex-direction: row;
+  gap: var(--space-4);
+}
+.card-stack--columns > .card {
+  flex: 1 1 0;
+  min-width: 0;
+}
+@media (max-width: 768px) {
+  .card-stack--columns {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+}
+/* First card is always on: its surface is showing, its collapsible
+   (if interactive) is open. Subsequent cards are minimized. The
+   interactive-card active/minimized rules already handle the collapsible
+   toggle via data-state; for stacks we keep that contract by marking
+   the intended-active card with data-state="active" in HTML. */
+.card-stack > .card:first-child:not([data-state="active"]) {
+  background: var(--color-surface-overlay);
+}
+
+/* Shout card background — must sit AFTER the doc rule so it wins on
+   ordering where specificity matches. The selector weight is built up
+   with .card.card--shout plus contextual selectors (doc, stack, hover,
+   focus-within) to cover every path a shout can appear in. */
+.card.card--shout,
+.card.card--shout:hover,
+.card.card--shout:has(input:focus),
+.card.card--shout:has(textarea:focus),
+.card.card--shout[data-state="active"],
+.card-stack > .card.card--shout {
+  background: #000000;
+}
+
+/* Affordance hover — closes the surface cascade. Sits after the doc,
+   stack, and shout rules so an interactive or link card steps to the
+   strong surface from any resting context; the stack-scoped selectors
+   carry the weight the peer-surface rules above set up. */
+.card--interactive:hover,
+.card--link:hover {
+  background: var(--color-surface-strong);
+}
+/* Metadata tag — bold secondary text, no pill or surface */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-muted);
+}

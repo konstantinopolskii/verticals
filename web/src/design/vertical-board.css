@@ -1,0 +1,74 @@
+/* =========================================================================
+   A7 — pattern-vertical-board (ARCHITECTURE.md §6; docs/UI_MEASURED.md
+   §0-3). New class, and it only ever adds to a plain .card-stack (the
+   base, not the --columns modifier: that variant's equal-width
+   shrink-to-fit and 768px collapse do not match this board's unequal,
+   non-shrinking columns and 390px breakpoint, so this pattern owns
+   its own flex-direction/gap rather than layering on --columns) — a
+   stack without this class renders exactly as it does today.
+
+   Each direct child is one vertical column: seven flex-basis-driven
+   widths, gapless, wider than the viewport by design (2340px content
+   against a 1148px visible area on the reference capture, so the
+   board scrolls horizontally — docs/UI_MEASURED.md §1). The focused
+   vertical is 1.78x the rest (400px vs 225px) via --column--active;
+   that size difference is the whole focus affordance, no colour
+   involved. Each column scrolls its own goals list vertically, header
+   pinned via position: sticky within that same scroll container.
+
+   Header title/period reuse the kit's own .t-title/.t-caption
+   utilities at the measured sizes (31px / 15px) rather than a new
+   component: default weights and colours are left alone (.t-title is
+   already --fw-bold; .t-caption's --fw-regular is deliberately 500,
+   not the measured 400 — vars.css already compensates there for
+   Commissioner vs Inter, and this pattern does not re-litigate it).
+   UI_MEASURED §3 gives the period label the same #282a2f as the
+   title, not a lighter tone, so neither line gets a muted override
+   here despite ARCHITECTURE.md §6 calling it "muted" — the later,
+   measured source wins per the same rule A3 already applied to the
+   card wash formula.
+   ========================================================================= */
+.pattern-vertical-board {
+  flex-direction: row;
+  gap: 0;
+  height: 100%;
+  overflow-x: auto;
+  align-items: stretch;
+}
+.pattern-vertical-board__column {
+  flex: 1 0 14.6%;
+  min-width: 225px;
+  max-width: 400px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.pattern-vertical-board__column--active {
+  flex: 1 0 27%;
+  min-width: 400px;
+  max-width: 600px;
+}
+.pattern-vertical-board__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 64px;
+  padding: 24px 8px 0 12px;
+  box-sizing: border-box;
+  background: var(--color-bg);
+}
+.pattern-vertical-board__header .t-title { font-size: 31px; }
+.pattern-vertical-board__header .t-caption { font-size: 15px; }
+.pattern-vertical-board__body {
+  box-sizing: border-box;
+  padding: var(--space-20) 6px 64px;
+}
+
+@media (max-width: 390px) {
+  .pattern-vertical-board__column,
+  .pattern-vertical-board__column--active {
+    flex: 1 0 100%;
+    min-width: 100%;
+    max-width: none;
+  }
+}

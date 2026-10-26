@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-import tarfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / ".agents" / "skills"
 CLAUDE_SKILLS = ROOT / ".claude" / "skills"
-DESIGN_SYSTEM_ARCHIVE = ROOT / "web" / "vendor" / "konstantinopolskii-design-system-2.1.1.tgz"
 EVIDENCE_DOC = ROOT / "docs" / "EVIDENCE.md"
 
 EXPECTED = {"verticals-planning", "verticals-operator", "verticals-morning-report", "verticals-pr"}
@@ -81,18 +79,6 @@ def test_the_ten_checks_are_the_same_in_the_skill_the_second_agents_prompt_and_t
     fake = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fake)
     assert list(fake.KEYS) == keys
-
-
-def test_vendored_design_system_cannot_reinstall_legacy_skills() -> None:
-    with tarfile.open(DESIGN_SYSTEM_ARCHIVE, "r:gz") as archive:
-        names = set(archive.getnames())
-
-    forbidden_prefixes = (
-        "package/skills/",
-        "package/.claude-plugin/",
-        "package/scripts/postinstall.js",
-    )
-    assert not any(name.startswith(forbidden_prefixes) for name in names)
 
 
 def test_evidence_tool_payload_reference_has_a_documented_section() -> None:

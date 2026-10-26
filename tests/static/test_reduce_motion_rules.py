@@ -23,8 +23,6 @@ from tests.harness.report import gate
 from tests.static.conftest import REPO_ROOT, WEB_DIR, WEB_SRC_DIR
 from verticals import host
 
-# main.ts imports these two from the vendored kit; the build takes their reduced-motion blocks in with the app's own.
-KIT_CSS = [WEB_DIR / "node_modules" / "@konstantinopolskii" / "design-system" / name for name in ("vars.css", "style.css")]
 BLOCK = re.compile(r"@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{", re.IGNORECASE)
 ON = "[data-reduce-motion=on]"  # the copy's mark, once per selector
 UNANSWERED = ":not([data-reduce-motion])"  # the original's mark, once per selector
@@ -57,14 +55,13 @@ def _selectors(body: str) -> int:
 
 def _sources() -> Iterator[Path]:
     yield from sorted(path for path in WEB_SRC_DIR.rglob("*") if path.suffix in {".css", ".tsx"})
-    yield from KIT_CSS
 
 
 @pytest.fixture(scope="module")
 def built_css(tmp_path_factory: pytest.TempPathFactory) -> str:
     """The page's own build, not minified so that every rule stays where the plugin put it, in a folder of its own (the
     `web/dist` the UI suite serves is left alone)."""
-    if not (WEB_DIR / "node_modules" / "vite").is_dir() or not all(path.is_file() for path in KIT_CSS):
+    if not (WEB_DIR / "node_modules" / "vite").is_dir():
         gate("web/node_modules is not installed (run `npm --prefix web ci`)")
     out = tmp_path_factory.mktemp("reduce-motion-build")
     run = subprocess.run(

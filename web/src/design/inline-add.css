@@ -1,0 +1,27 @@
+/* =========================================================================
+   A6 — Inline add (ARCHITECTURE.md §6: "the ghost Add… row that
+   creates without a modal"). New class, new element type in this
+   role: nothing existing selects .inline-add, so this block changes
+   nothing for any current consumer. Resting state reads as a ghost
+   placeholder (no border, muted placeholder text); hover/focus shift
+   the background the same way .switch's row does, the kit's existing
+   one-cue-per-state affordance.
+   ========================================================================= */
+.inline-add {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  color: var(--color-text);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.inline-add::placeholder { color: var(--color-text-subtle); }
+.inline-add:hover,
+.inline-add:focus { background: var(--color-surface-overlay); }
+.inline-add:focus { outline: none; }

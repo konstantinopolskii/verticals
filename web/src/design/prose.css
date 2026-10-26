@@ -1,0 +1,107 @@
+/* =========================================================================
+   Quote — italic, black, Medium 500, body-sized. A 0.5px hairline on the
+   left, same weight as every other hairline in the system. Body size is
+   explicit so the quote cannot inherit the document's caption-size root
+   (body { font-size: var(--fs-caption) }) when it sits under a paragraph
+   or after a horizontal rule. A quote is content, not metadata; it reads
+   at body rank beside the prose it interrupts. Margin-top carried
+   explicitly so `.book__section > * + *` (20 px) cannot land under the
+   quote's own 32 px line-box — rule 14 (inner ≤ outer) holds.
+   ========================================================================= */
+.quote {
+  padding: 0 0 0 var(--space-4);
+  border-left: 4px solid var(--color-text);
+  color: var(--color-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  /* font-style: italic; */
+  font-weight: var(--fw-regular);
+  margin: 0;
+}
+/* Rule 14 rescue on blockquote. Outer above-gap ≥ inner line-box (32 px).
+   The `.book__section > * + *` default is 20 px — under the quote's 32 px
+   line-height, so rule 14 (inner ≤ outer) inverts whenever a quote sits
+   after a paragraph. Bumping to 40 px (space-10) clears the 32 px line
+   box with breathing room and matches the content-rank air given to
+   t-display/t-title next-siblings.
+
+   Two tie-breaker rules preserve prior rhythm contracts.
+
+   - `heading + .quote` drops margin-top to 0 so the heading's own
+     margin-bottom (40) is the sole below-gap carrier — same contract
+     the rule-12 rescue applies to every other next-sibling. Without
+     this, the flex container (`.book__section` is display:flex, so
+     vertical margins do NOT collapse) would stack heading's 40 +
+     quote's 40 = 80 px and break rule 12.
+   - `hr + .quote` restores the 60 px hr rule (via `.book__section >
+     hr + *`). Without it the `* + .quote` specificity (0,2,0)
+     overrides the 0,1,1 hr rule. */
+.quote > cite {
+  display: block;
+  padding-top: var(--space-1);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-micro);
+  font-style: normal;
+}
+.quote > cite::before { content: "— "; }
+
+/* Lists — each li reads as a row, same as a book__spec row. A 0.5px
+   hairline sits between rows; the marker (numeral or a 4 px black dot
+   bullet) sits in the left gutter like a key column. Structurally
+   still a ul/ol for semantics, visually a tight tabular list. */
+.t-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  font-weight: var(--fw-regular);
+  color: var(--color-text);
+}
+/* Inside a card, the list contributes its half of the 24 px text
+   rail on both sides so numerals line up with the card heading
+   above and the body text doesn't butt against the card edge on
+   the right. Same half-and-half pattern as deck, field stacks,
+   and buttons. */
+.card > .t-list,
+.card__collapsible-inner > .t-list {
+  padding-left: var(--card-inset-x);
+  padding-right: var(--card-inset-x);
+}
+.t-list > li {
+  position: relative;
+  padding: var(--space-3) 0 var(--space-3) var(--space-5);
+}
+.t-list > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0.5px;
+  background: var(--color-border);
+  pointer-events: none;
+}
+ul.t-list > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(var(--space-3) + var(--lh-caption) / 2 - var(--space-1) / 2);
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+}
+ol.t-list { counter-reset: t-list; }
+ol.t-list > li { counter-increment: t-list; }
+ol.t-list > li::before {
+  content: counter(t-list);
+  position: absolute;
+  left: 0;
+  top: var(--space-3);
+  width: var(--space-3);
+  color: var(--color-text);
+  font-weight: var(--fw-bold);
+}

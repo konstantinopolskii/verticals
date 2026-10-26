@@ -1,5 +1,5 @@
 /* The app's tokens over the kit's (vars.css): motion, the look (docs/design-handoff S0.P1; lib/look.ts registers each
-   value as a hidden setting), and the dark appearance. Loaded after the kit, so these win. */
+   value as a hidden setting), and the dark appearance. Loaded after vars.css, so these win. */
 :root {
   color-scheme: light dark;
   --vt-goal-wash: 100%;

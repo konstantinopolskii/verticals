@@ -1,7 +1,5 @@
 // The same surface and typography as SearchBar, in the native floating window.
-import '@konstantinopolskii/design-system/vars.css'
-import '@konstantinopolskii/design-system/style.css'
-import './tokens.css'
+import './design/index.css'
 import './base.css'
 import './components/circleField.css'
 import './quickEntry.css'

@@ -7,9 +7,7 @@ import { store, todayIso } from './store'
 import { createUrlSync } from './lib/urlState'
 import { startKeyboardInset } from './lib/keyboardInset'
 import { flushNow } from './reactivity'
-import '@konstantinopolskii/design-system/vars.css'
-import '@konstantinopolskii/design-system/style.css'
-import './tokens.css'
+import './design/index.css'
 import './base.css'
 
 const urlSync = createUrlSync(store.state, todayIso, {
