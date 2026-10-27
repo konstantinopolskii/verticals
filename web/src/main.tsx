@@ -1,5 +1,7 @@
-// Entry point of the React build: the same boot as web/src/main.ts, on the same store, with React drawing it.
-// Stylesheets in the same order as there: the components' own (through App), then the kit, then the app's overrides.
+// Entry point: boots the store and draws the app with React.
+// Stylesheets first, so the components' own (through App) come after the design system and the page.
+import './design/index.css'
+import './base.css'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
@@ -7,8 +9,6 @@ import { store, todayIso } from './store'
 import { createUrlSync } from './lib/urlState'
 import { startKeyboardInset } from './lib/keyboardInset'
 import { flushNow } from './reactivity'
-import './design/index.css'
-import './base.css'
 
 const urlSync = createUrlSync(store.state, todayIso, {
   loadBoard: store.loadBoard,
