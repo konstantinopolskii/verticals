@@ -77,11 +77,12 @@ def test_s52_create_with_nested_children_lands_a_whole_plan_in_one_call(f2_dsn: 
     depths = sorted(c["depth"] for c in children)
     assert depths == [1, 1, 1, 2, 2], depths
 
-    # Depth 1 only: the two grandchildren also carry vertical:None (never given one of their own),
-    # so filtering on vertical alone would catch three nodes, not the one the scenario means —
-    # "one with vertical:null" describes one of the *three top-level* children.
-    null_vertical_children = [c for c in children if c["vertical"] is None and c["depth"] == 1]
-    assert len(null_vertical_children) == 1, [c for c in children if c["vertical"] is None]
+    # The two grandchildren name no vertical, so they take their parent's day; only the explicit
+    # vertical:null child stays unscheduled.
+    null_vertical_children = [c for c in children if c["vertical"] is None]
+    assert len(null_vertical_children) == 1, null_vertical_children
+    grandchildren = [c for c in children if c["depth"] == 2]
+    assert {(c["vertical"], c["anchor_date"]) for c in grandchildren} == {("day", "2026-08-10")}, grandchildren
     leaf = null_vertical_children[0]
     assert leaf["parent_id"] == root["id"], "the vertical:null child must be attached under its parent"
 
@@ -95,6 +96,35 @@ def test_s52_create_with_nested_children_lands_a_whole_plan_in_one_call(f2_dsn: 
 
     search_result = anyio.run(_call, f2_dsn, tmp_path, "search", {"tag": "retro"}, "s52-search")
     assert len(search_result.structured_content["goals"]) == 3, search_result.structured_content["goals"]
+
+
+def test_a_step_without_a_vertical_takes_its_parents_place(f2_dsn: str, tmp_path: Path) -> None:
+    async def run():
+        async with open_mcp_stdio(f2_dsn, tmp_path, label="parent-place") as (session, streams):
+            plan = await session.call_tool("create", {
+                "title": "Launch the newsletter", "vertical": "quarter", "anchor_date": "2026-10-27",
+                "children": [{"title": "Draft the first issue", "children": [{"title": "Pick a subject line"}]},
+                             {"title": "Someday, a podcast", "vertical": None}],
+            })
+            under_day = await session.call_tool("create", {"title": "Check the quotes", "parent_id": "SYNDAY01"})
+            idea = await session.call_tool("create", {"title": "Maybe a chart", "parent_id": "SYNDAY01", "vertical": None})
+            streams.assert_hygiene(token=TEST_TOKEN)
+        return plan, under_day, idea
+
+    plan, under_day, idea = anyio.run(run)
+    for result in (plan, under_day, idea):
+        assert result.is_error is False, result.content[0].text if result.content else result
+
+    places = {c["title"]: (c["vertical"], c["period_key"]) for c in plan.structured_content["children"]}
+    assert places == {
+        "Draft the first issue": ("quarter", "2026-Q4"),
+        "Pick a subject line": ("quarter", "2026-Q4"),
+        "Someday, a podcast": (None, None),
+    }, places
+
+    step = under_day.structured_content["goal"]
+    assert (step["vertical"], step["anchor_date"]) == ("day", "2026-08-08"), step
+    assert idea.structured_content["goal"]["vertical"] is None, idea.structured_content["goal"]
 
 
 # --- S-53 --------------------------------------------------------------------------------------

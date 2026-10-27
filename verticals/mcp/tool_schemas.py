@@ -143,7 +143,10 @@ CREATE_SCHEMA: dict[str, Any] = {
     "properties": {
         "title": {"type": "string", "minLength": core_goals.MIN_TITLE_CHARS, "maxLength": core_goals.MAX_TITLE_CHARS},
         "body": {"type": "string", "description": f"Markdown, at most {core_goals.MAX_BODY_BYTES} UTF-8 bytes."},
-        "parent_id": {"type": ["string", "null"]},
+        "parent_id": {
+            "type": ["string", "null"],
+            "description": "Without its own vertical and anchor_date, the new goal takes this parent's, so the board shows it under the parent.",
+        },
         "vertical": {"type": ["string", "null"], "enum": [*_VERTICAL_ENUM, None]},
         "anchor_date": {"type": ["string", "null"], "description": "ISO 8601 date; required together with vertical."},
         "color": {"type": ["string", "null"], "enum": [*_COLOR_ENUM, None]},
@@ -154,7 +157,9 @@ CREATE_SCHEMA: dict[str, Any] = {
             "description": (
                 "Nested plan nodes, one whole tree in one call. At most 200 nodes total "
                 "(this root plus every descendant, IR-11) and at most 8 levels of nesting "
-                "below the root."
+                "below the root. A child that names no vertical takes its parent's vertical and "
+                "anchor_date, so the board shows it under the parent; vertical: null keeps it an "
+                "unscheduled idea, which the board does not draw."
             ),
         },
         "client_token": _CLIENT_TOKEN_PROP,

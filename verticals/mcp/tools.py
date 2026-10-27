@@ -184,6 +184,18 @@ def _prepare_child(spec: object) -> dict[str, Any]:
     return out
 
 
+def _take_parent_place(spec: dict[str, Any], vertical: str | None, anchor_date: _date | None) -> dict[str, Any]:
+    """A child that names no vertical lives where its parent does, so the board draws it under the parent: the rule the
+    app's own Add follows (`web/src/lib/detailSurface.ts`). The board draws no vertical-NULL child, so without this an
+    agent's plan landed with its steps out of sight. An explicit `vertical: null` still makes an unscheduled idea."""
+    out = dict(spec)
+    if vertical is not None and "vertical" not in out and "anchor_date" not in out:
+        out["vertical"], out["anchor_date"] = vertical, anchor_date
+    if out.get("children"):
+        out["children"] = [_take_parent_place(c, out.get("vertical"), out.get("anchor_date")) for c in out["children"]]
+    return out
+
+
 # --- output shaping: verticals/mcp/shapes.py ------------------------------------------------------
 # goal_dict/goal_detail_dict/ancestor_dict/board_dict (card-vs-detail law, S-33/S-95) and the
 # ok/error_text/error_result constructors (S-48 content rule, S-54/S-130 cap) moved there whole
@@ -469,19 +481,24 @@ def _handle_search(conn: psycopg.Connection, owner: str, args: dict[str, Any]) -
 
 
 def _handle_create(conn: psycopg.Connection, owner: str, args: dict[str, Any]) -> types.CallToolResult:
+    vertical = args.get("vertical")
     anchor_date = _parse_optional_date(args.get("anchor_date"), field="anchor_date")
+    parent_id = args.get("parent_id")
+    if isinstance(parent_id, str) and "vertical" not in args and "anchor_date" not in args:
+        parent = core_goals.goal(conn, owner=owner, id=parent_id).goal
+        vertical, anchor_date = parent.vertical, parent.anchor_date
     raw_children = args.get("children", [])
     if not isinstance(raw_children, list):
         raise ValidationError("children must be a list", field="children")
-    children = [_prepare_child(c) for c in raw_children]
+    children = [_take_parent_place(_prepare_child(c), vertical, anchor_date) for c in raw_children]
 
     created = core_goals.create(
         conn,
         owner=owner,
         title=args["title"],
         body=args.get("body", ""),
-        parent_id=args.get("parent_id"),
-        vertical=args.get("vertical"),
+        parent_id=parent_id,
+        vertical=vertical,
         anchor_date=anchor_date,
         color=args.get("color"),
         tags=args.get("tags", ()),
