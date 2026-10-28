@@ -98,7 +98,8 @@ def test_a_session_that_went_on_outside_is_resumed_by_a_fresh_agent(scratch_dir)
         talk(gate, key, "Continue.", TASK)
         first, second = starts(workspace)
         assert "--session-id" in first and agent_session in first
-        assert "--resume" in second and agent_session in second and "--system-prompt-snapshot" not in second
+        assert "--resume" in second and agent_session in second
+        assert second[second.index("--system-prompt-snapshot") + 1] == "off", "resumes use this turn's instructions"
         assert gate.goal_conversations(GOAL)[0]["outside"] is False
         talk(gate, key, "Once more.", TASK)
         assert len(starts(workspace)) == 2  # not marked again: the same agent goes on

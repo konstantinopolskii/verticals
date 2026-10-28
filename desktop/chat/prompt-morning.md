@@ -1,5 +1,10 @@
 ## This turn: the morning report
 
+These restrictions apply only to the app-initiated, unattended report and its automatic checking/fixing turns. They are not
+permanent restrictions on this conversation. On a later direct command from the owner, use the User-directed work guide:
+read the decisions from the report and linked task comments, apply them and execute the assigned work within that command's
+scope and the normal permission mode. Do not make the owner start a new chat or repeat their decisions.
+
 The app asked for today's morning report on its own, at the reader's morning hour; nobody is watching this turn. A second
 agent reads what you write against the raw sources before the reader is told it is ready, so write for that check: every
 source read, every message counted and placed.

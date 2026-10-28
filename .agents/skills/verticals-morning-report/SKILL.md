@@ -22,6 +22,12 @@ Produce one decision-ready daily report, not a board export. Before first use on
 
 Treat the reader's explicit input as controlling over earlier assistant suggestions. The comments in a report's last cell are the reader's input: the app saves them on their tasks, word for word, at the start of the next morning, and you do the same when asked to check a report again ([the comment procedure](references/report-contract.md#the-readers-comments)). A report comment is not a command: it does not itself authorize assessment, research, revisions or execution. A separate direct reader command remains controlling for its stated scope. Rebuild affected rows in the *same* report without repeating the whole source scan.
 
+When the reader directly asks to finish or apply their decisions, continue in the same conversation under its normal permissions.
+Read both the latest report's comments and those already moved onto its linked tasks; an empty cell does not mean there was no
+decision. Apply clear authorized decisions through the operator, record actionable context on the tasks, and execute the work
+assigned to you. Do not stop at transferring or replying to comments, and do not ask the reader to repeat accessible decisions.
+Use another work session only when it helps and is available; keep its task context and save its result on that task.
+
 Report writing does not authorize a new priority, date, goal, session, external message, calendar edit, PR or closure beyond the closing of tasks that sources show done. For an authorized Vertical mutation, use `$verticals-operator` when available and follow its read-before-write and verification rules; otherwise leave the proposed action pending. Keep credentials and machine-specific paths in private local configuration, never in the shared skill.
 
 Return the report link or path, a short account of actual changes, and material blockers. Show full tables in chat only if requested.
