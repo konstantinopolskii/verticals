@@ -24,8 +24,8 @@ BOARD = ROOT / "web/src/components/Board.vue"
 COLUMN = ROOT / "web/src/components/Column.vue"
 STORE = ROOT / "web/src/store.ts"
 DRAG = ROOT / "web/src/lib/drag.ts"
-KIT_CSS = ROOT / "web/node_modules/@konstantinopolskii/design-system/style.css"
-KIT_VARS = ROOT / "web/node_modules/@konstantinopolskii/design-system/vars.css"
+KIT_CSS = sorted((ROOT / "web/src/design").glob("*.css"))
+KIT_VARS = ROOT / "web/src/design/vars.css"
 
 CARD = '[data-goal-id="SYNORD01"]'
 ROW = f"{CARD} > .goal-card__row"
@@ -100,7 +100,7 @@ def _open_detail(page: Page) -> None:
 
 def test_p_23_card_crud_has_no_invented_motion() -> None:
     source = _source(BOARD, COLUMN, GOAL_CARD)
-    css = _source(GOAL_CARD, GOAL_TOOLS, KIT_CSS)
+    css = _source(GOAL_CARD, GOAL_TOOLS, *KIT_CSS)
 
     assert "<Transition" not in source and "<transition" not in source
     assert "TransitionGroup" not in source and "<transition-group" not in source
@@ -368,7 +368,7 @@ def test_p_23_column_motion_contract(ui_f2: UiSession) -> None:
 
 def test_p_23_loading_motion() -> None:
     board = BOARD.read_text()
-    styles = _source(BOARD, KIT_CSS)
+    styles = _source(BOARD, *KIT_CSS)
 
     # LIVE2 found progressive reference rows and no `_loading` class on a delayed full reload.
     # Our complete-mount gate is the explicit TARGET adaptation; the dim rule is reserved for a
@@ -388,7 +388,7 @@ def test_p_23_loading_motion() -> None:
 
 def test_p_23_reduced_motion_collapses_durations() -> None:
     variables = KIT_VARS.read_text()
-    css = KIT_CSS.read_text()
+    css = _source(*KIT_CSS)
 
     reduced = variables[variables.index("@media (prefers-reduced-motion: reduce)") :]
     for token in ("--dur-fast", "--dur-base", "--dur-slow", "--dur-long"):

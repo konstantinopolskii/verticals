@@ -40,7 +40,7 @@ Ctrl-C stops services; edits persist in ignored `.local-verticals/`. Never delet
 directory merely to stop the app. API: loopback 8099; PostgreSQL: loopback 55439.
 Occupied ports fail without killing anything. No production credentials needed.
 
-Setup verifies bundled UI archives against the lockfile, installs dependencies,
+Setup installs dependencies,
 typechecks and builds. Start migrates and rebuilds with the local instance's token.
 This is a local preview, not a public server. Never publish its generated bundle:
 it contains the local token. MCP is not started by the UI launcher. Docker is optional.
@@ -67,7 +67,7 @@ that, Claude Code does not see the repository's skills.
 Submit changes as pull requests against `main`, one task each, opened with `tools/pr.py`
 (the `verticals-pr` skill below has the rules; `.github/workflows/pr-rules.yml` checks their form on GitHub).
 Edit web/src for UI, verticals/core for domain behavior, verticals/db/migrations for schema.
-Do not edit generated bundles or vendor archives. Do not commit secrets or real user data.
+Do not edit generated bundles. Do not commit secrets or real user data.
 
 Components and their states can be seen apart from the app in Storybook:
 `npm --prefix web run storybook` (http://127.0.0.1:6006) or `npm --prefix web run build-storybook`.
@@ -134,10 +134,10 @@ Thanks to
 ## License
 
 Vertical is licensed under the GNU Affero General Public License v3.0, see `LICENSE`.
-The package vendored in `web/vendor/` (`@konstantinopolskii/design-system`, version 2.1.1) is under the
-same license.
+The design system in `web/src/design/` grew from the kk-agentic-ds design system,
+under the same license.
 Three parts keep their own terms:
 
-- `web/vendor/konstantinopolskii-design-system-2.1.1.tgz`: the Commissioner font inside it,
-  under the SIL Open Font License 1.1 (its `OFL.txt` is in the archive).
+- `web/src/design/fonts/commissioner/`: the Commissioner font, under the SIL Open Font License 1.1
+  (`OFL.txt` beside it).
 - `desktop/chat/ui/assets/`: logos of other companies, which belong to their owners.

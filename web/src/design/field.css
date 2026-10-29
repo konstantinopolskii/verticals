@@ -1,0 +1,62 @@
+/* Field: one line, one label, no box */
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.field:hover {
+  background: var(--color-surface-strong);
+}
+.field:focus-within,
+.card.comment-thread[data-state="active"] .comment-thread__reply {
+  background: var(--color-text);
+}
+.field:focus-within .field__input,
+.card.comment-thread[data-state="active"] .comment-thread__reply .field__input {
+  color: var(--color-bg);
+}
+.field:focus-within .field__input::placeholder,
+.card.comment-thread[data-state="active"] .comment-thread__reply .field__input::placeholder {
+  color: var(--color-bg);
+  opacity: 0.5;
+}
+.field:focus-within:has(.field__input:not(:placeholder-shown))::after,
+.card.comment-thread[data-state="active"] .comment-thread__reply:has(.field__input:not(:placeholder-shown))::after {
+  content: "⏎";
+  display: block;
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  bottom: auto;
+  left: auto;
+  width: auto;
+  height: auto;
+  background: none;
+  transform: translateY(-50%);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: var(--fw-bold);
+  -webkit-text-stroke: 0.2px currentColor;
+  color: #000000;
+  opacity: 1;
+  pointer-events: none;
+}
+.field:focus-within .field__input:not(:placeholder-shown),
+.card.comment-thread[data-state="active"] .comment-thread__reply .field__input:not(:placeholder-shown) {
+  padding-right: var(--space-5);
+}
+.field { cursor: pointer; }
+.field input,
+.field textarea { cursor: text; }
+.field__input {
+  color: var(--color-text);
+  caret-color: currentColor;
+}
+.field__input::placeholder {
+  color: var(--color-text-subtle);
+}

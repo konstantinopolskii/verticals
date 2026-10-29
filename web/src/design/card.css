@@ -1,0 +1,93 @@
+/* Card */
+.card {
+  position: relative;
+  background: transparent;
+  border-radius: var(--radius-lg);
+  --card-inset-x: var(--space-3);
+  padding: var(--space-5) var(--card-inset-x) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+.card:has(input:focus),
+.card:has(textarea:focus),
+.card[data-state="active"] {
+  background: var(--color-surface-overlay);
+}
+.card--shout {
+  --color-bg:              #000000;
+  --color-text:            #ffffff;
+  --color-text-muted:      rgba(255, 255, 255, 0.55);
+  --color-text-subtle:     rgba(255, 255, 255, 0.35);
+  --color-surface-overlay: rgba(255, 255, 255, 0.08);
+  --color-surface-strong:  rgba(255, 255, 255, 0.14);
+  --color-border:          rgba(255, 255, 255, 0.16);
+  --color-border-strong:   rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+.card--interactive {
+  cursor: pointer;
+}
+.card--interactive[data-state="active"] {
+  cursor: default;
+}
+.card--interactive[data-state="active"]:hover { background: var(--color-surface-overlay); }
+.card__collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-out),
+              opacity var(--dur-base) var(--ease-out);
+}
+.card__collapsible-inner {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.card--interactive:not([data-state="active"]) .card__collapsible {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.card__heading {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--card-inset-x);
+  padding-right: var(--card-inset-x);
+}
+.card__heading {
+  gap: 4px;
+  margin-top: var(--space-2);
+}
+.card__collapsible-inner > .card__heading {
+  padding-left: var(--card-inset-x);
+  padding-right: var(--card-inset-x);
+}
+.card.card > * {
+  margin-left: var(--card-inset-x);
+  margin-right: var(--card-inset-x);
+}
+.card.card > :where(.card__heading, .card__collapsible, .field) {
+  margin-left: 0;
+  margin-right: 0;
+}
+.card > .button {
+  width: auto;
+}
+.field + .field {
+  margin-top: calc(-1 * var(--space-3));
+}
+.field + .card__heading {
+  margin-top: var(--space-4);
+}
+.field::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: var(--card-inset-x, var(--space-3));
+  right: var(--card-inset-x, var(--space-3));
+  height: 0.5px;
+  background: var(--color-border);
+  pointer-events: none;
+}

@@ -21,7 +21,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# The frontend build stage installs from `web/package-lock.json` and the vendored tarballs; a
+# The frontend build stage installs from `web/package-lock.json`; a
 # host `node_modules` (hundreds of MB, host-arch binaries) would be both wrong and slow.
 web/node_modules/
 web/dist/

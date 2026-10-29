@@ -1,0 +1,4 @@
+/* Narrow screens */
+@media (max-width: 768px) {
+  .t-hero { font-size: 48px; line-height: 48px; }
+}

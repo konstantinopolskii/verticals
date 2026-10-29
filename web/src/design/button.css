@@ -1,0 +1,24 @@
+/* Button */
+.button {
+  background: var(--color-surface-overlay);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-6);
+  text-align: center;
+  width: 100%;
+  transition: background-color var(--dur-fast) var(--ease-out),
+              opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.button:hover { background: var(--color-surface-strong); }
+.button:active { background: var(--color-border); transform: scale(0.96); }
+.button:focus-visible { outline: 2px solid var(--color-border-strong); outline-offset: 2px; }
+.button--primary {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+.button--primary:hover { background: var(--color-text); opacity: 0.9; }
+.button--primary:active { background: var(--color-text); opacity: 0.8; }
+.card--interactive [data-cta="active"] { display: none; }
+.card--interactive[data-state="active"] [data-cta="minimized"] { display: none; }
+.card--interactive[data-state="active"] [data-cta="active"] { display: block; }

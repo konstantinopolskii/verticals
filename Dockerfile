@@ -22,38 +22,14 @@
 
 # --------------------------------------------------------------------------------------------
 # Stage 1 — the frontend bundle.
-#
-# `@konstantinopolskii/design-system` is not on a public registry (JC-02): package.json
-# resolves it from `web/vendor/*.tgz`, which is gitignored and packed locally from a
-# kk-agentic-ds checkout. This stage therefore builds only where that tarball is present.
-# That is exactly the limitation AC-170 records, and the README states it in one sentence.
 # --------------------------------------------------------------------------------------------
 FROM node:22.14.0-bookworm-slim AS web
 
 WORKDIR /build
 
-# Manifest + lockfile + the vendored tarballs first, so a source-only edit reuses the install
-# layer.
-#
-# THE ONE EDIT THIS STAGE MAKES TO THE LOCKFILE, and why. Both `npm ci` and `npm install` abort
-# here with EINTEGRITY on `@konstantinopolskii/design-system`. Measured, not guessed: the sha512
-# of `web/vendor/konstantinopolskii-design-system-2.1.1.tgz` on this machine does not equal the
-# one `web/package-lock.json` records. That is a property of the JC-02 arrangement rather than a
-# corrupt file — the two kit packages are not on any registry, they are `npm pack`ed from a local
-# kk-agentic-ds checkout, and `npm pack` output is not byte-reproducible, so the recorded hash is
-# the hash of whichever tarball the machine that last ran `npm install` happened to produce.
-#
-# So the `integrity` field is dropped for `file:` entries **and only** for `file:` entries, in a
-# throwaway copy inside this layer. Every registry dependency keeps its pin and its hash, which is
-# the integrity that is actually protecting anything: a `file:` tarball is already inside the
-# build context. The repository's own lockfile is never written to.
+# Manifest + lockfile first, so a source-only edit reuses the install layer.
 COPY web/package.json web/package-lock.json ./
-COPY web/vendor ./vendor
-RUN node -e "const f='package-lock.json',j=JSON.parse(require('fs').readFileSync(f,'utf8')); \
-      for (const [k,v] of Object.entries(j.packages||{})) \
-        if (typeof v.resolved === 'string' && v.resolved.startsWith('file:')) delete v.integrity; \
-      require('fs').writeFileSync(f, JSON.stringify(j,null,2));" \
-    && npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 COPY web/ ./
 # Self-hosted images are release artifacts, so browser-local design experiments must not alter

@@ -1,0 +1,10 @@
+/* Dense cards and card stacks */
+.card--dense {
+  --card-pad: 6px;
+  padding: var(--card-pad);
+  border-radius: 8px;
+}
+.card-stack--dense {
+  --card-gap: 2px;
+  gap: var(--card-gap);
+}

@@ -1,0 +1,20 @@
+/* Card stack: one active card at a time */
+.card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.card-stack > .card:first-child:not([data-state="active"]) {
+  background: var(--color-surface-overlay);
+}
+.card.card--shout,
+.card.card--shout:hover,
+.card.card--shout:has(input:focus),
+.card.card--shout:has(textarea:focus),
+.card.card--shout[data-state="active"],
+.card-stack > .card.card--shout {
+  background: #000000;
+}
+.card--interactive:hover {
+  background: var(--color-surface-strong);
+}

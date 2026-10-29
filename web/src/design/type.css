@@ -1,0 +1,44 @@
+/* Typography utilities */
+.t-hero {
+  font-size: var(--fs-hero);
+  line-height: var(--lh-hero);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-tighter);
+}
+.t-title {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--fw-bold);
+}
+.t-subtitle {
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-subtitle);
+  font-weight: var(--fw-bold);
+}
+.t-body {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--track-tight);
+}
+.t-caption {
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  font-weight: var(--fw-regular);
+}
+.t-muted { color: var(--color-text-muted); }
+.t-code {
+  background: var(--color-surface-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-weight: var(--fw-regular);
+}
+.t-code--block {
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-weight: var(--fw-regular);
+  border-left: 4px solid var(--color-border);
+  padding: var(--space-3) var(--space-4);
+}

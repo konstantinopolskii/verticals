@@ -1,0 +1,50 @@
+/* Comment threads, the comment stack and the new-comment card */
+.comment-thread {
+  gap: 0;
+  padding: var(--space-2) var(--card-inset-x);
+}
+.comment-stack > .comment-thread[data-archived="true"] {
+  display: none;
+}
+.comment-thread[data-resolved="true"] .card__collapsible {
+  display: none;
+}
+.comment-msg {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--card-inset-x);
+}
+.comment-thread .comment-msg + .comment-msg {
+  position: relative;
+}
+.comment-thread .comment-msg + .comment-msg::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--card-inset-x);
+  right: var(--card-inset-x);
+  height: 0.5px;
+  background: var(--color-border);
+  pointer-events: none;
+}
+.comment-thread .card__collapsible-inner {
+  gap: 0;
+}
+.comment-thread__reply {
+  margin-top: var(--space-3);
+}
+.comment-thread__reply::after {
+  display: none;
+}
+.comment-thread[data-editing="true"] > .card__collapsible {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.comment-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.card.comment-new { }

@@ -1,0 +1,19 @@
+/* Inline add */
+.inline-add {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  color: var(--color-text);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.inline-add::placeholder { color: var(--color-text-subtle); }
+.inline-add:hover,
+.inline-add:focus { background: var(--color-surface-overlay); }
+.inline-add:focus { outline: none; }

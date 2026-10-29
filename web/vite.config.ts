@@ -1,5 +1,5 @@
-// Verticals frontend build. React components on the private kit's stylesheets
-// (@konstantinopolskii/design-system, vendored — see web/vendor/; src/kit draws its markup) and its own store on
+// Verticals frontend build. React components on the design system's stylesheets
+// (src/design; src/kit draws its markup) and its own store on
 // MobX (src/reactivity.ts): no router, no CSS framework.
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'

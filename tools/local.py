@@ -8,8 +8,6 @@ Never reads the repository .env or touches an existing database.
 from __future__ import annotations
 
 import argparse
-import base64
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -105,15 +103,6 @@ def main():
     settings = config()
     env = environment(settings)
     if args.command == 'setup':
-        lock = json.loads((ROOT / 'web/package-lock.json').read_text(encoding='utf-8'))
-        for name in ['konstantinopolskii-design-system-2.1.1.tgz']:
-            archive = ROOT / 'web/vendor' / name
-            if not archive.is_file():
-                raise SystemExit(f'Missing vendored dependency web/vendor/{name}; see README.')
-            expected = lock['packages']['node_modules/@konstantinopolskii/design-system']['integrity']
-            actual = 'sha512-' + base64.b64encode(hashlib.sha512(archive.read_bytes()).digest()).decode()
-            if actual != expected:
-                raise SystemExit(f'Integrity mismatch: web/vendor/{name}. Supply the lockfile-matching archive.')
         if not PYTHON.exists():
             run([host.python312() or 'python3.12', '-m', 'venv', ROOT / '.venv'])
         run([PYTHON, '-m', 'pip', 'install', '-e', '.[dev]'])

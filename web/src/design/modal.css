@@ -1,0 +1,7 @@
+/* Modal: a centred dialog over a scrim */
+
+.modal__body {
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  color: var(--color-text);
+}

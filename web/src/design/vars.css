@@ -1,0 +1,75 @@
+/* Tokens: type, colour, space, radius, motion, density and the goal palette. */
+:root {
+  --color-bg: #ffffff;
+  --color-bg-muted: #f8f8f8;
+  --color-surface-overlay: rgba(0, 0, 0, 0.03);
+  --color-surface-strong:  rgba(0, 0, 0, 0.06);
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-border-strong: rgba(0, 0, 0, 0.2);
+  --color-text: #000000;
+  --color-text-muted: rgba(0, 0, 0, 0.5);
+  --color-text-subtle: rgba(0, 0, 0, 0.3);
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-full: 9999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-15: 60px;
+  --space-20: 80px;
+  --font-body: "Commissioner", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --fs-hero: 66px;      --lh-hero: 66px;
+  --fs-display: 38px;   --lh-display: 38px;
+  --fs-body: 22px;      --lh-body: 32px;
+  --fs-title: 22px;     --lh-title: 32px;
+  --fs-subtitle: 18px;  --lh-subtitle: 24px;
+  --fs-caption: 16px;   --lh-caption: 24px;
+  --fs-micro: 14px;     --lh-micro: 20px;
+  --fw-regular: 500;
+  --fw-medium: 500;
+  --fw-bold: 700;
+
+  --track-tight: -0.01em;
+  --track-tighter: -0.03em;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-swing: cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --dur-long: 760ms;
+  --sidebar-w: 260px;
+  --inspector-w: 420px;
+  --col-pad-x: clamp(1.25rem, 1.4vw, 1.5rem);
+  --doc-pad-left: clamp(2rem, 4.2vw, 3.75rem);
+  --doc-pad-right: clamp(3rem, 8.3vw, 7.5rem);
+  --card-pad: var(--space-5) var(--space-3) var(--space-10);
+  --card-gap: var(--space-2);
+  --color-goal-blue: #278dea;
+  --color-goal-green: #92ce14;
+  --color-goal-yellow: #ecce32;
+  --color-goal-purple: #955be0;
+  --color-goal-pink: #df496d;
+  --color-goal-orange: #f2713a;
+  --goal-wash: #f2f2f2;
+  --goal-ink: #494c54;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur-base: 0.01ms;
+    --dur-slow: 0.01ms;
+    --dur-long: 0.01ms;
+  }
+}

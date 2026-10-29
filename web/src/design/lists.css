@@ -1,0 +1,52 @@
+/* Lists */
+.t-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  font-weight: var(--fw-regular);
+  color: var(--color-text);
+}
+.card > .t-list,
+.card__collapsible-inner > .t-list {
+  padding-left: var(--card-inset-x);
+  padding-right: var(--card-inset-x);
+}
+.t-list > li {
+  position: relative;
+  padding: var(--space-3) 0 var(--space-3) var(--space-5);
+}
+.t-list > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0.5px;
+  background: var(--color-border);
+  pointer-events: none;
+}
+ul.t-list > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(var(--space-3) + var(--lh-caption) / 2 - var(--space-1) / 2);
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+}
+ol.t-list { counter-reset: t-list; }
+ol.t-list > li { counter-increment: t-list; }
+ol.t-list > li::before {
+  content: counter(t-list);
+  position: absolute;
+  left: 0;
+  top: var(--space-3);
+  width: var(--space-3);
+  color: var(--color-text);
+  font-weight: var(--fw-bold);
+}

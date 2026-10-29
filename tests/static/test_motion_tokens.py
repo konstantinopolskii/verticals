@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from tests.static.conftest import WEB_SRC_DIR
 
-TOKENS = {"tokens.css", "lib/motion.ts", "lib/look.ts"}
+TOKENS = {"design/tokens.css", "design/vars.css", "lib/motion.ts", "lib/look.ts"}
 PREDATE_THE_TOKENS = {
     "components/Column.tsx",
     "components/GoalCard.tsx",

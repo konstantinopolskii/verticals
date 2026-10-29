@@ -3,9 +3,8 @@
  *  `DocDetail.tsx`'s body (both render markdown into the same contenteditable-toggle node,
  *  `bodyMarkdown.ts`'s own convention).
  *
- *  Two jobs: capture a selection as `{quote, prefix, suffix}` the same triple the kit's own
- *  selection-to-draft flow captures (`@konstantinopolskii/design-system/docs/integration/
- *  comment.md`, "Anchoring model" — quote plus ~20 characters of surrounding text each side), and
+ *  Two jobs: capture a selection as `{quote, prefix, suffix}` — the quote plus ~20 characters of
+ *  surrounding text each side — and
  *  re-find that triple inside freshly rendered markdown so it can be wrapped in a highlight —
  *  "first occurrence; prefix/suffix disambiguate ... a quote that no longer matches renders no
  *  highlight ... never crash, never guess" (COMMENTS_SPEC.md WP-B). This file owns both halves so
@@ -111,10 +110,8 @@ function flattenTextNodes(container: HTMLElement): { text: string; nodes: FlatTe
 }
 
 /** Wraps the flattened-text range `[start, end)` in one mark (made by `make`) PER TEXT NODE it spans, rather than one
- *  `Range.surroundContents()` — the kit's own documented rule
- *  for a selection crossing element boundaries ("wraps ... as one <span class="highlight"> per
- *  text node, never one span across block boundaries", design-system/docs/integration/comment.md)
- *  and, independently, the only way to avoid `surroundContents`' own restriction against a range
+ *  `Range.surroundContents()` — one <span class="highlight"> per text node, never one span across
+ *  block boundaries — and the only way to avoid `surroundContents`' own restriction against a range
  *  that partially contains a non-Text node (a quote spanning into/out of a `<strong>` would throw
  *  on the single-range approach). `node.splitText` inserts its return value as the next DOM
  *  sibling in place, so the two splits below (tail first, then head) leave the untouched-before
