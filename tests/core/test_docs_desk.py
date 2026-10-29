@@ -39,6 +39,17 @@ def test_stacks_by_goal_under_values_and_no_goal_apart(db: psycopg.Connection) -
     assert [(s.goal_title, sorted(desk.docs[d].path for d in s.docs)) for s in group.stacks] == [("SYN year", ["a.md", "b.md"])]
 
 
+def test_the_agents_memory_is_a_group_of_its_own_and_in_no_stack(db: psycopg.Connection) -> None:
+    """docs/design/agent-memory.md: the memory documents are their own group at the end of the desk, even when a goal links one."""
+    goal = goals.create(db, owner=OWNER, title="SYN goal", vertical="year", anchor_date=DAY).goal.id
+    for path in ("memory/morning-report.md", "memory/AGENTS.md", "memories.md"):
+        _doc(db, path)
+    _link(db, goal, "memory/AGENTS.md")
+    desk = docs_desk.desk(db, owner=OWNER)
+    assert [desk.docs[d].path for d in desk.memory] == ["memory/AGENTS.md", "memory/morning-report.md"]
+    assert [desk.docs[d].path for d in desk.no_goal] == ["memories.md"] and not desk.values
+
+
 def test_a_big_branch_splits_into_its_sub_goals(db: psycopg.Connection) -> None:
     value = goals.create(db, owner=OWNER, title="SYN value", vertical="life", anchor_date=DAY).goal.id
     year = goals.create(db, owner=OWNER, title="SYN year", vertical="year", anchor_date=DAY, parent_id=value).goal.id

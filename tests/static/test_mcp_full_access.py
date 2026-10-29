@@ -4,7 +4,7 @@ import pytest
 from tests.static.test_chat_gateway import _chat
 
 
-def request(settings, kind='mcp_tool_call', mode='form', tool=None, server='verticals_desktop', reads=None):
+def request(settings, kind='mcp_tool_call', mode='form', tool=None, server='verticals_desktop', reads=None, memory=False):
     module = _chat()
     replies, asks = [], []
     agent = object.__new__(module.CodexAgent)
@@ -12,6 +12,7 @@ def request(settings, kind='mcp_tool_call', mode='form', tool=None, server='vert
     agent.approvals = {}
     agent.pending_mcp = {}
     agent.reads = reads or {}
+    agent.chat = SimpleNamespace(memory_write=lambda tool, args: memory, touches_memory=lambda tool, args: memory)
     agent.thread_id = None
     agent.proc = SimpleNamespace(reply=lambda *a, **kw: replies.append((a,kw)))
     agent.s = SimpleNamespace(ask=lambda *a, **kw: asks.append(a), emit=lambda e: None)
@@ -61,3 +62,20 @@ def test_checker_reads_only_the_sources_the_owner_approved():
 def test_checker_does_not_approve_a_write_with_the_same_arguments_as_a_read():
     replies, asks=request({'sources':'connected','role':'checker'},tool='doc_delete')
     assert asks and not replies
+
+
+@pytest.mark.parametrize('role,memory,tool,answered', [
+    (None, True, 'doc_save', True),
+    (None, False, 'doc_save', False),
+    (None, True, 'doc_delete', False),
+    ('checker', True, 'doc_save', False),
+])
+def test_a_write_to_the_agents_memory_runs_without_a_question(role, memory, tool, answered):
+    replies, asks = request({'permission':'default','role':role}, tool=tool, memory=memory)
+    assert bool(replies) == answered and bool(asks) != answered
+
+
+@pytest.mark.parametrize('memory,answered', [(True, False), (False, True)])
+def test_a_morning_writer_asks_before_it_writes_the_agents_memory(memory, answered):
+    replies, asks = request({'sources':'connected'}, tool='doc_save', memory=memory)
+    assert bool(replies) == answered and bool(asks) != answered
