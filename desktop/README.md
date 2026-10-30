@@ -116,6 +116,19 @@ Terminal all use them. A folder that has never been signed in to needs one sign-
 `CLAUDE_CONFIG_DIR=~/.claude-personal claude`, then `/login`. The ticks beside the two menu items belong to the app, not
 to an account: after a change to `agents.env`, click them again to connect the new folder.
 
+## Codex chat list
+
+Chats begun in Verticals get the task's title or the first message as their name and are assigned to a **Verticals**
+section through Codex's app-server API. The morning report's checking chat is grouped too. Existing chats are not migrated;
+after the initial organization,
+moving, renaming or removing a chat from its section in Codex is left as the owner chose. Sessions linked from outside
+Verticals keep their own names and placement.
+
+Grouping uses Codex's sidebar API, not another `CODEX_HOME` or working folder: sign-in, tools and file access stay the
+same. If the installed Codex does not support sections, the conversation still runs. Some desktop versions still use a
+local-only sidebar and do not display app-server sections: names work, but chats stay in the main list until Codex enables
+server-backed sections. Verticals does not rewrite Codex's private sidebar settings.
+
 ## Run from the repository
 
 Requires PostgreSQL 16 (`brew install postgresql@16`), Python 3.12 (`uv python install 3.12`) and,

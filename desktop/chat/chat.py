@@ -776,7 +776,46 @@ class CodexAgent:
             result = self.proc.request("thread/start", params)
         self.thread_id = result["thread"]["id"]
         self.session_id = self.thread_id
+        if self.thread_id != resume_id:
+            self._organize(result["thread"])
         s.emit({"t": "ready", "provider": "codex", "model": result.get("model") or settings.get("model")})
+
+    def _organize(self, thread):
+        conversation = getattr(self.s, "id", None)
+        entry = self.chat.load().get(conversation, {}) if conversation else {}
+        if entry.get("external"):
+            return
+        goal = entry.get("goal") or {}
+        title = goal.get("title") if isinstance(goal, dict) else None
+        if not title:
+            title = next((text for role, text in entry.get("transcript", []) if role == "user" and text.strip()), "")
+        if self.settings.get("role") == CHECKER:
+            title = "Morning report check"
+        title = " ".join(str(title or ("Morning report" if self.settings.get("sources") == CONNECTED else "Verticals chat")).split())
+        title = title[:117] + "…" if len(title) > 120 else title
+        try:
+            if not thread.get("name"):
+                self.proc.request("thread/name/set", {"threadId": self.thread_id, "name": title}, timeout=3)
+            if not thread.get("section"):
+                # Several agents can start together; only one creates the shared section.
+                with self.chat.lock:
+                    cursor, seen, section = None, set(), None
+                    for _ in range(20):
+                        page = self.proc.request("threadSection/list", {"cursor": cursor, "limit": 100}, timeout=3)
+                        section = next((s for s in page.get("data", []) if s.get("name") == "Verticals"), None)
+                        cursor = page.get("nextCursor")
+                        if section or not cursor:
+                            break
+                        if cursor in seen:
+                            raise ChatError("Repeated section cursor")
+                        seen.add(cursor)
+                    else:
+                        raise ChatError("Too many section pages")
+                    if section is None:
+                        section = self.proc.request("threadSection/create", {"name": "Verticals"}, timeout=3)["section"]
+                self.proc.request("thread/section/move", {"threadId": self.thread_id, "sectionId": section["id"]}, timeout=3)
+        except (ChatError, KeyError, TypeError):
+            self.chat.log.warning("codex sidebar unavailable")
 
     def signature(self):
         # Codex takes model, effort, speed and permissions per turn: only the agent itself matters.
