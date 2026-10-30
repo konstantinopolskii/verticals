@@ -222,6 +222,15 @@ function saveSelection(): void {
   save(KEY.lastAgent, selection.provider)
   const thread = currentThread.value
   if (thread) { thread.selection = { ...selection }; saveThreads() }
+  void syncMorningSettings()
+}
+
+/** The desktop timer keeps these settings when WebKit suspends the window. */
+export async function syncMorningSettings(): Promise<void> {
+  if (!agentChat.available || !agentChat.selection) return
+  if ('accessChosen' in agentChat && !agentChat.accessChosen) return
+  await api('morning', { settings: agentChat.selection, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+    .catch(() => undefined)
 }
 
 export async function loadProbe(provider: string, force = false): Promise<void> {
@@ -586,6 +595,7 @@ export async function startAgentChat(): Promise<void> {
   answersAvailable(true)
   void refreshAnswers()
   openThread(agentChat.current ?? crypto.randomUUID())
+  await syncMorningSettings()
 }
 
 // Native Quick Entry opens the conversation belonging to its newly created task.
