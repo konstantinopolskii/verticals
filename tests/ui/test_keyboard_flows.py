@@ -270,6 +270,20 @@ def test_ctrl_backslash_puts_the_field_away_until_pressed_again(ui_f2: UiSession
     expect(page.locator(FIELD)).to_have_value('h')
 
 
+def test_a_backslash_goes_to_the_field_and_ctrl_shift_backslash_shows_the_dev_panels(ui_f2: UiSession):
+    page = ui_f2.page
+    loaded(page)
+    panels = page.get_by_role('button', name='Open goal layout settings')
+    page.keyboard.press('Backslash')
+    expect(page.locator(FIELD)).to_have_value('\\')
+    expect(panels).to_be_hidden()
+    page.keyboard.press('Control+Shift+Backslash')
+    expect(panels).to_be_visible()
+    expect(page.locator(FIELD)).to_have_value('\\')
+    page.keyboard.press('Control+Shift+Backslash')
+    expect(panels).to_be_hidden()
+
+
 def test_hiding_the_field_while_typing_in_it_drops_the_caret(ui_f2: UiSession):
     page = ui_f2.page
     loaded(page)

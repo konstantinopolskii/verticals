@@ -60,7 +60,7 @@ def test_saved_goal_layout_defaults_panel_persistence_and_space_key(ui_f2: UiSes
     assert expanded == {"size": "24px", "line": "32px", "weight": "500"}
     assert parent_box.evaluate("el => getComputedStyle(el).width") == "22px"
 
-    page.keyboard.press("Backslash")
+    page.keyboard.press("Control+Shift+Backslash")
     layout_button = page.get_by_role("button", name="Open goal layout settings")
     expect(layout_button).to_be_visible()
     layout_button.click()
