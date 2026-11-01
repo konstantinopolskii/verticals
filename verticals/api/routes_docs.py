@@ -85,6 +85,7 @@ def get_docs_desk(request: Request, response: Response) -> dict:
              "stacks": [{"goal_id": s.goal_id, "goal_title": s.goal_title, "docs": list(s.docs)} for s in v.stacks]}
             for v in result.values
         ],
+        "memory": list(result.memory),
     }
 
 

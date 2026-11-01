@@ -24,6 +24,8 @@ from verticals.core.pictures import ALT_CHARS, PICTURE
 
 CAP = 22
 EXCERPT = 1500
+# The agent's memory is a group of its own at the end of the desk, never in a goal's stack (docs/design/agent-memory.md).
+MEMORY = "memory/"
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,7 @@ class Desk:
     docs: dict[str, DeskDoc]
     no_goal: tuple[str, ...]       # newest first
     values: tuple[ValueGroup, ...]
+    memory: tuple[str, ...]        # by path
 
 
 def desk(conn: psycopg.Connection, *, owner: str) -> Desk:
@@ -75,6 +78,7 @@ def desk(conn: psycopg.Connection, *, owner: str) -> Desk:
         {"owner": owner, "n": EXCERPT, "alt": ALT_CHARS, "picture": PICTURE},
     ).fetchall()
     docs = {r[0]: DeskDoc(*r) for r in rows}
+    memory = tuple(sorted((d for d in docs if docs[d].path.startswith(MEMORY)), key=lambda d: docs[d].path))
 
     title = {g[0]: g[2] for g in goals}
     parent = {g[0]: g[1] for g in goals}
@@ -84,7 +88,7 @@ def desk(conn: psycopg.Connection, *, owner: str) -> Desk:
             kids[g[1]].append(g[0])
     own: dict[str, set[str]] = defaultdict(set)
     for goal_id, doc_id in links:
-        if goal_id in title and doc_id in docs:
+        if goal_id in title and doc_id in docs and doc_id not in memory:
             own[goal_id].add(doc_id)
 
     under: dict[str, set[str]] = {}
@@ -158,5 +162,5 @@ def desk(conn: psycopg.Connection, *, owner: str) -> Desk:
         values.append(ValueGroup(id=None, title=None, color=None, stacks=tuple(others)))
 
     linked = {d for _, d in links}
-    no_goal = tuple(sorted((d for d in docs if d not in linked), key=lambda d: docs[d].created_at, reverse=True))
-    return Desk(docs=docs, no_goal=no_goal, values=tuple(values))
+    no_goal = tuple(sorted((d for d in docs if d not in linked and d not in memory), key=lambda d: docs[d].created_at, reverse=True))
+    return Desk(docs=docs, no_goal=no_goal, values=tuple(values), memory=memory)

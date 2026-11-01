@@ -1,8 +1,8 @@
 // The Documents desk (Inbox and Documents redesign, rounds 2–7, KK 6–7 Oct 2026; .local-design/inbox-and-docs): every
 // document as a page, in stacks by the goal it accumulates under (`core/docs_desk.py`), the stacks grouped by value in
 // the board's order. The documents no goal holds come first, under "No goal" (KK, 7 Oct: "at the beginning"), one stack
-// for each age. The field narrows the desk as it narrows the board (S1.P3): a stack says how many of its pages match,
-// and one with none turns off.
+// for each age. The agent's memory is the last group (docs/design/agent-memory.md). The field narrows the desk as it
+// narrows the board (S1.P3): a stack says how many of its pages match, and one with none turns off.
 import { computed, reactive } from '../reactivity'
 import { fetchDocsDesk, type DeskDoc, type DocsDesk } from './api'
 import { filterText } from './commandFilter'
@@ -111,6 +111,14 @@ export const groups = computed<ShownGroup[]>(() => {
     out.push({
       key: `value:${value.id ?? 'none'}`, name: value.title ?? 'No value', color: value.color,
       count: stacks.reduce((n, s) => n + s.docs.length, 0), stacks,
+    })
+  }
+
+  // What the owner and the agent write over the built-in instructions, last (docs/design/agent-memory.md).
+  if (data.memory?.length) {
+    out.push({
+      key: 'memory', name: 'Agent memory', color: null, count: data.memory.length,
+      stacks: [{ key: 'memory', name: 'Memory', sub: count(data.memory.length), docs: data.memory, matches: matched(data.memory) }],
     })
   }
   return out
