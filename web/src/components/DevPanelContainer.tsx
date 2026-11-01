@@ -1,4 +1,4 @@
-/* The dev panels: \ shows and hides them while dev tuning is on. */
+/* The dev panels: ⌘⇧\ or Ctrl+Shift+\ shows and hides them while dev tuning is on. */
 import { DevColorPanel } from './DevColorPanel'
 import { DevDeckPanel } from './DevDeckPanel'
 import { DevIconPanel } from './DevIconPanel'
@@ -15,10 +15,8 @@ export const DevPanelContainer = tracked(function DevPanelContainer() {
     const visible = ref(false)
 
     function onKeyDown(event: KeyboardEvent) {
-      const target = event.target instanceof HTMLElement ? event.target : null
-      const editing = target?.closest('input, textarea, select, [contenteditable="true"]') !== null
-      if (editing || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return
-      if (event.code !== 'Backslash' && event.key !== '\\' && event.key !== 'Backslash') return
+      if (event.repeat || event.altKey || !event.shiftKey || !(event.metaKey || event.ctrlKey)) return
+      if (event.code !== 'Backslash') return
       visible.value = !visible.value
       event.preventDefault()
     }
