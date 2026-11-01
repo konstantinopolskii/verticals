@@ -1,0 +1,87 @@
+/* The capsule over a carried plan (docs/design/carried-pills.md; the owner's sketch, 21 Oct 2026). The root stands where
+   `lib/carriedPills.ts` puts it, over the board's columns and their lines (11, 12) and under the veil a window brings
+   (280); its padding on the plan's side is the unpainted way to the plan. Its colours and type are the plan's own, read off
+   the card into `--carried-pill-*`. */
+.carried-pills {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  /* A popover's fade (none with motion reduced); going, it is hidden once it has faded. */
+  transition: opacity var(--motion-popover) var(--vt-ease-small), visibility 0s linear var(--motion-popover);
+}
+.carried-pills--on {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--motion-popover) var(--vt-ease-small);
+}
+/* One capsule, no shadow: the box's ground under the plan's light at the plan's strength, as the card's lit block is drawn
+   (goalCard.css `.goal-card__row::before`), so the two read as one object. The ground changes with the box's, the light at
+   once, as on the card. */
+.carried-pills__set {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  gap: 10px;
+  padding: 0 3px;
+  border-radius: 13px;
+  background: var(--carried-pill-ground);
+  transition: background-color 200ms var(--vt-ease-large);
+}
+.carried-pills__set::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--carried-pill-light);
+  opacity: var(--carried-pill-strength);
+}
+/* Each word is a button as tall as the capsule; its hover is the plan's light once more behind that word only, a pill
+   inset 3 px that shares the capsule's centre. The words sit 1 px above the flex centre: centred, their lowercase stood
+   1.9 px below the capsule's middle and read low (measured at 2×); now it is a little below, where text in a control
+   reads centred. */
+.carried-pills__word {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 8px 2px;
+  border: 0;
+  background: none;
+  color: var(--carried-pill-ink);
+  font-family: var(--carried-pill-family);
+  font-size: var(--carried-pill-size);
+  font-weight: var(--carried-pill-weight);
+  line-height: var(--carried-pill-line);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: scale 100ms var(--vt-ease-small);
+}
+.carried-pills__word::before {
+  content: '';
+  position: absolute;
+  inset: 3px 0;
+  z-index: -1;
+  border-radius: 10px;
+  background: var(--carried-pill-light);
+  opacity: 0;
+  transition: opacity var(--motion-hover) var(--vt-ease-small);
+}
+@media (hover: hover) and (pointer: fine) {
+  .carried-pills__word:hover::before { opacity: var(--carried-pill-strength); transition: none; }
+}
+/* A press gives a little and comes back, as the field notice's buttons do. */
+.carried-pills__word:active { scale: .97; }
+.carried-pills__word:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .carried-pills__word, .carried-pills__word:active { scale: none; transition: none; }
+}

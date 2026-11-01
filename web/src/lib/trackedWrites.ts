@@ -2,10 +2,13 @@
 // over its own verbs; what comes back does the same and records what it changed (`track` in `lib/boardHistory.ts`). The
 // components call these through `store`, so every tick, rename, move and reparent counts without a line in any component.
 // Lifted out of `store.ts`, which has no lines to spare (S-90a's 750).
-import type { GoalCard, UpdatePatch } from './api'
+import { getGoal, patchGoal, type GoalCard, type UpdatePatch } from './api'
 import { PATCH_FIELDS } from './boardShots'
 import { makeStep, track } from './boardHistory'
 import { createdStep } from './goalSteps'
+import { toast } from '../kit'
+import { withLine, withNote } from './realign'
+import { messageForError } from './scheduleFeedback'
 import type { VerticalScale } from './periods'
 import { takeOccurrence, withOccurrence } from './repeatSteps'
 
@@ -32,6 +35,8 @@ const undoable = (patch: UpdatePatch): boolean => PATCH_FIELDS.some((field) => f
 
 export type TrackedWrites = Omit<Writes, 'completeGoal'> & {
   completeGoal(id: string, done: boolean, record?: boolean): Promise<void>
+  /** Idk on a carried plan (`lib/realign.ts`): `line` after its notes, then the Inbox, as one step. */
+  realignToInbox(id: string, line: string): Promise<void>
   createGoalOn(verticalBucket: string, title: string, periodKey?: string | null): Promise<void>
   addDetailChild(title: string): Promise<void>
 }
@@ -65,6 +70,22 @@ export function trackedWrites(raw: Writes & Makes): TrackedWrites {
       track(id, () => raw.scheduleGoalTo(id, scale, periodKey, optimisticDrag, insertBeforeId), true),
     scheduleGoalQuick: (id, scale, periodKey, day) => track(id, () => raw.scheduleGoalQuick(id, scale, periodKey, day), true),
     moveGoalToInbox: (id) => track(id, () => raw.moveGoalToInbox(id), true),
+    realignToInbox: (id, line) => {
+      // The notes are read first, so the line goes after what is there; then the move, which the step is made of.
+      let before = ''
+      let after = ''
+      return track(id, async () => {
+        try {
+          before = (await getGoal(id)).body
+          after = withLine(before, line)
+          await patchGoal(id, { body: after })
+        } catch (err) {
+          toast(messageForError(err))
+          return
+        }
+        await raw.moveGoalToInbox(id)
+      }, true, (step) => withNote(step, before, after))
+    },
     reparent: (id, parentId, optimisticDrag) => track(id, () => raw.reparent(id, parentId, optimisticDrag), true),
     reparentQuick: (id, parentId) => track(id, () => raw.reparentQuick(id, parentId), true),
     combineInto: (id, targetId) => track(id, () => raw.combineInto(id, targetId), true),
