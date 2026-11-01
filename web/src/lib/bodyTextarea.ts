@@ -298,57 +298,75 @@ function setCaretAfter(node: Node): void {
   selection.addRange(range)
 }
 
-function applyListShortcut(root: HTMLElement): boolean {
+function setCaretIn(node: Node): void {
+  node.ownerDocument?.getSelection()?.collapse(node, 0)
+}
+
+const isBlock = (node: Node): boolean => node instanceof HTMLElement && /^(P|DIV|UL|OL|H[1-6]|PRE|TABLE)$/.test(node.tagName)
+const endsLine = (node: Node): boolean => isBlock(node)
+  || (node instanceof HTMLBRElement && !node.hasAttribute('data-body-caret'))
+
+/** The caret's line: the nodes between the line breaks around it, in its paragraph or right in the root. */
+function caretLine(root: HTMLElement): { text: string; replaceWith: (block: HTMLElement) => void } | null {
   const selection = root.ownerDocument.getSelection()
-  if (!selection?.isCollapsed || !selection.anchorNode) return false
-  const anchor = selection.anchorNode instanceof Element
-    ? selection.anchorNode
-    : selection.anchorNode.parentElement
-  const candidate = anchor?.closest('p, div')
-  const block = candidate?.parentElement === root ? candidate : null
-  const directText = selection.anchorNode.parentNode === root ? selection.anchorNode : null
-  if (!block && !directText) return false
-  const text = (block?.textContent ?? directText?.textContent ?? '').replace(/\u00a0/g, ' ')
-  const ordered = text === '1. '
-  if (!ordered && text !== '- ' && text !== '* ') return false
+  if (!selection?.isCollapsed || !selection.anchorNode) return null
+  const anchor = selection.anchorNode instanceof Element ? selection.anchorNode : selection.anchorNode.parentElement
+  const paragraph = anchor?.closest('p, div')
+  const container = paragraph?.parentElement === root ? paragraph : root
+  let node: Node | null = selection.anchorNode
+  while (node && node.parentNode !== container) node = node.parentNode
+  if (!node || isBlock(node)) return null
+  let first = node
+  while (first.previousSibling && !endsLine(first.previousSibling)) first = first.previousSibling
+  let last = node
+  while (last.nextSibling && !endsLine(last.nextSibling)) last = last.nextSibling
+  const line = root.ownerDocument.createRange()
+  line.setStartBefore(first)
+  line.setEndAfter(last)
+  return {
+    text: line.toString().replace(/\u00a0/g, ' '),
+    replaceWith(block) {
+      const before = first.previousSibling
+      const after = last.nextSibling
+      const rest = root.ownerDocument.createElement('p')
+      rest.className = 't-body'
+      if (after && !isBlock(after)) {
+        while (after.nextSibling && !isBlock(after.nextSibling)) rest.append(after.nextSibling)
+        after.remove()
+      }
+      if (before && !isBlock(before)) before.remove()
+      line.deleteContents()
+      if (container === root) line.insertNode(block)
+      else if (container.hasChildNodes()) container.after(block)
+      else container.replaceWith(block)
+      if (rest.hasChildNodes()) block.after(rest)
+    },
+  }
+}
+
+function applyListShortcut(root: HTMLElement): boolean {
+  const line = caretLine(root)
+  const ordered = line?.text === '1. '
+  if (!line || (!ordered && line.text !== '- ' && line.text !== '* ')) return false
   const list = root.ownerDocument.createElement(ordered ? 'ol' : 'ul')
   list.className = 't-list'
   const item = root.ownerDocument.createElement('li')
   item.append(root.ownerDocument.createElement('br'))
   list.append(item)
-  if (block) block.replaceWith(list)
-  else root.replaceChildren(list)
-  const range = root.ownerDocument.createRange()
-  range.setStart(item, 0)
-  range.collapse(true)
-  selection.removeAllRanges()
-  selection.addRange(range)
+  line.replaceWith(list)
+  setCaretIn(item)
   return true
 }
 
 function applyHeadingShortcut(root: HTMLElement): boolean {
-  const selection = root.ownerDocument.getSelection()
-  if (!selection?.isCollapsed || !selection.anchorNode) return false
-  const anchor = selection.anchorNode instanceof Element
-    ? selection.anchorNode
-    : selection.anchorNode.parentElement
-  const candidate = anchor?.closest('p, div')
-  const block = candidate?.parentElement === root ? candidate : null
-  const directText = selection.anchorNode.parentNode === root ? selection.anchorNode : null
-  if (!block && !directText) return false
-  const text = (block?.textContent ?? directText?.textContent ?? '').replace(/\u00a0/g, ' ')
-  const match = /^(#{1,6}) $/.exec(text)
-  if (!match) return false
+  const line = caretLine(root)
+  const match = line && /^(#{1,6}) $/.exec(line.text)
+  if (!line || !match) return false
   const heading = root.ownerDocument.createElement(`h${match[1].length}`)
   heading.className = 'goal-detail__body-heading'
   heading.append(root.ownerDocument.createElement('br'))
-  if (block) block.replaceWith(heading)
-  else root.replaceChildren(heading)
-  const range = root.ownerDocument.createRange()
-  range.setStart(heading, 0)
-  range.collapse(true)
-  selection.removeAllRanges()
-  selection.addRange(range)
+  line.replaceWith(heading)
+  setCaretIn(heading)
   return true
 }
 
