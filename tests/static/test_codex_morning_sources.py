@@ -1,6 +1,8 @@
 """Approved source readers reach Codex's actual launch; other tools stay isolated."""
 
 import json
+import logging
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -45,6 +47,7 @@ def launch(tmp_path, monkeypatch, *, connected=True, approved=True, escape=False
     settings = {"provider": "codex", **({"sources": "connected"} if connected else {})}
     session = SimpleNamespace(id="synthetic-session", emit=lambda event: None, settings=settings)
     host = SimpleNamespace(
+        load=lambda: {}, lock=threading.Lock(), log=logging.getLogger(__name__),
         workdir=tmp_path, state_dir=tmp_path, mcp_url="http://127.0.0.1:1/mcp", token="synthetic",
         api=lambda *args: {"sources": [
             {"approved": approved, "needs_approval": not approved,
