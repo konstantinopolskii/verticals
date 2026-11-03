@@ -321,6 +321,8 @@ def make_gateway(token, chat):
                 return self.send_json({"agents": chat.agents()})
             if self.command == "GET" and path == "/__chat/busy":
                 return self.send_json({"busy": chat.busy()})
+            if self.command == "GET" and path == "/__chat/morning":
+                return self.send_json(chat.morning.status())
             if self.command == "GET" and path == "/__chat/frame":
                 page = parse_qs(urlparse(self.path).query).get("url", [""])[0]
                 return self.send_json({"framable": framable(page)})
@@ -365,6 +367,8 @@ def make_gateway(token, chat):
                     return self.send_json({"ok": True, **chat.open_session(body.get("session"))})
                 elif action == "report-kind":
                     return self.send_json(report_kind.ask(chat, body.get("words"), body.get("settings")))
+                elif action == "morning":
+                    chat.morning.configure(body.get("settings"), body.get("timezone"))
                 else:
                     return self.deny(404, "not found")
             except (ChatError, ValueError) as e:
@@ -559,9 +563,10 @@ def main():
         threading.Thread(target=gateway.serve_forever, daemon=True).start()
         running["gateway"] = gateway  # only a served server can be shut down; before that shutdown() would wait forever
         wait_healthy()
+        running["chat"].start_background_morning()
         from quick_entry import QuickEntry
         try:
-            QuickEntry(STATE, chat).onboard()
+            QuickEntry(STATE, running["chat"]).onboard()
         except (ChatError, OSError):
             log("Quick Entry onboarding will retry on the next launch")
         write_mcp_config(cfg["token"])
