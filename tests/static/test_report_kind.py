@@ -181,7 +181,7 @@ def test_it_is_started_with_no_tools_no_servers_and_a_prompt_of_its_own(kind) ->
     assert pairs["--tools"] == "" and "--strict-mcp-config" in argv
     assert json.loads(Path(pairs["--mcp-config"]).read_text()) == {"mcpServers": {}}
     assert Path(pairs["--mcp-config"]) == host.state_dir / "chat-mcp-none.json"
-    assert pairs["--permission-mode"] == "manual"
+    assert pairs["--permission-mode"] == "default"
     # The person's model, the lowest effort whatever they chose for the chat, its own prompt and not the chat's.
     assert pairs["--model"] == "some-model" and pairs["--effort"] == "low"
     prompt = pairs["--append-system-prompt"]
