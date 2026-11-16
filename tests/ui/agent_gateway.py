@@ -38,6 +38,11 @@ def main() -> None:
                       CODEX_HOME=str(state / "codex-home"), VERTICALS_WATCH_SECONDS="0.2")
     for name in ("HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME"):
         Path(os.environ[name]).mkdir(exist_ok=True)
+    # Verticals' Claude keeps its sessions where the Claude app reads them, `~/.claude`, as on a Mac where the two share one
+    # account: a Claude session opens in the app by its link (docs/design/task-sessions.md).
+    apps = state / "home" / ".claude"
+    if not apps.is_symlink():
+        apps.symlink_to(state / "claude-config", target_is_directory=True)
     sys.path.insert(0, str(REPO / "desktop"))
     import launcher  # noqa: E402  (reads the ports above at import)
 

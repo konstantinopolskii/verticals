@@ -1465,33 +1465,44 @@ class Chat:
         return {"session": key or session, "provider": entry["provider"], "goal": kept, "same": kept["id"] == goal["id"]}
 
     def open_session(self, key):
-        """Open a session where it lives (docs/design/task-sessions.md): a Codex thread by its link, a Claude session in Terminal
-        with `claude --resume <id>` from its folder, by a script of the app's own that Terminal runs."""
+        """Open a session where it lives (docs/design/task-sessions.md): by its app's link, a Codex thread in the Codex app and
+        a Claude session in the Claude app. A Claude session opens in Terminal instead, with `claude --resume <id>` from its
+        folder by a script of the app's own, on a Mac with no app for the link, or when the Claude app does not read the folder
+        Verticals' Claude keeps its sessions in (another account's, from agents.env)."""
         entry = self.entries().get(key)
         if not isinstance(entry, dict) or not entry.get("sessionId") or entry.get("provider") not in AGENTS:
             raise ChatError("No such session")
-        action = agent_sessions.open_action(entry["provider"], entry["sessionId"], entry.get("cwd"))
+        action = agent_sessions.open_action(entry["provider"], entry["sessionId"], entry.get("cwd"),
+                                            agent_sessions.claude_app_sees_sessions())
         opener = shutil.which("open", path=child_env()["PATH"])
         if not opener:
             raise ChatError("This computer has no way to open it")
+        done = self.run_open(opener, action, entry["sessionId"])
+        if done.returncode and action.get("fallback") and agent_sessions.NO_APP in done.stderr:
+            self.log.info("open provider=%s kind=url code=%d no_app session=%s", entry["provider"], done.returncode, str(key)[:8])
+            action = action["fallback"]
+            done = self.run_open(opener, action, entry["sessionId"])
+        self.log.info("open provider=%s kind=%s code=%d session=%s", entry["provider"], action["kind"], done.returncode, str(key)[:8])
+        if done.returncode:
+            said = f": {clip(done.stderr)}" if done.stderr.strip() else ""
+            raise ChatError(f"{action.get('app', 'Terminal')} did not open it{said}")
+        return {"kind": action["kind"]}
+
+    def run_open(self, opener, action, session_id):
+        """macOS's `open` for one way of opening a session: its link, or Terminal with a script of the app's own."""
         if action["kind"] == "terminal":
             folder = self.state_dir / "open"
             folder.mkdir(mode=0o700, exist_ok=True)
-            script = folder / f"claude-{entry['sessionId']}.command"
+            script = folder / f"claude-{session_id}.command"
             script.write_text(agent_sessions.terminal_script(action, which("claude"), os.environ.get("CLAUDE_CONFIG_DIR")))
             script.chmod(0o700)
             argv = [opener, "-a", "Terminal", str(script)]
         else:
             argv = [opener, action["url"]]
         try:
-            done = subprocess.run(argv, cwd=self.workdir, env=child_env(), capture_output=True, text=True, timeout=15)
+            return subprocess.run(argv, cwd=self.workdir, env=child_env(), capture_output=True, text=True, timeout=15)
         except (OSError, subprocess.SubprocessError) as e:
             raise ChatError(f"Could not open it: {clip(e)}") from e
-        self.log.info("open provider=%s kind=%s code=%d session=%s", entry["provider"], action["kind"], done.returncode, str(key)[:8])
-        if done.returncode:
-            app = "Terminal" if action["kind"] == "terminal" else AGENTS[entry["provider"]]["label"]
-            raise ChatError(f"{app} did not open it" + (f": {clip(done.stderr)}" if done.stderr.strip() else ""))
-        return {"kind": action["kind"]}
 
     def bind_goal(self, s, goal_id, title):
         """A conversation about no goal that makes one becomes that goal's conversation (docs/design/agent-chips.md): Discuss

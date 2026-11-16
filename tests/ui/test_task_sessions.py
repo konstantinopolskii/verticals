@@ -204,15 +204,25 @@ def test_open_in_lists_the_sessions_newest_first_and_opens_each_where_it_lives(u
     until(page, "Codex's link opened", lambda: desk.logged("open.log"))
     assert desk.logged("open.log") == [{"args": [f"codex://threads/{CODEX_THREAD}"], "script": None}]
 
-    # A Claude session opens in Terminal with `claude --resume`, from the folder it lives in.
+    # A Claude session opens in the Claude app by the app's link: the app shows the session it holds, or takes it in.
     open_in(page)
     page.locator(f'{SUBMENU} [data-session="{CLAUDE_SESSION}"]').click()
-    opened = until(page, "Terminal's script", lambda: len(desk.logged("open.log")) == 2 and desk.logged("open.log")[1])
+    opened = until(page, "Claude's link opened", lambda: len(desk.logged("open.log")) == 2 and desk.logged("open.log")[1])
+    assert opened == {"args": [f"claude://resume?session={CLAUDE_SESSION}"], "script": None}
     script_path = desk.state / "open" / f"claude-{CLAUDE_SESSION}.command"
+    assert not script_path.exists()
+
+    # On a Mac with no app for the link, it opens in Terminal with `claude --resume`, from the folder it lives in.
+    (desk.workspace / "no-claude-app").touch()
+    open_in(page)
+    page.locator(f'{SUBMENU} [data-session="{CLAUDE_SESSION}"]').click()
+    tried, opened = until(page, "Terminal's script", lambda: len(desk.logged("open.log")) == 4 and desk.logged("open.log")[2:])
+    assert tried == {"args": [f"claude://resume?session={CLAUDE_SESSION}"], "script": None}
     assert opened["args"] == ["-a", "Terminal", str(script_path)] and script_path.stat().st_mode & 0o777 == 0o700
     lines = opened["script"].splitlines()
-    assert lines[0] == "#!/bin/zsh" and lines[1] == f"cd {shlex.quote(str(desk.project))} 2>/dev/null || cd ~"
+    assert lines[0] == "#!/bin/zsh" and f"cd {shlex.quote(str(desk.project))} 2>/dev/null || cd ~" in lines
     assert lines[-1].endswith(f"/fake_agent/claude --resume {CLAUDE_SESSION}")
+    expect(page.locator(".toast-stack .toast__text")).to_have_count(0)  # the open went through: nothing to say
 
 
 def test_a_long_list_of_sessions_scrolls_inside_the_window_and_its_rows_keep_their_height(ui_agent: UiSession, tmp_path: Path) -> None:

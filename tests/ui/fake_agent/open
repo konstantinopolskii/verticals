@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""A stand-in for macOS's `open` in the UI suite: nothing opens. The desktop gateway opens a session where it lives with
-`open codex://threads/<id>` or `open -a Terminal <script>.command` (docs/design/task-sessions.md); this appends the arguments it
-was given, and the script when it is given one, to `open.log` in its folder, one JSON object a line, so a scenario can read
-what the gateway really asked the computer to open."""
+"""A stand-in for macOS's `open` in the UI suite: nothing opens. The desktop gateway opens a session where it lives with its
+app's link, `open codex://threads/<id>` or `open claude://resume?session=<id>`, or with `open -a Terminal <script>.command`
+(docs/design/task-sessions.md); this appends the arguments it was given, and the script when it is given one, to `open.log` in
+its folder, one JSON object a line, so a scenario can read what the gateway really asked the computer to open. With a file
+`no-claude-app` in its folder it answers a Claude link as `open` does on a Mac without the Claude app."""
 import json
 import os
 import sys
@@ -11,3 +12,7 @@ args = sys.argv[1:]
 script = next((arg for arg in args if arg.endswith(".command") and os.path.isfile(arg)), None)
 with open("open.log", "a") as log:
     log.write(json.dumps({"args": args, "script": open(script).read() if script else None}) + "\n")
+if args and args[0].startswith("claude:") and os.path.exists("no-claude-app"):
+    sys.stderr.write(f'No application knows how to open URL {args[0]} (Error Domain=NSOSStatusErrorDomain Code=-10814 '
+                     '"kLSApplicationNotFoundErr: E.g. no application claims the file").\n')
+    sys.exit(1)
