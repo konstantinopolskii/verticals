@@ -11,6 +11,7 @@ import WebKit
                                    styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(delegate, name: "zoom")
+        configuration.userContentController.add(delegate, name: "hideDone")
         delegate.webView = WebView(frame: delegate.window.contentView!.bounds, configuration: configuration)
         delegate.window.contentView = delegate.webView
         delegate.buildMenu()
@@ -95,6 +96,22 @@ import WebKit
         result["light"] = choose("Light")
         result["system"] = choose("System")
         result["systemFollowsMacOS"] = NSApp.appearance == nil
+
+        // View → Hide Completed Goals: the item asks the page to switch, and its tick follows what the page answers.
+        defer { defaults.removeObject(forKey: "HideCompletedGoals") }
+        _ = js("window.hidesDone = false; window.verticalsToggleHideDone = () => { window.hidesDone = !window.hidesDone;"
+               + " window.webkit.messageHandlers.hideDone.postMessage(window.hidesDone) }")
+        let hide = view.items.first { $0.title == "Hide Completed Goals" }!
+        result["hideDoneKey"] = [hide.keyEquivalent, hide.keyEquivalentModifierMask == [.command, .shift] ? "shift-command" : "other"]
+        var ticks: [Bool] = []
+        for wanted in [true, false] {
+            view.performActionForItem(at: view.index(of: hide))
+            spin { defaults.bool(forKey: "HideCompletedGoals") == wanted }
+            _ = delegate.validateMenuItem(hide)
+            ticks.append(hide.state == .on)
+        }
+        result["hideDoneTicks"] = ticks
+        result["pageHidesDone"] = js("window.hidesDone") as? Bool ?? true
 
         // Zoom never owns the typing, clipboard, undo, or Reduce Motion shortcuts.
         result["commandCHandledByZoom"] = press("c")

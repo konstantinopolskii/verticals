@@ -38,6 +38,7 @@ import { recaptureRowRects, scheduleOrdering, type DragState } from './lib/drag'
 import { createDragActions } from './lib/dragActions'
 import { toColumnData } from './lib/boardProjection'
 import { placeAfterCheck, settlingDone } from './lib/completionMotion'
+import { hideDone } from './lib/hideDone'
 import { createDayRollover } from './lib/dayRollover'
 import { createSearchActions } from './lib/search'
 import { cascadeToastText, verticalMenuLabel, messageForError, placementParentVertical, placementScheduleError } from './lib/scheduleFeedback'
@@ -296,7 +297,7 @@ const projectedColumns: ComputedRef<BoardColumnData[]> = computed(() => {
   // board is currently ON (owner report 2026-08-10). `anchor_date` is always present on a loaded
   // board; the fallback only covers the type, never a real payload.
   const anchor = localDate(board.anchor_date ?? isoDate(today))
-  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags, null, settlingDone))
+  return board.columns.map((c) => toColumnData(c, board, anchor, today, projectTags, null, settlingDone, hideDone.value))
 })
 /** Which column is wide is laid over the projection, not built into it: widening a column keeps every card's data as it
  *  was, so the cards don't all draw themselves again (flow 4: the first opening's redrawing went from 20.7 to 13.2 ms in a

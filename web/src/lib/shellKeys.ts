@@ -1,7 +1,8 @@
-/* The shell's window keys: privacy, Alt while dragging (the drag's listeners live here because a card arms a drag in any
+/* The shell's window keys: privacy, Hide Completed Goals, Alt while dragging (the drag's listeners live here because a card arms a drag in any
    view, so arm and release live in the one lifetime that spans them all), Esc and ⌘[ / ⌘]. */
 import { store } from '../store'
 import { isPrivacyHotkey, togglePrivacy } from './privacy'
+import { isHideDoneToggle, toggleHideDone } from './hideDone'
 import { agentChat } from './agentChat'
 import { circle } from './circle'
 import { escape as letGoOfMove, moving } from './moving'
@@ -33,6 +34,12 @@ function onWindowKeyDown(event: KeyboardEvent): void {
   if (isPrivacyHotkey(event) && !event.repeat) {
     event.preventDefault()
     void togglePrivacy()
+    return
+  }
+  // Handled here, the keys never reach the desktop app's View menu, so the item can't switch it a second time.
+  if (isHideDoneToggle(event)) {
+    event.preventDefault()
+    if (!event.repeat) toggleHideDone()
     return
   }
   if (event.key === 'Alt' && (store.state.drag.pending || store.state.drag.id)) {

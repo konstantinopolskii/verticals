@@ -82,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         config.userContentController.add(self, name: "zoom")
+        config.userContentController.add(self, name: "hideDone")
         webView = WebView(frame: .zero, configuration: config)
         webView.underPageBackgroundColor = Self.pageColor
         let zoom = UserDefaults.standard.double(forKey: "PageZoom")
@@ -693,8 +694,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     @objc func actualSize(_ sender: Any?) { setPageZoom(1) }
 
-    // The developer panel uses the same native zoom as the View menu and its shortcuts.
+    // The developer panel uses the same native zoom as the View menu and its shortcuts. The page also says whether it
+    // hides completed goals, which ticks that View menu item.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "hideDone", let on = (message.body as? NSNumber)?.boolValue {
+            UserDefaults.standard.set(on, forKey: "HideCompletedGoals")
+            return
+        }
         guard message.name == "zoom", let value = (message.body as? NSNumber)?.doubleValue else { return }
         setPageZoom(value)
     }
@@ -760,6 +766,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         equals.allowsKeyEquivalentWhenHidden = true
         view.addItem(equals)
         view.addItem(.separator())
+        let hideDoneItem = item("Hide Completed Goals", #selector(toggleHideDone(_:)), "h", [.command, .shift])
+        hideDoneItem.target = self
+        view.addItem(hideDoneItem)
         let motionItem = item("Reduce Motion", #selector(toggleReduceMotion(_:)), "")
         motionItem.target = self
         view.addItem(motionItem)
@@ -813,10 +822,25 @@ extension AppDelegate: NSMenuItemValidation {
         if item.action == #selector(chooseAppearance(_:)) {
             item.state = item.representedObject as? String == appearanceChoice ? .on : .off
         }
+        if item.action == #selector(toggleHideDone(_:)) {
+            item.state = UserDefaults.standard.bool(forKey: "HideCompletedGoals") ? .on : .off
+            return webView != nil
+        }
         if item.action == #selector(zoomIn(_:)) { return webView != nil && webView.pageZoom < 2 }
         if item.action == #selector(zoomOut(_:)) { return webView != nil && webView.pageZoom > 0.5 }
         if item.action == #selector(actualSize(_:)) { return webView != nil }
         return true
+    }
+}
+
+// MARK: Hide Completed Goals (View menu), docs/design/hide-completed.md
+//
+// The page keeps the choice (web/src/lib/hideDone.ts): its ⇧⌘H reaches the page before this menu, so the page is the one
+// place that switches it. The item asks the page to switch; its tick shows what the page last said (the `hideDone`
+// message), kept in the app's defaults (`HideCompletedGoals`) so the tick is right before the page has loaded.
+extension AppDelegate {
+    @objc func toggleHideDone(_ sender: Any?) {
+        webView?.evaluateJavaScript("window.verticalsToggleHideDone && window.verticalsToggleHideDone()")
     }
 }
 

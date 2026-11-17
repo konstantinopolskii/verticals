@@ -110,10 +110,14 @@ export function toColumnData(
   projectTags: ReadonlySet<string> = new Set(),
   expandedVertical: string | null = null,
   settling: ReadonlySet<string> = new Set(),
+  hideDone = false,
 ): BoardColumnData {
   const verticalKey = col.vertical ?? 'maybe'
-  // Optimistic completion must remove a carried row before the next server refresh.
-  const columnCards = new Map(col.goals.filter(goal => !(goal.ghost && goal.done_at !== null)).map(goal => [goal.id, goal]))
+  // Optimistic completion must remove a carried row before the next server refresh. With Hide Completed Goals on
+  // (`hideDone.ts`) no done goal is a member, so none renders, nested steps included; one still settling stays while its
+  // check draws.
+  const shown = (goal: GoalCard) => goal.done_at === null || (!goal.ghost && !(hideDone && !settling.has(goal.id)))
+  const columnCards = new Map(col.goals.filter(shown).map(goal => [goal.id, goal]))
   const cardIds = new Set(columnCards.keys())
   const roots = [...columnCards.values()].filter(goal => {
     const parent = goal.parent_id ? columnCards.get(goal.parent_id) : undefined

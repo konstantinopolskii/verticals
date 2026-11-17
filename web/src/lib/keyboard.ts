@@ -27,6 +27,7 @@ export const keyboardGroups = [
     { label: 'More actions', keys: ['/'] },
     { label: 'Find or ask', keys: ['F'] },
     { label: 'Hide or show the field', keys: [keyboardModifier, '\\'] },
+    { label: 'Hide or show completed goals', keys: [keyboardModifier, 'Shift', 'H'] },
   ] },
 ]
 
