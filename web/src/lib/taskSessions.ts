@@ -89,7 +89,7 @@ export const sessionWhen = (session: TaskSession): string => {
   return session.outside ? `Continued in ${agentName(session.provider)} · ${when}` : when
 }
 
-/** Open a session where it lives: a Codex thread in the Codex app, a Claude session in Terminal (the gateway does it). */
+/** Open a session where it lives: a Codex thread in the Codex app, a Claude session in the Claude app (the gateway does it). */
 export async function openSession(session: TaskSession): Promise<void> {
   try {
     const res = await fetch('/__chat/open', {

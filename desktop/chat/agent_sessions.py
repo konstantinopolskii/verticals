@@ -122,16 +122,38 @@ def active_claude_sessions(cwd: object, now: float, within: float = ACTIVE_SECON
     return [stem for _, stem in sorted(recent, reverse=True)]
 
 
-def open_action(provider: str, session_id: object, cwd: str | None) -> dict:
-    """How a session opens where it lives. A Codex thread opens by its link (the Codex app's deep link, `codex://threads/<id>`);
-    a Claude session opens in Terminal with `claude --resume <id>` from its own folder. Claude's docs also give a way into the
-    Claude app, `claude --desktop --resume <id>` (Claude Code 2.1.285 or later, a Claude subscription, macOS), which this does
-    not use: it says nothing of a session `claude --print` began, as the app's own are."""
+def claude_app_home() -> Path:
+    """Where the Claude app reads Claude Code's sessions: `~/.claude`. The app starts from macOS, not from Verticals, so a
+    `CLAUDE_CONFIG_DIR` in agents.env (another account's folder for Verticals' own agents) never reaches it."""
+    return Path.home() / ".claude"
+
+
+def claude_app_sees_sessions() -> bool:
+    """Whether Verticals' Claude keeps its sessions where the Claude app reads them: the same folder, whatever links lead to it."""
+    return os.path.realpath(agent_home("claude").expanduser()) == os.path.realpath(claude_app_home())
+
+
+def open_action(provider: str, session_id: object, cwd: str | None, in_claude_app: bool = True) -> dict:
+    """How a session opens where it lives: by its app's link, a Codex thread in the Codex app (`codex://threads/<id>`) and a
+    Claude session in the Claude app (`claude://resume?session=<id>`). The Claude app shows the session when it already holds
+    it, and takes one begun in Terminal or by Verticals' agent into its list, with its whole history; either way one copy of
+    Claude carries the conversation. `claude --resume <id>` in Terminal would start a second copy beside the app's, and two
+    copies writing one conversation split it.
+
+    A Claude session opens in Terminal, with `claude --resume <id>` from its own folder, when the Claude app does not read the
+    folder it is kept in (`in_claude_app`, see claude_app_sees_sessions), and as the `fallback` when no app takes the link."""
     if not is_session_id(session_id):
         raise ValueError("Not a session's id")
     if provider == "codex":
-        return {"kind": "url", "url": f"codex://threads/{session_id}"}
-    return {"kind": "terminal", "cwd": cwd or None, "command": ["claude", "--resume", str(session_id)]}
+        return {"kind": "url", "url": f"codex://threads/{session_id}", "app": "Codex"}
+    terminal = {"kind": "terminal", "cwd": cwd or None, "command": ["claude", "--resume", str(session_id)]}
+    if not in_claude_app:
+        return terminal
+    return {"kind": "url", "url": f"claude://resume?session={session_id}", "app": "Claude", "fallback": terminal}
+
+
+# What macOS's `open` says when no app takes a link (kLSApplicationNotFoundErr): a Mac without the Claude app.
+NO_APP = "-10814"
 
 
 def terminal_script(action: dict, exe: str | None, config_dir: str | None = None, config_name: str = "CLAUDE_CONFIG_DIR") -> str:

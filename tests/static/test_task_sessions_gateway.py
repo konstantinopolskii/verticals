@@ -6,6 +6,7 @@ home, unreadable, so a read of a session's contents would fail the test."""
 from __future__ import annotations
 
 import os
+import shlex
 import stat
 import time
 from collections.abc import Iterator
@@ -230,36 +231,88 @@ def test_the_watcher_looks_by_itself_and_stops_with_the_gateway(scratch_dir) -> 
         assert gate.stopping.is_set()
 
 
+FAKE_OPEN = r"""#!/bin/sh
+for a in "$@"; do echo "ARG $a" >> "$OPEN_LOG"; case "$a" in *.command) cat "$a" >> "$OPEN_LOG";; esac; done
+case "$1" in claude:*)
+  if [ -n "$NO_CLAUDE_APP" ]; then
+    echo "No application knows how to open URL $1 (Error Domain=NSOSStatusErrorDomain Code=-10814 \"kLSApplicationNotFoundErr\")." >&2
+    exit 1
+  fi
+  if [ -n "$OPEN_FAILS" ]; then echo "$OPEN_FAILS" >&2; exit 1; fi;;
+esac
+"""
+
+
 def _fake_open(folder: Path) -> Path:
     """A stand-in for macOS `open` first on the PATH: it opens nothing and writes down what it was asked, and for a script
-    what the script says."""
+    what the script says. With `NO_CLAUDE_APP` it answers a Claude link as `open` does on a Mac without the Claude app, and with
+    `OPEN_FAILS` it fails one with those words."""
     folder.mkdir(parents=True, exist_ok=True)
     script = folder / "open"
-    script.write_text("#!/bin/sh\nfor a in \"$@\"; do echo \"ARG $a\" >> \"$OPEN_LOG\"; case \"$a\" in *.command) cat \"$a\" >> \"$OPEN_LOG\";; esac; done\n")
+    script.write_text(FAKE_OPEN)
     script.chmod(0o755)
     return script
 
 
 def test_a_session_opens_where_it_lives(scratch_dir) -> None:
-    """A Codex thread by its link; a Claude session in Terminal from its folder, by a script of the app's own."""
+    """A Codex thread in the Codex app and a Claude session in the Claude app, each by its app's link. A Claude session opens in
+    Terminal from its folder, by a script of the app's own, on a Mac with no app for the link, and when Verticals' Claude keeps
+    its sessions in a folder the Claude app does not read (another account's, from agents.env)."""
     log = scratch_dir / "opened.log"
-    saved = {name: os.environ.get(name) for name in ("PATH", "OPEN_LOG")}
+    saved = {name: os.environ.get(name) for name in ("PATH", "OPEN_LOG", "NO_CLAUDE_APP", "OPEN_FAILS")}
     _fake_open(scratch_dir / "bin")
     os.environ["PATH"] = f"{scratch_dir / 'bin'}:{os.environ['PATH']}"
     os.environ["OPEN_LOG"] = str(log)
+    claude_key, codex_key = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+    script = scratch_dir / "state" / "open" / f"claude-{CLAUDE_SESSION}.command"
+
+    def opened() -> list[str]:
+        lines = log.read_text().splitlines()
+        log.unlink()
+        return lines
+
     try:
-        with homes(scratch_dir), gateway(scratch_dir) as (chat, gate):
-            known(gate, "11111111-1111-4111-8111-111111111111", "claude", CLAUDE_SESSION, cwd=FOLDER)
-            known(gate, "22222222-2222-4222-8222-222222222222", "codex", CODEX_THREAD)
-            assert gate.open_session("22222222-2222-4222-8222-222222222222") == {"kind": "url"}
-            assert log.read_text() == f"ARG codex://threads/{CODEX_THREAD}\n"
-            log.unlink()
-            assert gate.open_session("11111111-1111-4111-8111-111111111111") == {"kind": "terminal"}
-            opened = log.read_text().splitlines()
-            script = scratch_dir / "state" / "open" / f"claude-{CLAUDE_SESSION}.command"
-            assert opened[:3] == ["ARG -a", "ARG Terminal", f"ARG {script}"]
-            assert f"cd '{FOLDER}' 2>/dev/null || cd ~" in opened and opened[-1].endswith(f"claude --resume {CLAUDE_SESSION}")
+        with homes(scratch_dir) as home, gateway(scratch_dir) as (chat, gate):
+            known(gate, claude_key, "claude", CLAUDE_SESSION, cwd=FOLDER)
+            known(gate, codex_key, "codex", CODEX_THREAD)
+            assert gate.open_session(codex_key) == {"kind": "url"}
+            assert opened() == [f"ARG codex://threads/{CODEX_THREAD}"]
+
+            # Verticals' Claude and the Claude app keep their sessions in one folder, `~/.claude`: the app opens the session.
+            os.environ["CLAUDE_CONFIG_DIR"] = str(home["HOME"] / ".claude")
+            assert gate.open_session(claude_key) == {"kind": "url"}
+            assert opened() == [f"ARG claude://resume?session={CLAUDE_SESSION}"]
+            assert not script.exists()
+
+            # No app takes the link: Terminal, from the session's folder.
+            os.environ["NO_CLAUDE_APP"] = "1"
+            assert gate.open_session(claude_key) == {"kind": "terminal"}
+            lines = opened()
+            assert lines[:4] == [f"ARG claude://resume?session={CLAUDE_SESSION}", "ARG -a", "ARG Terminal", f"ARG {script}"]
+            assert f"cd '{FOLDER}' 2>/dev/null || cd ~" in lines and lines[-1].endswith(f"claude --resume {CLAUDE_SESSION}")
             assert script.stat().st_mode & 0o777 == 0o700
+            del os.environ["NO_CLAUDE_APP"]
+
+            # The app is there and fails: its words, and no second copy of Claude in Terminal.
+            os.environ["OPEN_FAILS"] = "LSOpenURLsWithRole() failed with error -600"
+            try:
+                gate.open_session(claude_key)
+            except chat.ChatError as e:
+                assert str(e) == "Claude did not open it: LSOpenURLsWithRole() failed with error -600"
+            else:
+                raise AssertionError("a failed open went unsaid")
+            assert opened() == [f"ARG claude://resume?session={CLAUDE_SESSION}"]
+            del os.environ["OPEN_FAILS"]
+
+            # Another account's folder (the test's own `<scratch>/claude`), which the Claude app does not read: Terminal, which
+            # is told that folder.
+            os.environ["CLAUDE_CONFIG_DIR"] = str(home["CLAUDE_CONFIG_DIR"])
+            script.unlink()
+            assert gate.open_session(claude_key) == {"kind": "terminal"}
+            lines = opened()
+            assert lines[:3] == ["ARG -a", "ARG Terminal", f"ARG {script}"]
+            assert f"export CLAUDE_CONFIG_DIR={shlex.quote(str(home['CLAUDE_CONFIG_DIR']))}" in lines
+            assert lines[-1].endswith(f"claude --resume {CLAUDE_SESSION}")
             try:
                 gate.open_session("99999999-9999-4999-8999-999999999999")
             except chat.ChatError as e:

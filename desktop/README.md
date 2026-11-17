@@ -36,9 +36,11 @@ launcher has its own ports, database, state directory and UI build.
   never a byte of what is in it, no model, no token. The gateway keeps each task's sessions in `chat-sessions.json`
   (`GET /__chat/sessions` is what the board polls), looks at their files every two seconds (a stat each), marks one that grew
   while Vertical wasn't driving it as "continued in Claude/Codex", and opens one where it lives (`POST /__chat/open`: a Codex
-  thread by `codex://threads/<id>`, a Claude session in Terminal by `claude --resume <id>` from its folder). A session begun
-  from a task starts with its link, `verticals://goal/<id>`; the MCP tool `session_link` (the MCP server is told where the
-  gateway is by `--gateway-url`) ties a session begun in Claude Code or Codex to a task, and it is the only way one is linked.
+  thread in the Codex app by `codex://threads/<id>`, a Claude session in the Claude app by `claude://resume?session=<id>`;
+  in Terminal by `claude --resume <id>` from its folder on a Mac without the Claude app, or when `agents.env` keeps Vertical's
+  Claude under another account's folder, which the Claude app does not read). A session begun from a task starts with its
+  link, `verticals://goal/<id>`; the MCP tool `session_link` (the MCP server is told where the gateway is by `--gateway-url`)
+  ties a session begun in Claude Code or Codex to a task, and it is the only way one is linked.
 - `chat/report_facts.py`, `chat/report_kind.py` and `chat/prompt-report.md` — what a report carries from the app
   (`GET /__report/facts`: the version, the Mac, and for a bug the last lines of `app.log`, `api.log` and `agent.log` with
   every word of the board left out), whether the words are a bug or a request (`POST /__chat/report-kind`), and what the

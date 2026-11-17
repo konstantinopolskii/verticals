@@ -107,14 +107,19 @@ def test_a_long_folder_name_is_found_by_its_first_two_hundred_letters(scratch_di
 
 
 def test_a_session_opens_where_it_lives() -> None:
-    """A Codex thread opens by its link (developers.openai.com/codex/app/commands, "Deep links"); a Claude session opens in
-    Terminal with `claude --resume <id>` from its folder (code.claude.com/docs/en/sessions, "Resume by session ID or name")."""
+    """A Codex thread opens in the Codex app by its link (developers.openai.com/codex/app/commands, "Deep links"); a Claude
+    session in the Claude app by the app's own link, which shows the session the app holds or takes one begun elsewhere into its
+    list. Terminal, with `claude --resume <id>` from the session's folder (code.claude.com/docs/en/sessions, "Resume by session ID
+    or name"), is for a Mac with no app for the link, and for sessions kept in a folder the Claude app does not read."""
     sessions = _agent_sessions()
-    assert sessions.open_action("codex", CODEX_THREAD, None) == {"kind": "url", "url": f"codex://threads/{CODEX_THREAD}"}
+    terminal = {"kind": "terminal", "cwd": FOLDER, "command": ["claude", "--resume", CLAUDE_SESSION]}
+    assert sessions.open_action("codex", CODEX_THREAD, None) == {
+        "kind": "url", "url": f"codex://threads/{CODEX_THREAD}", "app": "Codex"}
     assert sessions.open_action("claude", CLAUDE_SESSION, FOLDER) == {
-        "kind": "terminal", "cwd": FOLDER, "command": ["claude", "--resume", CLAUDE_SESSION]}
-    assert sessions.open_action("claude", CLAUDE_SESSION, None)["cwd"] is None
-    for provider, bad in (("codex", "../x"), ("claude", "x; reboot"), ("claude", "")):
+        "kind": "url", "url": f"claude://resume?session={CLAUDE_SESSION}", "app": "Claude", "fallback": terminal}
+    assert sessions.open_action("claude", CLAUDE_SESSION, FOLDER, in_claude_app=False) == terminal
+    assert sessions.open_action("claude", CLAUDE_SESSION, None)["fallback"]["cwd"] is None
+    for provider, bad in (("codex", "../x"), ("claude", "x; reboot"), ("claude", ""), ("claude", f"{CLAUDE_SESSION}&x=1")):
         try:
             sessions.open_action(provider, bad, None)
         except ValueError:
@@ -122,27 +127,51 @@ def test_a_session_opens_where_it_lives() -> None:
         raise AssertionError(f"{provider} {bad!r} was opened")
 
 
+def test_the_claude_app_sees_the_sessions_kept_in_its_own_folder(scratch_dir) -> None:
+    """The Claude app reads `~/.claude`, whatever agents.env sets for Verticals' own agents: their sessions under another
+    account's folder are out of its sight; under `~/.claude`, named outright or by a link to it, they are in it."""
+    sessions = _agent_sessions()
+    with homes(scratch_dir) as home:
+        apps = home["HOME"] / ".claude"
+        apps.mkdir()
+        assert not sessions.claude_app_sees_sessions()  # another account's folder (the test's own, `<scratch>/claude`)
+        os.environ["CLAUDE_CONFIG_DIR"] = str(apps)
+        assert sessions.claude_app_sees_sessions()
+        (scratch_dir / "linked").symlink_to(apps)
+        os.environ["CLAUDE_CONFIG_DIR"] = str(scratch_dir / "linked")
+        assert sessions.claude_app_sees_sessions()
+        del os.environ["CLAUDE_CONFIG_DIR"]  # nothing set: Claude's own `~/.claude`
+        assert sessions.claude_app_sees_sessions()
+
+
+def _in_terminal(sessions, folder: str | None) -> dict:
+    return sessions.open_action("claude", CLAUDE_SESSION, folder, in_claude_app=False)
+
+
 def test_the_terminal_script_changes_to_the_sessions_folder_and_quotes_what_it_was_given() -> None:
     sessions = _agent_sessions()
-    action = sessions.open_action("claude", CLAUDE_SESSION, FOLDER)
+    action = _in_terminal(sessions, FOLDER)
     script = sessions.terminal_script(action, "/Users/sample/.local/bin/claude")
     lines = script.splitlines()
     assert lines[0] == "#!/bin/zsh"
     assert f"cd {shlex.quote(FOLDER)} 2>/dev/null || cd ~" in lines
     assert lines[-1] == f"exec /Users/sample/.local/bin/claude --resume {CLAUDE_SESSION}"
     # No folder: Claude finds the session by its id from wherever it runs (the docs' "from any directory").
-    plain = sessions.terminal_script(sessions.open_action("claude", CLAUDE_SESSION, None), None)
+    plain = sessions.terminal_script(_in_terminal(sessions, None), None)
     assert "cd " not in plain and plain.splitlines()[-1] == f"exec claude --resume {CLAUDE_SESSION}"
     # A folder with a quote or a dollar in it stays one word.
-    odd = sessions.terminal_script(sessions.open_action("claude", CLAUDE_SESSION, "/Users/sample/it's $HOME"), None)
+    odd = sessions.terminal_script(_in_terminal(sessions, "/Users/sample/it's $HOME"), None)
     assert shlex.split(next(line for line in odd.splitlines() if line.startswith("cd ")).split(" 2>/dev/null")[0])[1] == "/Users/sample/it's $HOME"
     assert "CLAUDE_CONFIG_DIR" not in script
+    # Where no app takes the Claude app's link, its fallback is the same script.
+    fallback = sessions.open_action("claude", CLAUDE_SESSION, FOLDER)["fallback"]
+    assert sessions.terminal_script(fallback, None) == sessions.terminal_script(action, None)
 
 
 def test_the_terminal_script_keeps_the_apps_claude_sign_in() -> None:
     """Terminal starts from the owner's shell, so the app's `CLAUDE_CONFIG_DIR` (agents.env) is set again before `claude` runs."""
     sessions = _agent_sessions()
-    action = sessions.open_action("claude", CLAUDE_SESSION, FOLDER)
+    action = _in_terminal(sessions, FOLDER)
     lines = sessions.terminal_script(action, None, "/Users/sample/my claude").splitlines()
     assert lines[1] == "export CLAUDE_CONFIG_DIR='/Users/sample/my claude'"
     assert lines[-1] == f"exec claude --resume {CLAUDE_SESSION}"
