@@ -18,30 +18,6 @@ export interface BoardViewState {
   expandedVertical: string | null
   hoverChainId: string | null
   restChainId: string | null
-  /** Child lists hidden on this device. Saved locally; new tasks start expanded. */
-  collapsed: string[]
-}
-
-// --- expand / collapse (nested subgoal lists) ---------------------------------------------------
-//
-// Local presentation only: the goal hierarchy and completion state stay on the server.
-
-export function isCollapsed(view: BoardViewState, id: string): boolean {
-  return view.collapsed.includes(id)
-}
-
-export function readCollapsed(): string[] {
-  try {
-    const saved: unknown = JSON.parse(localStorage.getItem('verticals:collapsed-subtasks') ?? '[]')
-    return Array.isArray(saved) ? [...new Set(saved.filter((id): id is string => typeof id === 'string'))] : []
-  } catch { return [] }
-}
-
-export function toggleCollapsed(view: BoardViewState, id: string): void {
-  const at = view.collapsed.indexOf(id)
-  if (at === -1) view.collapsed.push(id)
-  else view.collapsed.splice(at, 1)
-  try { localStorage.setItem('verticals:collapsed-subtasks', JSON.stringify(view.collapsed)) } catch { /* session-only */ }
 }
 
 /** Header click: expand this column, collapsing whichever was expanded; a second click on the

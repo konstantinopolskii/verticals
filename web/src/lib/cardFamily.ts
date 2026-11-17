@@ -101,7 +101,7 @@ export function useCardFamily(props: {
   })
   onBeforeUnmount(() => { lightMoveToken++ })
   /* An open goal always has a list: its steps end with "Add…", and its notes follow them inside the same piece. */
-  const showChildren = computed(() => isInlineDetailHost.value || isPathLine.value || (!store.isCollapsed(props.id) && listKids.value.length > 0 && (
+  const showChildren = computed(() => isInlineDetailHost.value || isPathLine.value || (listKids.value.length > 0 && (
     inWideColumn.value
       ? (props.depth < 1 && familyDepth.value < 0) || isFocus.value
       : props.depth < 1 || isOpenRelated.value

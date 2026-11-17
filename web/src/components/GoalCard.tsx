@@ -206,10 +206,8 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
 
     const drag = useCardDrag(props, rootElement, listKids, childrenListEl)
 
-    /* The subgoals as drawn: none while folded, unless the card is a line of the open path; the drag's slot among them
-       while it is here. */
+    /* The subgoals as drawn, with the drag's slot among them while it is here. */
     const childItems = computed<(GoalItem | SlotItem)[]>(() => {
-      if (store.isCollapsed(props.id) && !isPathLine.value) return []
       const items = listKids.value.map((goal): GoalItem => ({ kind: 'goal', key: goal.id, goal }))
       return drag.slotHere.value ? withSlot(items) : items
     })
@@ -239,7 +237,6 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
 
     /** "Add…" at the end of an open goal's steps: the new step lives where its parent does, so it shows at once. */
     function onAddStep(title: string): void {
-      if (store.isCollapsed(props.id)) store.toggleCollapsed(props.id)
       void store.addDetailChild(title)
     }
     function onCardEnter(): void {
@@ -301,18 +298,6 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
       onOpenDetail()
     }
 
-    /* "Show N subtasks" while folded, "Hide" while shown; never on a line of the open path, which lists its steps. */
-    const subtasksToggle = computed(() => {
-      const count = props.children.length
-      const collapsed = store.isCollapsed(props.id)
-      if (!count || isPathLine.value || !(showChildren.value || collapsed)) return null
-      return { collapsed, label: `${collapsed ? 'Show' : 'Hide'} ${count} ${count === 1 ? 'subtask' : 'subtasks'}` }
-    })
-    function onToggleSubtasks(event: ReactMouseEvent): void {
-      event.stopPropagation()
-      store.toggleCollapsed(props.id)
-    }
-
     const cardClass = computed(() => {
       const lit = familyLit.value
       return cx('goal-card', {
@@ -369,8 +354,7 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
       titleParts, filterContext, cardStyle, cardRoot, rowEl, childrenListEl, isParent, hasMilestone, onToggle,
       isInlineDetailHost, isPathLine, familyLit, lightMove, showChildren, growList, foldList, completionLayer,
       completionMedia, completionActive, tools, inlineTitleInput, title, onTitlePress, onMenuOpenChange, drag, childItems,
-      lift, onAddStep, onRowClick, onRowContextMenu, onRowKeydown, onSearchOpen, subtasksToggle, onToggleSubtasks,
-      cardClass, rowClass, listClass, listStyle,
+      lift, onAddStep, onRowClick, onRowContextMenu, onRowKeydown, onSearchOpen, cardClass, rowClass, listClass, listStyle,
     }
   })
 
@@ -380,7 +364,6 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
   const isCombineTarget = s.drag.isCombineTarget.value
   const familyLit = s.familyLit.value
   const filterContext = s.filterContext.value
-  const toggle = s.subtasksToggle.value
   const css = !familyMovingNow.value
 
   return (
@@ -448,15 +431,6 @@ export const GoalCard: MemoExoticComponent<(props: Props) => ReactNode> = tracke
               <button type="button" data-role="search-open" className="goal-card__search-open" onClick={s.onSearchOpen}>Open</button>
             ) : null}
             {contextLabel ? <p className="goal-card__meta">{contextLabel}</p> : null}
-            {toggle ? (
-              <button
-                type="button"
-                className="goal-card__subtasks-toggle"
-                data-role="subtasks-toggle"
-                aria-expanded={!toggle.collapsed}
-                onClick={s.onToggleSubtasks}
-              >{toggle.label}</button>
-            ) : null}
             <Transition name="goal-part" css={css}>{isInlineDetailHost ? <GoalFacts id={id} /> : null}</Transition>
           </div>
           <GoalCardTools
