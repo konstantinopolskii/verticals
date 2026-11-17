@@ -7,8 +7,9 @@
 Runs OLD's launcher on a scratch state folder (fresh, so it loads the sample board, or a copy of
 DIR with Verticals quit), counts the rows of every table and stops it. Then runs NEW on the same
 folder, as an update does. NEW must come up healthy, serve the board and the docs, and keep at
-least as many rows in every table. DIR is only read. Spare ports keep a running Verticals
-undisturbed. The release workflow runs this against the previous release before publishing.
+least as many rows in every table. Exit 3 means OLD itself failed, so the check says nothing
+about NEW. DIR is only read. Spare ports keep a running Verticals undisturbed. The release
+workflow runs this against the previous release before publishing.
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+OLD_FAILED = 3
 PORTS = {"UI": 18288, "API": 18299, "MCP": 18281, "PG": 55939}
 UI = f"http://127.0.0.1:{PORTS['UI']}"
 COUNT = """import json, sys, psycopg
@@ -117,13 +119,16 @@ def main():
             seen[app] = app.check()
             app.stop()
     except BaseException:
-        for app in (old, new):
-            if app.proc and app.proc.poll() is None:
-                app.proc.send_signal(signal.SIGTERM)
-                app.proc.wait(timeout=60)
+        failed = app
+        for each in (old, new):
+            if each.proc and each.proc.poll() is None:
+                each.proc.send_signal(signal.SIGTERM)
+                each.proc.wait(timeout=60)
         log.flush()
         print((work / "launcher.log").read_text()[-4000:], file=sys.stderr)
         say(f"failed; launcher and database logs are in {work}")
+        if failed is old:
+            sys.exit(OLD_FAILED)
         raise
     before, after = seen[old], seen[new]
     lost = {t: (n, after["rows"].get(t)) for t, n in before["rows"].items() if after["rows"].get(t, -1) < n}

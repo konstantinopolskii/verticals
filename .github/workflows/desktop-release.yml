@@ -70,14 +70,24 @@ jobs:
 
       - name: Upgrade check
         run: |
-          if gh release view >/dev/null 2>&1; then
-            gh release download --pattern Verticals.zip --dir previous
-            ditto -x -k previous/Verticals.zip previous
-            python3 desktop/macos/upgrade_check.py previous/Verticals.app desktop/dist/Verticals.app
-            python3 desktop/macos/lite_check.py previous/Verticals.app desktop/dist/Verticals-lite.zip
-          else
-            echo "::notice::No earlier release to upgrade from"
+          tags=$(gh release list --exclude-drafts --limit 100 --json tagName --jq '.[].tagName')
+          if [ -z "$tags" ]; then
+            echo "::notice::No earlier release to upgrade from"; exit 0
           fi
+          latest=$(head -n1 <<< "$tags")
+          for tag in $tags; do
+            rm -rf previous
+            gh release download "$tag" --pattern Verticals.zip --dir previous
+            ditto -x -k previous/Verticals.zip previous
+            if [ "$tag" = "$latest" ]; then
+              python3 desktop/macos/lite_check.py previous/Verticals.app desktop/dist/Verticals-lite.zip
+            fi
+            python3 desktop/macos/upgrade_check.py previous/Verticals.app desktop/dist/Verticals.app && exit 0
+            rc=$?
+            [ "$rc" -eq 3 ] || exit "$rc"
+            echo "::warning::$tag does not start; checking the upgrade from the release before it"
+          done
+          echo "::error::No earlier release starts"; exit 1
 
       - name: Release text
         run: |
