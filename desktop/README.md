@@ -244,7 +244,8 @@ The database survives an update three ways:
 
 - Before publishing, the workflow runs `desktop/macos/upgrade_check.py` with the previous
   release: the old app makes a board, the new one starts on it. No release if the new one does not
-  come up, does not serve the board, or has fewer rows in any table. Run it by hand on a copy of
+  come up, does not serve the board, or has fewer rows in any table. A previous release that does
+  not start itself is skipped for the one before it, so a broken release can be fixed. Run it by hand on a copy of
   real data before a risky migration (Vertical quit, the folder is only read):
   `python3 desktop/macos/upgrade_check.py /Applications/Verticals.app desktop/dist/Verticals.app --state ~/Library/Application\ Support/Verticals`
 - The install waits for PostgreSQL to stop (up to a minute, otherwise it waits for the next quit),
