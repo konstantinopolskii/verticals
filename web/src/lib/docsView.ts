@@ -7,8 +7,7 @@
 // The folder tree is NOT stored state: `docTree()` below derives it fresh from `list` on every
 // call — `core/docs.py`'s own module docstring states the rule once ("the folder tree is just
 // paths... no folder table") and this is the client-side half of it. `collapsedFolders` is the
-// one piece of view state this file owns that has no server counterpart at all, session-only,
-// the same shape as `store.ts`'s own board `collapsed` id list.
+// one piece of view state this file owns that has no server counterpart at all, session-only.
 
 import { toast } from '../kit'
 import type { InternalLink } from './bodyMarkdown'
@@ -70,8 +69,7 @@ export interface DocsState {
   currentId: string | null
   current: DocDetail | null
   currentLoading: boolean
-  /** Folder paths currently folded shut. A folder not in this list renders expanded — the same
-   *  "expanded by default" default `store.ts`'s own `collapsed` (subtask lists) uses. */
+  /** Folder paths currently folded shut. A folder not in this list renders expanded. */
   collapsedFolders: string[]
   historyOpen: boolean
   history: DocRevisionSummary[] | null
