@@ -561,7 +561,7 @@ def main():
         wait_healthy()
         from quick_entry import QuickEntry
         try:
-            QuickEntry(STATE, chat).onboard()
+            QuickEntry(STATE, running["chat"]).onboard()
         except (ChatError, OSError):
             log("Quick Entry onboarding will retry on the next launch")
         write_mcp_config(cfg["token"])
