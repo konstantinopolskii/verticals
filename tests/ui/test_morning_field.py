@@ -8,6 +8,7 @@ report in red. Sample sources only ("Team chat", "Mail")."""
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
@@ -26,6 +27,8 @@ from verticals.core import docs as core_docs
 
 RED = "rgb(201, 58, 91)"
 COMMENT = "Ask the lawyer first | and not before Friday"
+#: Verticals → Morning Report switched off on this device (web/src/lib/morningSwitch.ts keeps the choice in the page's storage).
+SWITCHED_OFF = "localStorage.setItem('verticals:morning-report', '0')"
 
 
 @pytest.fixture
@@ -34,7 +37,8 @@ def ui_morning(
 ) -> Iterator[UiSession]:
     """F2 with two sample sources and yesterday's report, served by the desktop gateway over the fake agent, the pinned day's
     morning report NOT taken: the app (its clock says 09:00) asks for it by itself as it opens. `request.param` shapes the day:
-    `scenario` (the fake agent's, `fake_morning.py`), `mail_approved`, `comment` (left in yesterday's report on a task)."""
+    `scenario` (the fake agent's, `fake_morning.py`), `mail_approved`, `comment` (left in yesterday's report on a task),
+    `switched_off` (Verticals → Morning Report off on this device before the app first opens)."""
     plan = getattr(request, "param", {})
     with _backend(f2_dsn, F2_OWNER, tmp_path) as backend:
         with _agent_gateway(backend, tmp_path, env={"VERTICALS_TEST_CHECK_LIMIT": "30"}) as base_url:
@@ -52,6 +56,7 @@ def ui_morning(
             scenario.write_text(json.dumps({"morning": True, "raw": RAW, **plan.get("scenario", {})}))
             yield from _make_ui_session(
                 browser=browser, backend=backend, static_base_url=base_url, request=request, reduced_motion=ui_reduced_motion,
+                init_script=SWITCHED_OFF if plan.get("switched_off") else None,
             )
 
 
@@ -117,6 +122,26 @@ def test_a_report_that_fails_its_check_is_fixed_while_the_field_goes_on_working_
     assert body.split("\n")[0] == "Checked against the sources by a second agent: all 10 passed."
     assert "| Every message placed | Fixed |" in body
     expect(page.locator('[data-role="agent-step"]')).to_have_count(0)
+
+
+@pytest.mark.parametrize("ui_morning", [{"switched_off": True}], indirect=True)
+def test_switched_off_on_this_device_the_app_neither_asks_for_the_report_nor_takes_the_day(ui_morning: UiSession) -> None:
+    page = ui_morning.page
+    # The app looks for the report as soon as the agent has answered (lib/appLifetime.ts); give that look its moment.
+    deadline = time.monotonic() + 30
+    while not any(r["url"].endswith("/__chat/agents") for r in ui_morning.request_log):
+        assert time.monotonic() < deadline, "the agent never answered"
+        page.wait_for_timeout(200)
+    page.wait_for_timeout(1500)
+    assert not [r for r in ui_morning.request_log if "/api/morning" in r["url"]], "the app asked for the report"
+    expect(page.locator('[data-role="agent-step"]')).to_have_count(0)
+    expect(page.locator('[data-role="circle-answer"]')).to_have_count(0)
+    # The day is still free: the first ask of it is still the day's one.
+    with _api(ui_morning) as api:
+        assert api.post(f"/api/morning?date={PINNED_DAY}").json()["asked"] is True
+    # The app's menu item switches it back through the page, which keeps the choice on this device.
+    switched = "() => { window.verticalsToggleMorningReport(); return localStorage.getItem('verticals:morning-report') }"
+    assert page.evaluate(switched) == "1"
 
 
 @pytest.mark.parametrize("ui_morning", [{"comment": COMMENT}], indirect=True)

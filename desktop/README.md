@@ -76,6 +76,15 @@ nothing there while no choice is made, so the page asks macOS as a browser does.
 the switch, and scripts through `reducedMotion()` in `web/src/lib/motion.ts`. A column bounces at its ends
 (`overscroll-behavior: contain`) unless motion is reduced.
 
+## Morning Report
+
+Verticals → Morning Report is a checkmark under Check for Updates…, on until switched off. Off, this Mac no longer
+asks the agent for the day's report: no conversation starts at 07:00, and the "Morning report" task stays where it is
+(`ensureMorning` in `web/src/lib/morning.ts`). The page is what asks, so the page keeps the choice in its own storage
+(`web/src/lib/morningSwitch.ts`); the item asks the page to switch, and its tick shows what the page last said
+(`MorningReport` in the app's defaults). Switched back on, a day with no report yet gets it at the next look, within
+five minutes. A browser with the board open keeps a choice of its own.
+
 ## Menu bar
 
 Closing the window keeps Vertical running: PostgreSQL, the API and MCP stay up for agents, the Dock
