@@ -4,6 +4,9 @@ import { outOfFocus } from './windows'
 import { HELD_ATTR, releaseLifts, whenHandMoves } from './cardLift'
 
 export const keyboardHelpOpen = ref(false)
+/* No button for the guide stands on the board (KK, 18 November 2026): ? opens it there, and in the desktop app
+   Help › Keyboard Shortcuts (⌘/) opens it from any view through this (desktop/macos/Verticals.swift). */
+;(window as { verticalsOpenKeyboardGuide?: () => void }).verticalsOpenKeyboardGuide = () => { keyboardHelpOpen.value = true }
 export const keyboardModifier = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'
 
 export const keyboardGroups = [

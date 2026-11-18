@@ -8,6 +8,11 @@ FIELD = '.circle-field__words textarea'
 GUIDE = 'dialog.keyboard-guide'
 
 
+def open_from_menu(page):
+    """Help › Keyboard Shortcuts (⌘/) in the desktop app: the menu asks the page to open the guide, the focus staying where it is."""
+    page.evaluate('window.verticalsOpenKeyboardGuide()')
+
+
 def start(page, vertical='day'):
     page.wait_for_selector('.goal-card__row')
     activate_column(page, vertical)
@@ -19,6 +24,8 @@ def start(page, vertical='day'):
 def test_guide_restores_focus_and_consumes_no_board_actions(ui_f2: UiSession):
     page = ui_f2.page
     row = start(page)
+    # No button for the guide stands on the board: ? opens it there, the app's Help menu from any view.
+    expect(page.get_by_role('button', name='Keyboard shortcuts', exact=True)).to_have_count(0)
     page.keyboard.press('?')
     expect(page.locator(GUIDE)).to_be_visible()
     expect(page.locator(FIELD)).to_have_value('')
@@ -43,7 +50,7 @@ def test_help_preserves_uncommitted_title_and_selection(ui_f2: UiSession):
     title = page.locator('.goal-card__title-input')
     title.fill('Unfinished keyboard title')
     title.evaluate('el => el.setSelectionRange(3, 8)')
-    page.get_by_role('button', name='Keyboard shortcuts', exact=True).click()
+    open_from_menu(page)
     expect(page.locator(GUIDE)).to_be_visible()
     expect(title).to_have_value('Unfinished keyboard title')
     assert not any(r['method'] == 'PATCH' and '/api/goals/' in r['url'] for r in ui_f2.request_log)
@@ -98,7 +105,7 @@ def test_guide_empty_columns_context_and_layout(ui_f2: UiSession):
     start(page)
     for viewport in [dict(width=1440, height=900), dict(width=393, height=659)]:
         page.set_viewport_size(viewport)
-        page.get_by_role('button', name='Keyboard shortcuts', exact=True).click()
+        open_from_menu(page)
         guide = page.locator(GUIDE)
         expect(guide).to_be_visible()
         assert guide.evaluate('el => el.scrollWidth <= el.clientWidth')
@@ -120,7 +127,7 @@ def test_help_leaves_open_details_and_backdrop_restores_focus(ui_f2: UiSession):
     row = start(page)
     page.keyboard.press('Space')
     expect(page.locator('#goal-detail')).to_be_visible()
-    page.get_by_role('button', name='Keyboard shortcuts', exact=True).click()
+    open_from_menu(page)
     expect(page.locator(GUIDE)).to_be_visible()
     page.mouse.click(5, 5)
     expect(page.locator(GUIDE)).not_to_be_visible()
@@ -154,7 +161,7 @@ def test_help_escape_precedes_the_field_notice(ui_f2: UiSession):
     page.keyboard.press('/')
     page.locator('[data-role="goal-context-menu"] [data-move="tomorrow"]').click()
     expect(page.locator('[data-role="field-notice"]')).to_be_visible()
-    page.get_by_role('button', name='Keyboard shortcuts', exact=True).click()
+    open_from_menu(page)
     expect(page.locator(GUIDE)).to_be_visible()
     page.keyboard.press('Escape')
     expect(page.locator(GUIDE)).not_to_be_visible()
@@ -165,7 +172,7 @@ def test_add_draft_survives_help_and_n_refocuses_it(ui_f2: UiSession):
     start(page)
     page.keyboard.press('n')
     editor = page.locator('[data-role="column-add-editor"]')
-    page.get_by_role('button', name='Keyboard shortcuts', exact=True).click()
+    open_from_menu(page)
     page.keyboard.press('Escape')
     expect(editor).to_be_focused()
     editor.fill('Pending creation')
@@ -197,7 +204,7 @@ def test_help_preserves_an_empty_subgoal_editor(ui_f2: UiSession):
     page.locator('[data-role="subgoal-add"]').click()
     editor = page.locator('[data-role="subgoal-add-editor"]')
     expect(editor).to_be_focused()
-    page.get_by_role('button', name='Keyboard shortcuts', exact=True).click()
+    open_from_menu(page)
     expect(page.locator(GUIDE)).to_be_visible()
     page.keyboard.press('Escape')
     expect(editor).to_be_visible()
