@@ -560,7 +560,7 @@ class UiSession:
 
 def _make_ui_session(
     *, browser: Browser, backend: Server, static_base_url: str, request: pytest.FixtureRequest,
-    reduced_motion: str, color_scheme: str | None = None,
+    reduced_motion: str, color_scheme: str | None = None, init_script: str | None = None,
 ) -> Iterator[UiSession]:
     context = browser.new_context(
         viewport=VIEWPORT,
@@ -568,6 +568,9 @@ def _make_ui_session(
         color_scheme=color_scheme,
     )
     context.add_init_script(script=_DIALOG_RECORDER_SCRIPT)
+    # What the page finds already on this device before it first loads, such as a choice kept in its storage.
+    if init_script:
+        context.add_init_script(script=init_script)
     page = context.new_page()
 
     console_errors: list[str] = []

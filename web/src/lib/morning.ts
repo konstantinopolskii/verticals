@@ -10,6 +10,7 @@
 // done (desktop/chat/morning_flow.py; docs/design/morning-quality.md): the field shows the step meanwhile. The comments you
 // left in the last report are on their tasks by then (the server's answer to `beginMorning`), and the ask lists them.
 import { beginMorning, type LandedComment } from './api'
+import { morningReport } from './morningSwitch'
 import { agentChat, newThread, send } from './agentChat'
 import { commandFilter } from './commandFilter'
 
@@ -66,9 +67,9 @@ let owed: { day: string; task: string; landed: LandedComment[] } | null = null
  *  once. The server decides which ask is the day's one (POST /api/morning), not a flag in this browser, so a second
  *  window, a restart or a cleared cache never asks again; it also makes or moves the one open "Morning report" task to
  *  today, and the ask names it (docs/design/agent-fixes.md, fixes 3 and 2). Not while you talk with the agent or type:
- *  then it waits for the next look. */
+ *  then it waits for the next look. Never while Verticals → Morning Report is off on this device (`morningSwitch.ts`). */
 export async function ensureMorning(today: string, now: Date = new Date()): Promise<boolean> {
-  if (now.getHours() < MORNING_HOUR || !free() || looking) return false
+  if (!morningReport.value || now.getHours() < MORNING_HOUR || !free() || looking) return false
   if (owed && owed.day === today) {
     const { task, landed } = owed
     owed = null

@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         buildTray()
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
+        config.userContentController.add(PageChoice(key: "MorningReport"), name: "morningReport")
         config.userContentController.add(self, name: "zoom")
         webView = WebView(frame: .zero, configuration: config)
         webView.underPageBackgroundColor = Self.pageColor
@@ -727,6 +728,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         updates.target = self
         app.addItem(updates)
         app.addItem(.separator())
+        let morningItem = item("Morning Report", #selector(toggleMorningReport(_:)), "")
+        morningItem.target = self
+        app.addItem(morningItem)
+        app.addItem(.separator())
         app.addItem(item("Hide Verticals", #selector(NSApplication.hide(_:)), "h"))
         app.addItem(.separator())
         let restartItem = item("Restart Verticals", #selector(restart(_:)), "")
@@ -786,6 +791,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 }
 
+// MARK: Morning Report (app menu), desktop/README.md
+//
+// On until switched off. The page keeps the choice (web/src/lib/morningSwitch.ts), since it is the page that asks the
+// agent for the day's report. The item asks the page to switch; its tick shows what the page last said (the
+// `morningReport` message), kept in the app's defaults (`MorningReport`) so the tick is right before the page has loaded.
+extension AppDelegate {
+    @objc func toggleMorningReport(_ sender: Any?) {
+        webView?.evaluateJavaScript("window.verticalsToggleMorningReport && window.verticalsToggleMorningReport()")
+    }
+}
+
+/// A choice the page keeps and reports as true or false, saved in the app's defaults under `key` for a menu item's tick.
+final class PageChoice: NSObject, WKScriptMessageHandler {
+    let key: String
+    init(key: String) { self.key = key }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if let on = (message.body as? NSNumber)?.boolValue { UserDefaults.standard.set(on, forKey: key) }
+    }
+}
+
 // MARK: Reduce Motion (View menu), docs/design/column-bounce.md
 //
 // The checkmark shows macOS's own Reduce motion until the person clicks it; from then on it shows their choice, kept in the
@@ -810,6 +836,10 @@ extension AppDelegate: NSMenuItemValidation {
     // The checkmark is read when the menu opens, so it follows macOS while the person has not chosen.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(toggleReduceMotion(_:)) { item.state = reduceMotion ? .on : .off }
+        if item.action == #selector(toggleMorningReport(_:)) {
+            item.state = (UserDefaults.standard.object(forKey: "MorningReport") as? Bool ?? true) ? .on : .off
+            return webView != nil
+        }
         if item.action == #selector(chooseAppearance(_:)) {
             item.state = item.representedObject as? String == appearanceChoice ? .on : .off
         }
