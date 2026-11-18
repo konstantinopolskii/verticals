@@ -72,6 +72,26 @@ def _stored_events(session: UiSession) -> list[dict]:
         ".flatMap(([, value]) => JSON.parse(value))")
 
 
+def test_the_window_saves_its_agent_settings_for_the_background_timer(ui_morning: UiSession, tmp_path: Path) -> None:
+    page = ui_morning.page
+    expect(page.locator('[data-role="circle-answer"]')).to_contain_text("Morning report", timeout=30000)
+    page.locator('.circle-field__shape').click()
+    page.locator('.agent-tag').click()
+    with page.expect_response(lambda r: r.url.endswith('/__chat/morning') and r.request.method == 'POST', timeout=5000):
+        page.get_by_role('button', name='Bypass permissions', exact=True).click()
+    page.screenshot(path=str(tmp_path / "background-settings.png"))
+    with page.expect_response(lambda r: r.url.endswith('/__chat/morning') and r.request.method == 'POST', timeout=5000):
+        page.reload()
+    saved = json.loads((ui_morning.backend._tmp_path / "desktop-state/morning.json").read_text())
+    assert saved["settings"]["provider"] == "claude"
+    assert saved["settings"]["permission"] == "bypassPermissions"
+    assert saved["timezone"] == page.evaluate("Intl.DateTimeFormat().resolvedOptions().timeZone")
+    report = _report(ui_morning)
+    page.goto(f"{ui_morning.base_url}/#doc/{report['id']}")
+    expect(page.locator('.doc-detail__body')).to_contain_text("all 10 passed")
+    page.screenshot(path=str(tmp_path / "background-report.png"))
+
+
 @pytest.mark.parametrize("ui_morning", [{"scenario": {"checker_delay": 4}}], indirect=True)
 def test_the_step_is_written_inside_the_field_and_the_report_is_told_only_after_the_check(ui_morning: UiSession) -> None:
     page = ui_morning.page
