@@ -5,6 +5,7 @@
 import { computed, reactive } from '../reactivity'
 import { fetchSpans, type BoardResponse, type GoalCard } from './api'
 import { toColumnData } from './boardProjection'
+import { hideDone } from './hideDone'
 import { ghostOf } from './ghost'
 import { adjacentPeriodAnchor, type AdjustableVertical } from './periodNavigation'
 import { VERTICAL_SCALES, MONTH_NAMES, verticalRank, type VerticalScale } from './periods'
@@ -236,7 +237,8 @@ export const spanRow = computed<SpanColumn[]>(() => {
     const edge = n < spans.offset ? 'before' : x >= right ? 'after' : null
     const { date, end } = start ? spanDates(scale, start) : { date: '', end: '' }
     out.push({
-      n, column: col && start ? toColumnData(col, board, localDate(start), now) : null, how: howFar(scale, n), date,
+      n, column: col && start ? toColumnData(col, board, localDate(start), now, undefined, null, undefined, hideDone.value) : null,
+      how: howFar(scale, n), date,
       end: knob('spanEnds') ? end : '', start, edge,
     })
   }

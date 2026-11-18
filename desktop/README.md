@@ -64,6 +64,14 @@ update popover and page take the choice: the app sets its own appearance, and th
 follows the web view's (`web/src/design/tokens.css`). A change updates an open window immediately and keeps the current view
 and draft.
 
+## Hide Completed Goals
+
+View → Hide Completed Goals (⇧⌘H) is a checkmark above Reduce Motion: with it on, the board leaves done goals out of its
+columns, steps under a goal too (docs/design/hide-completed.md). The page keeps the choice on this device
+(`web/src/lib/hideDone.ts`) and takes ⇧⌘H itself, so the keys work in a browser too and never reach the menu; the item
+asks the page to switch (`window.verticalsToggleHideDone`), and its tick shows what the page last reported through the
+`hideDone` message (`HideCompletedGoals` in the app's defaults).
+
 ## Reduce Motion
 
 View → Reduce Motion is a checkmark between Reload and Enter Full Screen. It starts as macOS's own Reduce motion

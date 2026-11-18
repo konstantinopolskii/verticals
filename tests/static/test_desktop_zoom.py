@@ -33,7 +33,8 @@ class DesktopZoomTests(unittest.TestCase):
         test_source.write_text(delegate)
         program = work / ("verticals-zoom-check-" + uuid.uuid4().hex)
         sources = [test_source, *(ROOT / "desktop/macos" / name for name in
-                                  ("AppLinks.swift", "Updater.swift", "UpdateIndicator.swift")),
+                                  ("AppLinks.swift", "Updater.swift", "UpdateIndicator.swift", "QuickEntry.swift",
+                                   "QuickEntryKeys.swift")),
                    ROOT / "tests/static/desktop_zoom_check.swift"]
         build = subprocess.run([shutil.which("swiftc") or "swiftc", "-parse-as-library", "-target",
                                 "arm64-apple-macos13.0", "-module-cache-path", str(work / "modules"),
@@ -50,6 +51,13 @@ class DesktopZoomTests(unittest.TestCase):
             self.assertIn(title, commands)
         self.assertIn("Reduce Motion", commands)
         self.assertIn("Reload", commands)
+
+    def test_hide_completed_goals_asks_the_page_and_ticks_by_its_answer(self):
+        """View → Hide Completed Goals (docs/design/hide-completed.md): ⇧⌘H, the page switches, the tick follows it."""
+        self.assertIn("Hide Completed Goals", self.observed["commands"])
+        self.assertEqual(self.observed["hideDoneKey"], ["h", "shift-command"])
+        self.assertEqual(self.observed["hideDoneTicks"], [True, False])
+        self.assertFalse(self.observed["pageHidesDone"])
 
     def test_plus_and_equals_enlarge_and_minus_reverses_the_last_step(self):
         self.assertTrue(self.observed["equalsHandled"])
