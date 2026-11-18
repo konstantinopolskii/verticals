@@ -99,7 +99,9 @@ def test_a_goal_checked_off_keeps_its_place_while_its_check_draws_then_leaves(ui
 
 def test_the_keyboard_guide_lists_the_keys(ui_f2: UiSession) -> None:
     page = board(ui_f2)
-    page.click("button.keyboard-help")
+    # ? on a goal opens the guide, with or without a button for it on the board.
+    page.locator(".goal-card__row").first.focus()
+    page.keyboard.press("?")
     binding = page.locator(".keyboard-guide__binding", has_text="Hide or show completed goals")
     expect(binding).to_have_count(1)
     assert [k.strip() for k in binding.locator("kbd").all_inner_texts()][1:] == ["Shift", "H"]
