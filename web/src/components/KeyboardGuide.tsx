@@ -12,7 +12,6 @@ function Keys({ values }: { values: string[] }) {
 
 export const KeyboardGuide = tracked(function KeyboardGuide() {
   const dialog = useRef<HTMLDialogElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
   const previous = useRef<HTMLElement | null>(null)
   const selection = useRef<[number | null, number | null] | null>(null)
   const open = keyboardHelpOpen.value
@@ -36,7 +35,7 @@ export const KeyboardGuide = tracked(function KeyboardGuide() {
       el.showModal()
     } else if (!open && el.open) {
       el.close()
-      const destination = previous.current?.isConnected ? previous.current : trigger.current
+      const destination = previous.current?.isConnected ? previous.current : null
       destination?.focus({ preventScroll: true })
       if ((destination instanceof HTMLInputElement || destination instanceof HTMLTextAreaElement) && selection.current) {
         const [start, end] = selection.current
@@ -57,9 +56,6 @@ export const KeyboardGuide = tracked(function KeyboardGuide() {
   }
   const close = () => { keyboardHelpOpen.value = false }
   return <>
-    <button ref={trigger} type="button" className="keyboard-help" aria-label="Keyboard shortcuts"
-      aria-haspopup="dialog" data-open-region="keyboard-help" onPointerDown={(event) => event.preventDefault()}
-      onClick={() => { keyboardHelpOpen.value = true }}><span aria-hidden="true">?</span><span>Keyboard shortcuts</span></button>
     <dialog ref={dialog} className="keyboard-guide" data-open-region="keyboard-help" aria-labelledby="keyboard-guide-title"
       aria-describedby="keyboard-guide-context" onCancel={(event) => { event.preventDefault(); close() }}
       onClose={close} onClick={(event) => {

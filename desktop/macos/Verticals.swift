@@ -777,12 +777,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let win = NSMenu(title: "Window")
         win.addItem(item("Minimize", #selector(NSWindow.miniaturize(_:)), "m"))
         win.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
-        for (title, menu) in [("Verticals", app), ("Edit", edit), ("View", view), ("Window", win)] {
+        let help = NSMenu(title: "Help")
+        let shortcutsItem = item("Keyboard Shortcuts", #selector(showKeyboardShortcuts(_:)), "/")
+        shortcutsItem.target = self
+        help.addItem(shortcutsItem)
+        for (title, menu) in [("Verticals", app), ("Edit", edit), ("View", view), ("Window", win), ("Help", help)] {
             let top = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             top.submenu = menu
             main.addItem(top)
         }
         NSApp.mainMenu = main
+        NSApp.helpMenu = help
     }
 }
 
@@ -816,6 +821,7 @@ extension AppDelegate: NSMenuItemValidation {
         if item.action == #selector(zoomIn(_:)) { return webView != nil && webView.pageZoom < 2 }
         if item.action == #selector(zoomOut(_:)) { return webView != nil && webView.pageZoom > 0.5 }
         if item.action == #selector(actualSize(_:)) { return webView != nil }
+        if item.action == #selector(showKeyboardShortcuts(_:)) { return webView != nil }
         return true
     }
 }
@@ -836,6 +842,16 @@ extension AppDelegate {
     @objc func chooseAppearance(_ sender: NSMenuItem) {
         UserDefaults.standard.set(sender.representedObject as? String, forKey: "Appearance")
         applyAppearance()
+    }
+}
+
+// MARK: Keyboard Shortcuts (Help menu), docs/design/keyboard-guide.md
+//
+// The guide is the page's own dialog; no button for it stands on the board, so in the app it opens from here or with ?
+// on the board. The page's keys ignore ⌘/, so it reaches this item from any view.
+extension AppDelegate {
+    @objc func showKeyboardShortcuts(_ sender: Any?) {
+        webView?.evaluateJavaScript("window.verticalsOpenKeyboardGuide && window.verticalsOpenKeyboardGuide()")
     }
 }
 
