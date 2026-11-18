@@ -1,6 +1,6 @@
 # Keyboard shortcut guide
 
-The centered guide opens with `?` from a focused board goal or column or from the board's background, or in the desktop app through Help → Keyboard Shortcuts (Cmd+/) in any view. No button for it stands on the board (KK, 18 November 2026: the hints should not be a visible button and live only in the app's menu for now, until a more elegant way is found). Escape, Close or a press outside dismisses it and restores the invoking control. Opening help preserves unfinished titles and their text selection.
+The centered guide opens with `?` from a focused board goal or column or from the board's background, or in the desktop app through Help → Keyboard Shortcuts (Cmd+/) in any view. No button for it stands on the board. Escape, Close or a press outside dismisses it and restores the invoking control. Opening help preserves unfinished titles and their text selection.
 
 The window uses the app's Commissioner font, window radius, shadow and appearance tokens. Navigate, History and Goals stay in fixed groups. Mac history keys show Command; other platforms show Ctrl. Narrow windows stack the groups and scroll the dialog; dark appearance follows the system.
 
